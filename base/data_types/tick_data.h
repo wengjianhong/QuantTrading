@@ -5,7 +5,7 @@
 #include <chrono>
 
 namespace quant {
-namespace shared {
+namespace base {
 namespace data_types {
 
 // 标准化Tick数据结构
@@ -32,5 +32,5 @@ struct RawTickData {
 };
 
 } // namespace data_types
-} // namespace shared
+} // namespace base
 } // namespace quant

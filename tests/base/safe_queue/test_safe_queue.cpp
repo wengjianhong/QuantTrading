@@ -3,53 +3,53 @@
 #include <vector>
 #include <atomic>
 #include <numeric>
-#include "shared/base/lock_free/lock_free_queue.h"
+#include "base/common/safe_queue/safe_queue.h"
 
-using namespace quant::shared::base::lock_free;
+using namespace quant::base::common::safe_queue;
 
 // 基本功能测试
-TEST(LockFreeQueueTest, BasicOperations) {
-    LockFreeQueue<int> queue;
+TEST(SafeQueueTest, BasicOperations) {
+    SafeQueue<int> queue;
     
     // 初始状态应为空
     EXPECT_TRUE(queue.empty());
     
     // 入队操作
-    queue.enqueue(10);
-    queue.enqueue(20);
+    queue.push(10);
+    queue.push(20);
     EXPECT_FALSE(queue.empty());
     
     // 出队操作
     int value;
-    EXPECT_TRUE(queue.dequeue(value));
+    EXPECT_TRUE(queue.pop(value));
     EXPECT_EQ(value, 10);
     
-    EXPECT_TRUE(queue.dequeue(value));
+    EXPECT_TRUE(queue.pop(value));
     EXPECT_EQ(value, 20);
     
     // 队列应为空
-    EXPECT_FALSE(queue.dequeue(value));
+    EXPECT_FALSE(queue.pop(value));
     EXPECT_TRUE(queue.empty());
 }
 
 // 移动语义测试
-TEST(LockFreeQueueTest, MoveSemantics) {
-    LockFreeQueue<std::string> queue;
+TEST(SafeQueueTest, MoveSemantics) {
+    SafeQueue<std::string> queue;
     std::string str = "test string";
     
     // 测试移动入队
-    queue.enqueue(std::move(str));
+    queue.push(std::move(str));
     EXPECT_TRUE(str.empty());  // 原字符串应被移动
     
     // 测试移动出队
     std::string result;
-    EXPECT_TRUE(queue.dequeue(result));
+    EXPECT_TRUE(queue.pop(result));
     EXPECT_EQ(result, "test string");
 }
 
 // 多生产者单消费者测试
-TEST(LockFreeQueueTest, MultipleProducers) {
-    LockFreeQueue<int> queue;
+TEST(SafeQueueTest, MultipleProducers) {
+    SafeQueue<int> queue;
     const int kNumProducers = 4;
     const int kItemsPerProducer = 1000;
     std::vector<std::thread> producers;
@@ -58,7 +58,7 @@ TEST(LockFreeQueueTest, MultipleProducers) {
     for (int i = 0; i < kNumProducers; ++i) {
         producers.emplace_back([&queue, i, kItemsPerProducer]() {
             for (int j = 0; j < kItemsPerProducer; ++j) {
-                queue.enqueue(i * kItemsPerProducer + j);
+                queue.push(i * kItemsPerProducer + j);
             }
         });
     }
@@ -71,7 +71,7 @@ TEST(LockFreeQueueTest, MultipleProducers) {
     // 单消费者消费所有元素
     std::vector<int> results;
     int value;
-    while (queue.dequeue(value)) {
+    while (queue.pop(value)) {
         results.push_back(value);
     }
     
@@ -80,14 +80,14 @@ TEST(LockFreeQueueTest, MultipleProducers) {
     
     // 验证所有元素都被正确生产和消费
     std::sort(results.begin(), results.end());
-    for (int i = 0; i < results.size(); ++i) {
+    for (unsigned int i = 0; i < results.size(); ++i) {
         EXPECT_EQ(results[i], i);
     }
 }
 
 // 多生产者多消费者测试
-TEST(LockFreeQueueTest, MultipleProducersConsumers) {
-    LockFreeQueue<int> queue;
+TEST(SafeQueueTest, MultipleProducersConsumers) {
+    SafeQueue<int> queue;
     const int kNumProducers = 4;
     const int kNumConsumers = 2;
     const int kItemsPerProducer = 1000;
@@ -100,7 +100,7 @@ TEST(LockFreeQueueTest, MultipleProducersConsumers) {
     for (int i = 0; i < kNumProducers; ++i) {
         producers.emplace_back([&queue, kItemsPerProducer]() {
             for (int j = 0; j < kItemsPerProducer; ++j) {
-                queue.enqueue(j);
+                queue.push(j);
             }
         });
     }
@@ -110,7 +110,7 @@ TEST(LockFreeQueueTest, MultipleProducersConsumers) {
         consumers.emplace_back([&]() {
             int value;
             while (!done || !queue.empty()) {
-                if (queue.dequeue(value)) {
+                if (queue.pop(value)) {
                     total_consumed++;
                 } else {
                     // 短暂休眠避免忙等
@@ -138,8 +138,8 @@ TEST(LockFreeQueueTest, MultipleProducersConsumers) {
 }
 
 // 性能测试（可选）
-TEST(LockFreeQueueTest, PerformanceTest) {
-    LockFreeQueue<int> queue;
+TEST(SafeQueueTest, PerformanceTest) {
+    SafeQueue<int> queue;
     const int kNumItems = 1000000;
     const int kNumThreads = std::thread::hardware_concurrency();
     
@@ -151,7 +151,7 @@ TEST(LockFreeQueueTest, PerformanceTest) {
         threads.emplace_back([&queue, kNumItems, kNumThreads, i]() {
             int items_per_thread = kNumItems / kNumThreads;
             for (int j = 0; j < items_per_thread; ++j) {
-                queue.enqueue(i * items_per_thread + j);
+                queue.push(i * items_per_thread + j);
             }
         });
     }
@@ -161,22 +161,22 @@ TEST(LockFreeQueueTest, PerformanceTest) {
     }
     
     auto end = std::chrono::high_resolution_clock::now();
-    auto enqueue_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    auto push_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
     
     // 测试出队性能
     start = std::chrono::high_resolution_clock::now();
     int value;
     int count = 0;
-    while (queue.dequeue(value)) {
+    while (queue.pop(value)) {
         count++;
     }
     end = std::chrono::high_resolution_clock::now();
-    auto dequeue_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    auto pop_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
     
     EXPECT_EQ(count, kNumItems);
     
     // 输出性能指标（仅作参考）
-    std::cout << "LockFreeQueue Performance:" << std::endl;
-    std::cout << "  Enqueued " << kNumItems << " items in " << enqueue_time << "ms" << std::endl;
-    std::cout << "  Dequeued " << kNumItems << " items in " << dequeue_time << "ms" << std::endl;
+    std::cout << "SafeQueue Performance:" << std::endl;
+    std::cout << "  pushd " << kNumItems << " items in " << push_time << "ms" << std::endl;
+    std::cout << "  popd " << kNumItems << " items in " << pop_time << "ms" << std::endl;
 }

@@ -1,13 +1,21 @@
 cmake_minimum_required(VERSION 3.15)
-project(quant_trading_system VERSION 1.0.0 LANGUAGES CXX)
+project(QuantTrading VERSION 1.0.0 LANGUAGES CXX)
+
+# 定义根目录下的release目录路径
+set(ROOT_RELEASE_DIR ${CMAKE_SOURCE_DIR}/release)
+# 共享库（.so）输出路径
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${ROOT_RELEASE_DIR}/lib)
+# 可执行文件输出路径
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${ROOT_RELEASE_DIR}/bin)
+
 
 # 设置C++标准
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # 编译选项
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic -O3")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic -O0")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -fsanitize=address")
 
 # 查找依赖

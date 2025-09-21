@@ -3,35 +3,37 @@
 #include <atomic>
 #include <chrono>
 #include <future>
-#include "shared/base/thread_pool/thread_pool.h"
+#include <iostream>
+#include "base/common/thread_pool/thread_pool.h"
 
-using namespace quant::shared::base::thread_pool;
+using namespace quant::base::common::thread_pool;
 using namespace std::chrono_literals;
 
 // 基本功能测试
 TEST(ThreadPoolTest, BasicFunctionality) {
-    ThreadPool pool(2);
-    EXPECT_EQ(pool.thread_count(), 2);
-    EXPECT_TRUE(pool.is_running());
+    auto pool = ThreadPool::create(2);
+    EXPECT_EQ(pool->thread_count(), 2);
+    EXPECT_TRUE(pool->is_running());
     
     // 提交简单任务
     std::atomic<int> counter(0);
-    pool.submit([&counter]() { counter++; });
-    pool.submit([&counter]() { counter++; });
+    pool->submit([&counter]() { counter++; });
+    pool->submit([&counter]() { counter++; });
     
     // 等待任务完成
-    pool.wait_all();
+    pool->wait_all();
     EXPECT_EQ(counter, 2);
+    std::cout << "BasicFunctionality completed." << std::endl;
 }
 
 // 带返回值的任务测试
 TEST(ThreadPoolTest, TasksWithReturnValues) {
-    ThreadPool pool(4);
+    auto pool = ThreadPool::create(4);
     
     // 提交多个带返回值的任务
-    auto future1 = pool.submit([]() { return 10; });
-    auto future2 = pool.submit([]() { return 20; });
-    auto future3 = pool.submit([]() { return 30; });
+    auto future1 = pool->submit([]() { return 10; });
+    auto future2 = pool->submit([]() { return 20; });
+    auto future3 = pool->submit([]() { return 30; });
     
     // 获取结果
     EXPECT_EQ(future1.get(), 10);
@@ -39,38 +41,49 @@ TEST(ThreadPoolTest, TasksWithReturnValues) {
     EXPECT_EQ(future3.get(), 30);
 }
 
+
 // 多线程任务提交测试
 TEST(ThreadPoolTest, MultipleThreadsSubmitting) {
-    ThreadPool pool(8);
+    auto pool = ThreadPool::create(8);
     const int kNumTasks = 10000;
     std::atomic<int> counter(0);
     std::vector<std::thread> submitters;
-    
-    // 多线程提交任务
+    std::vector<std::future<void>> futures;
+    std::mutex futures_mutex;  // 新增：保护futures的并发修改
+
     for (int i = 0; i < 4; ++i) {
-        submitters.emplace_back([&pool, &counter, kNumTasks]() {
+        // 捕获futures_mutex（值捕获，mutex不可移动，需用引用包装）
+        submitters.emplace_back([&, pool]() {
             for (int j = 0; j < kNumTasks; ++j) {
-                pool.submit([&counter]() { counter++; });
+                auto fut = pool->submit([&counter]() { counter++; });
+                // 加锁保护push_back，确保线程安全
+                std::lock_guard<std::mutex> lock(futures_mutex);
+                futures.push_back(std::move(fut));
             }
         });
     }
-    
-    // 等待所有提交完成
+
+    // 等待所有提交者完成
     for (auto& t : submitters) {
-        t.join();
+        t.join();  // 无需joinable()检查，线程必为可join状态
     }
-    
-    // 等待所有任务完成
-    pool.wait_all();
+
+
+    // 等待所有任务完成（future.wait()已足够，无需再调用pool->wait_all()）
+    for (auto& fut : futures) {
+        fut.wait();
+    }
+
+    // 验证计数（此时counter必然等于4*kNumTasks）
     EXPECT_EQ(counter, 4 * kNumTasks);
 }
 
 // 异常处理测试
 TEST(ThreadPoolTest, ExceptionHandling) {
-    ThreadPool pool(2);
+    auto pool = ThreadPool::create(2);
     
     // 提交会抛出异常的任务
-    auto future = pool.submit([]() {
+    auto future = pool->submit([]() {
         throw std::runtime_error("Test exception");
     });
     
@@ -79,8 +92,8 @@ TEST(ThreadPoolTest, ExceptionHandling) {
     
     // 验证线程池仍能正常工作
     std::atomic<bool> completed(false);
-    pool.submit([&completed]() { completed = true; });
-    pool.wait_all();
+    pool->submit([&completed]() { completed = true; });
+    pool->wait_all();
     EXPECT_TRUE(completed);
 }
 
@@ -88,44 +101,44 @@ TEST(ThreadPoolTest, ExceptionHandling) {
 TEST(ThreadPoolTest, StopBehavior) {
     // 测试1：等待所有任务完成
     {
-        ThreadPool pool(2);
+        auto pool = ThreadPool::create(2);
         std::atomic<int> counter(0);
         
         for (int i = 0; i < 100; ++i) {
-            pool.submit([&counter]() { 
+            pool->submit([&counter]() { 
                 std::this_thread::sleep_for(1ms);
                 counter++; 
             });
         }
         
-        pool.stop(true);
+        pool->stop(true);
         EXPECT_EQ(counter, 100);
-        EXPECT_FALSE(pool.is_running());
+        EXPECT_FALSE(pool->is_running());
     }
     
     // 测试2：不等待任务完成
     {
-        ThreadPool pool(2);
+        auto pool = ThreadPool::create(2);
         std::atomic<int> counter(0);
         
         for (int i = 0; i < 100; ++i) {
-            pool.submit([&counter]() { 
-                std::this_thread::sleep_for(10ms);
+            pool->submit([&counter]() { 
+                std::this_thread::sleep_for(100ms);
                 counter++; 
             });
         }
         
         // 立即停止，不等待所有任务完成
-        pool.stop(false);
+        pool->stop(false);
         EXPECT_LT(counter, 100);  // 应该有部分任务未执行
-        EXPECT_FALSE(pool.is_running());
+        EXPECT_FALSE(pool->is_running());
     }
 }
 
 // 性能测试
 TEST(ThreadPoolTest, Performance) {
     const int kNumTasks = 1000000;
-    ThreadPool pool(std::thread::hardware_concurrency());
+    auto pool = ThreadPool::create(std::thread::hardware_concurrency());
     
     // 测试任务提交和执行性能
     auto start = std::chrono::high_resolution_clock::now();
@@ -134,7 +147,7 @@ TEST(ThreadPoolTest, Performance) {
     futures.reserve(kNumTasks);
     
     for (int i = 0; i < kNumTasks; ++i) {
-        futures.push_back(pool.submit([]() { 
+        futures.push_back(pool->submit([]() { 
             // 简单的计算任务
             volatile int x = 0;
             for (int j = 0; j < 10; ++j) x++;
@@ -156,23 +169,23 @@ TEST(ThreadPoolTest, Performance) {
 
 // 任务计数测试
 TEST(ThreadPoolTest, TaskCounting) {
-    ThreadPool pool(2);
-    EXPECT_EQ(pool.pending_tasks(), 0);
+    auto pool = ThreadPool::create(2);
+    EXPECT_EQ(pool->pending_tasks(), 0);
     
     // 提交一批任务但不等待完成
     const int kNumTasks = 100;
     for (int i = 0; i < kNumTasks; ++i) {
-        pool.submit([]() { std::this_thread::sleep_for(1ms); });
+        pool->submit([]() { std::this_thread::sleep_for(1ms); });
     }
     
     // 等待任务进入队列
     std::this_thread::sleep_for(10ms);
     
     // 任务计数应该接近kNumTasks（可能已有部分完成）
-    EXPECT_GT(pool.pending_tasks(), 0);
-    EXPECT_LE(pool.pending_tasks(), kNumTasks);
+    EXPECT_GT(pool->pending_tasks(), 0);
+    EXPECT_LE(pool->pending_tasks(), kNumTasks);
     
     // 等待所有任务完成
-    pool.wait_all();
-    EXPECT_EQ(pool.pending_tasks(), 0);
+    pool->wait_all();
+    EXPECT_EQ(pool->pending_tasks(), 0);
 }
