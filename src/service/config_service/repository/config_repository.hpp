@@ -6,31 +6,31 @@
 #ifndef QTRADE_SERVICE_CONFIG_REPOSITORY_HPP_
 #define QTRADE_SERVICE_CONFIG_REPOSITORY_HPP_
 
+#include <qtrade/config/v1/config.pb.h>
 #include <qtrade/error_code/error_codes.hpp>
 
-#include <cpputils/database/config.hpp>
+#include "common/database/service_database_options.hpp"
 
 #include <cstdint>
-#include <map>
 #include <memory>
+#include <optional>
 #include <string>
 
 namespace qtrade::service {
 
-/// 配置作用域（与 proto GetConfigRequest 对齐）
+/// @brief 配置作用域（与 GetConfigRequest / EngineConfig 身份字段对齐）
 struct ConfigScope {
-  std::string tenant_id = "default";
-  std::string engine_id = "default";
+  std::string tenant_id = "default";  ///< 租户 ID
+  std::string engine_id = "default";  ///< 引擎实例 ID
+
+  friend auto operator<=>(const ConfigScope&, const ConfigScope&) = default;
 };
 
-/// 持久化层连接选项（对应 config JSON 的 repository 段）
-struct DbRepositoryOptions {
-  bool enabled = false;
-  bool use_pool = false;                              ///< true 时使用连接池借连接
-  std::size_t pool_size = 4;                          ///< 连接池大小（use_pool 时有效）
-  time_t pool_lease_timeout = 0;                      ///< 借连接最长等待（秒）
-  cpp_utils::database::ConnectionOptions connection;  ///< 单连接参数
-};
+/// @brief 从 GetConfig 请求构造作用域
+[[nodiscard]] ConfigScope MakeConfigScope(const qtrade::config::v1::GetConfigRequest& request);
+
+/// @brief 从 WatchConfig 请求构造作用域
+[[nodiscard]] ConfigScope MakeConfigScope(const qtrade::config::v1::WatchConfigRequest& request);
 
 /// @brief 配置读写仓储接口
 class IConfigRepository {
@@ -39,18 +39,24 @@ class IConfigRepository {
 
   virtual ErrorCode EnsureSchema() = 0;
 
+  /// @brief 从数据库加载 EngineConfig
   virtual ErrorCode Load(const ConfigScope& scope,
-                         std::map<std::string, std::string>& entries,
+                         qtrade::config::v1::EngineConfig& config,
                          std::uint64_t& version) = 0;
 
+  /// @brief 将 EngineConfig 写入数据库
   virtual ErrorCode Save(const ConfigScope& scope,
-                         const std::map<std::string, std::string>& entries,
+                         const qtrade::config::v1::EngineConfig& config,
                          std::uint64_t version) = 0;
 };
 
-[[nodiscard]] std::unique_ptr<IConfigRepository> CreateConfigRepository(const DbRepositoryOptions& options);
+[[nodiscard]] std::shared_ptr<IConfigRepository> CreateConfigRepository(const DatabaseOptions& options);
 
-[[nodiscard]] DbRepositoryOptions ParseDbRepositoryOptions(const std::string& json_path);
+[[nodiscard]] DatabaseOptions ParseDatabaseOptions(const std::string& json_path);
+
+/// @brief 查库并组装 ConfigSnapshot（gRPC 响应）
+[[nodiscard]] qtrade::config::v1::ConfigSnapshot QueryConfigSnapshot(IConfigRepository* repository,
+                                                                       const ConfigScope& scope);
 
 }  // namespace qtrade::service
 

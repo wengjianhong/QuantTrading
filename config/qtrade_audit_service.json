@@ -1,0 +1,26 @@
+{
+  "grpc": {
+    "listen": "0.0.0.0:50056"
+  },
+  "database": {
+    "enabled": false,
+    "type": "mysql",
+    "config": {
+      "host": "127.0.0.1",
+      "port": 3306,
+      "database_name": "audit",
+      "user": "audit",
+      "password": "audit",
+      "connect_timeout": 0
+    },
+    "pool": {
+      "enabled": false,
+      "size": 4,
+      "lease_timeout": 0
+    }
+  },
+  "report": {
+    "schedule_cron": "0 18 * * *",
+    "timezone": "Asia/Shanghai"
+  }
+}

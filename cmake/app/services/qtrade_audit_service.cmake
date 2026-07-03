@@ -1,5 +1,8 @@
 # ---------------------------------------------------------------------------
-# 独立进程：交易审计服务（qtrade_audit_service）
+# Standalone process: audit service (qtrade_audit_service)
+#
+# Status: MVP stub (main only); split *_static lib when implementation lands
+# Config: config/qtrade_audit_service.json
 # ---------------------------------------------------------------------------
 
 # Build Service Executable

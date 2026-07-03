@@ -123,7 +123,8 @@ A 段至 EMS 入队后**紧接** C 段出站（EMS → 适配器 → 交易所�
 控制开局复杂度，按阶段扩展微服务边界：
 
 - **一期（MVP，合并部署）**：
-  - **config-service**：配置管理 + gRPC（`GetConfig`/`WatchConfig`）+ 变更审计
+  - **config-service**：引擎业务配置（`EngineConfig`：策略、品种绑定、行情源、`account_id` 引用）+ gRPC（`GetConfig`/`WatchConfig`）+ 变更审计；**不存储**交易登录密码
+  - **account-service（交易账户服务）**：资金账户主数据、登录凭证加密托管、`engine_id` ↔ `account_id` 授权、按需凭证解析（见 §2.5）
   - **observability-service**：日志采集 + 业务监控 + 基础告警（日志/监控原独立服务逻辑保留，可同进程多模块）
   - **history-service（可选）**：历史行情/成交简化存储；回测可暂用本地脚本
   - 引擎：**配置驱动多实例分片**（每实例 `engine_id` + **策略及品种绑定**，见 §2.4）+ **`QuoteApi` 适配器**（经 `QuoteNormalizer` 接入，§7.1）
@@ -141,10 +142,11 @@ A 段至 EMS 入队后**紧接** C 段出站（EMS → 适配器 → 交易所�
 
 | 类型 | 方向 | 机制 | 说明 |
 |---|---|---|---|
-| **控制面** | config-service → engine（逻辑推送） | gRPC Server Streaming | 引擎**主动出站**订阅 `WatchConfig`；config-service 在流上推送增量；禁止 config-service 回调引擎 RPC |
+| **控制面** | config-service / account-service → engine（逻辑推送或按需拉取） | gRPC（引擎出站 Client） | 引擎**主动出站**订阅 `WatchConfig`；凭证经 `ResolveCredential` **按需**拉取；禁止支撑服务回调引擎 RPC |
 | **D 段旁路** | engine → 支撑服务 | `src/client/` 异步上报接口 | Outbound 线程 fire-and-forget；各 client 内部实现可插拔，MVP 可为 stub |
-| **冷启动配置** | engine → config-service | gRPC `GetConfig` | 一次性全量拉取 + 本地兜底快照 |
-| **服务间查询** | 支撑服务 ↔ 支撑服务 | gRPC | 回测拉历史、审计查询等，不经引擎 |
+| **冷启动配置** | engine → config-service | gRPC `GetConfig` | 一次性全量拉取 `EngineConfig` + 本地兜底快照 |
+| **冷启动凭证** | engine → account-service | gRPC `ResolveCredential` | 启动阶段或换密时按 `account_id` 解析登录材料；**不进** `WatchConfig` 流 |
+| **服务间查询** | 支撑服务 ↔ 支撑服务 | gRPC | config 写入前校验账户授权；回测拉历史、审计查询等，不经引擎 |
 
 ### 2.4 引擎实例与分片模型（配置驱动，MVP 默认）
 
@@ -154,7 +156,7 @@ A 段至 EMS 入队后**紧接** C 段出站（EMS → 适配器 → 交易所�
 
 | 方式 | 阶段 | 说明 |
 |---|---|---|
-| **配置驱动静态分片（默认）** | MVP | 部署 N 个实例；每实例通过本地 JSON 或 config-service（按 `engine_id`）获取 `tenant_id`、账户、**策略列表及其绑定品种**；**实例内**每品种最多绑定一个策略（§2.4.3）；行情 Subscribe 取本实例已启用策略 `instruments` 的**并集**（去重） |
+| **配置驱动静态分片（默认）** | MVP | 部署 N 个实例；每实例本地引导 JSON（`engine_id` 等）+ config-service（按 `engine_id` 拉取 `EngineConfig`）获取策略及品种绑定、`account_id` 引用；**实例内**每品种最多绑定一个策略（§2.4.3）；行情 Subscribe 取本实例已启用策略 `instruments` 的**并集**（去重） |
 | **实例组 Active-Passive** | 二期 | 同一分片配置部署 Active + Standby 两实例；Standby 跟行情/WAL，不发单 |
 | **维护窗口调片（可选）** | 二期+ | 运维修改 config 中策略/品种归属，重启或 controlled reload | 品种冷热不均时水平加实例或迁移配置，不做运行时自动 hash |
 
@@ -225,7 +227,23 @@ A 段至 EMS 入队后**紧接** C 段出站（EMS → 适配器 → 交易所�
 
 上例合法原因：`IF2506` 在 **engine-03 与 engine-04 各出现一次**（跨实例），在**每个实例内**仍满足「一品种一策略」。`QuoteNormalizer` 对各实例分别 Subscribe 并集；`IF2506` Tick 在 engine-03 仅驱动 `mean_reversion_01`，在 engine-04 仅驱动 `spread_ic_if_01`。两实例若同 Tick 均发单，**不在引擎间协调**，由 **CMS/RiskManager** 按 `acc_001` 的限仓、限购、PnL、熔断等规则分别校验并决定是否下单。
 
-config-service 通过 `GetConfig(engine_id)` 返回该实例专属子集；`WatchConfig` 变更策略启停、参数或品种绑定时，在**维护窗口**重启或 controlled reload；MVP 不做运行时跨实例迁移。
+config-service 通过 `GetConfig(engine_id)` 返回该实例专属 `EngineConfig`；`WatchConfig` 变更策略启停、参数或品种绑定时，在**维护窗口**重启或 controlled reload；MVP 不做运行时跨实例迁移。交易登录凭证由 **account-service** 单独管理（§2.5），**不**经 `WatchConfig` 下发。
+
+### 2.5 配置与交易账户（account-service）
+
+引擎涉及三类配置/账户，**禁止混用**：
+
+| 概念 | 来源 | 内容 |
+|---|---|---|
+| **进程引导** | 本地 `qtrade_engine.json` | 连 config/account 服务、`engine_id`、日志/监控；**不含**策略与密码 |
+| **业务配置** | config-service → `EngineConfig`（见 §2.4、`config.proto`） | 策略、品种、`account_id` 引用、行情源；**不含**登录密码 |
+| **运行时账簿** | 引擎内 `AccountManager` | 可用资金、冻结；**不含**开户与凭证 |
+
+**account-service**（`qtrade_account_service`）单独管理资金账户主数据、加密凭证及 `engine_id` ↔ `account_id` 授权。引擎冷启动或换密时通过 `ResolveCredential` **按需**拉取登录材料；**不进** `WatchConfig` 流，**禁止**写入 `EngineConfig`。
+
+与 config-service 的分工：**config** 管「跑什么策略」；**account** 管「用哪个账户登录」。策略插件只使用 `account_id` 发单，不接触密码。
+
+启动顺序：`qtrade_engine.json` → `GetConfig` → `ResolveCredential` → EMS 登录 → `WatchConfig` 持续收业务配置变更。
 
 ---
 
@@ -244,7 +262,7 @@ config-service 通过 `GetConfig(engine_id)` 返回该实例专属子集；`Watc
 |**交易合规模块(cms)**|监管/合规硬规则（限仓、限购、日内频次、禁交易名单）|规则可配置化|1. 静态合规规则，变更需审计；<br />2. 合规拦截记录异步落盘（B 段）；<br/>3. 规则经控制面异步更新|
 |**订单管理模块(oms)**|订单全生命周期（创建/修改/取消/状态跟踪）|核心流程固定，支持订单类型扩展|1. WAL 异步持久化（B 段），保证不丢单；<br />2. 幂等性（全局唯一 order_id）；<br/>3. 多租户隔离；<br/>4. 超时自动处理|
 |**交易执行模块(ems)**|订单路由、拆单、算法执行、通道管理|`qtrade_sdk::trader::TraderApi`/`TraderSpi`（§7.0）|1. 多通道故障转移；<br />2. 流量控制；<br/>3. 拆单算法；<br/>4. 出站发单走 C 段，与 A 段分别计量|
-|**账号管理模块**|资金、资产、可用额度实时核算|无，进程内状态|1. 多租户账户隔离；<br />2. 发单/成交路径上 OMS **同步调用**校验与更新（不经 EventBus）；<br/>3. 定时内存快照（B 段异步刷盘）|
+|**账号管理模块（`AccountManager`）**|资金、资产、可用额度**运行时**核算|无，进程内状态|1. 多租户账户隔离；<br />2. 发单/成交路径上 OMS **同步调用**校验与更新（不经 EventBus）；<br/>3. 定时内存快照（B 段异步刷盘）；<br/>4. **与 account-service 区分**：本模块不管登录密码与账户开户，仅维护内存账簿（§2.5）|
 |**持仓管理模块(pms)**|持仓、开平、冻结、盈亏实时核算|无，进程内状态|1. 逐标的持仓；<br />2. 今/昨仓区分；<br/>3. OMS 成交回报路径**同步更新**；持仓异常校验|
 |**风险管理模块**|实时风险（PnL、亏损、涨跌停、异常行情熔断）|风险规则可配置化|1. 动态风控（租户/账户/策略/品种）；**跨实例同账户**时按账户/品种聚合限额裁决是否发单（§2.4.3）；<br />2. 熔断与降频；<br/>3. 阈值经控制面异步更新|
 
@@ -297,7 +315,8 @@ config-service 通过 `GetConfig(engine_id)` 返回该实例专属子集；`Watc
 
 |微服务名称|核心功能|技术特性|企业级优化点|
 |---|---|---|---|
-|**配置中心服务**|集中管理系统配置（数据源参数、**策略及品种绑定**、风控阈值、实例归属等）|支持动态配置更新，配置版本管理，权限控制|1. 配置灰度发布（按租户/模块/**engine_id** 维度）；<br>2. 配置变更审计日志（谁改/改了什么/何时改）；<br/>3. 配置回滚能力，支持配置生效状态校验；<br/>4. 多租户配置隔离，租户仅可见自身配置；<br/>5. 按 **engine_id** 下发策略列表、品种绑定与账户子集，支撑配置驱动分片（§2.4）；<br/>6. **实例内品种绑定唯一性校验**（§2.4.3），冲突拒绝下发|
+|**配置中心服务（config-service）**|集中管理**引擎业务配置**（`EngineConfig`：策略及品种绑定、行情源标识、`account_id` 引用、风控阈值等）|支持动态配置更新，配置版本管理，权限控制|1. 配置灰度发布（按模块/**engine_id** 维度）；<br>2. 配置变更审计日志；<br/>3. 配置回滚；<br/>4. 多租户配置隔离；<br/>5. 按 **engine_id** 下发完整 `EngineConfig`，支撑配置驱动分片（§2.4）；<br/>6. **实例内品种绑定唯一性校验**（§2.4.3）；<br/>7. **不存储、不下发**交易登录密码（§2.5）|
+|**交易账户服务（account-service）**|资金账户主数据、登录凭证加密托管、`engine_id` ↔ `account_id` 授权、按需凭证解析|独立 gRPC；凭证与业务配置分库分权限|1. 账户 CRUD（元数据，API 不返回明文密码）；<br/>2. 凭证 AES/KMS 加密存储与轮换；<br/>3. `ResolveCredential` 供引擎冷启动登录；<br/>4. 绑定校验（config 写入或引擎解析前校验授权）；<br/>5. 凭证操作独立审计；<br/>6. 二期：短期 lease、账户健康检查、审批流|
 |**历史行情服务**|存储/查询历史行情|基于时序数据库（如 ClickHouse），支持高效批量查询，数据自动归档|1. 数据多副本存储（3 副本），跨机房同步；<br/>2. 数据生命周期管理（热数据/冷数据分层存储，冷数据归档至对象存储）；<br/>3. 数据访问权限控制（按租户/品种/时间范围）；<br/>4. 数据脱敏（隐藏敏感账户信息）；<br/>5. 批量导出合规化（带水印/审计日志）|
 |**历史交易服务**|存储成交记录|基于时序数据库（如 ClickHouse），支持高效批量查询，数据自动归档|同上|
 |**日志分析服务**|收集/存储/检索系统日志与交易流水|支持日志分级、按模块过滤，提供全文检索，日志可视化分析|1. 日志不可篡改（写入后追加模式，哈希校验）；<br/>2. 日志分级存储（核心交易日志独立存储，保存≥3 年）；<br/>3. 多租户日志隔离，支持按租户检索；<br/>4. 日志与调用链关联，支持根因分析；<br/>5. 行情源切换日志独立存储、审计可追溯|
@@ -316,9 +335,9 @@ config-service 通过 `GetConfig(engine_id)` 返回该实例专属子集；`Watc
 
 3. 交易引擎向支撑服务的旁路上报**经 `client/` 异步接口单向投递**，不等待响应；各服务接收端内部实现架构不约束
 
-4. 配置与**实例品种归属**变更**仅经 config-service 校验后**由 `WatchConfig` 流推送；禁止接入层或运维直连修改引擎内存
+4. **引擎业务配置**与**实例品种归属**变更**仅经 config-service 校验后**由 `WatchConfig` 流推送；**交易凭证**变更经 account-service，**禁止**写入 `EngineConfig` 或随 Watch 推送
 
-5. **配置拉取**：冷启动 `GetConfig` 拉全量（gRPC，超时独立、失败则使用本地兜底快照）；运行时 `WatchConfig` 收增量；均不在 A 段同步执行
+5. **配置拉取**：冷启动 `GetConfig` 拉全量 `EngineConfig`（gRPC，超时独立、失败则使用本地兜底快照）；运行时 `WatchConfig` 收增量；凭证 `ResolveCredential` 单独按需拉取；均不在 A 段同步执行
 
 ---
 
@@ -326,7 +345,7 @@ config-service 通过 `GetConfig(engine_id)` 返回该实例专属子集；`Watc
 
 > **仓库边界**：API 网关、控制台前端、多租户运营界面等 **接入层实现位于 QTrade 体系外的独立项目/仓库**（或机构统一 API 平台），**不在 `qtrade` 本仓库**。本仓库交付 **交易引擎 + 支撑微服务（gRPC）**；接入层负责将外部 **HTTP/HTTPS + REST** 转为对内 **gRPC** 调用。
 
-接入层**不提供直连交易引擎的能力**；仅将外部请求路由至 QTrade **支撑服务**：**数据查询**、**监控查看**、**配置提交（→ config-service）**、**回测提交**、**审计报表**、**策略生命周期配置（启停/参数，经配置中心异步生效）**。
+接入层**不提供直连交易引擎的能力**；仅将外部请求路由至 QTrade **支撑服务**：**数据查询**、**监控查看**、**配置提交（→ config-service）**、**账户与凭证管理（→ account-service）**、**回测提交**、**审计报表**、**策略生命周期配置（启停/参数，经配置中心异步生效）**。
 
 **明确禁止**：接入层下单、直连修改 OMS/持仓、绕过 config-service 写引擎内存；禁止外部系统直连 `qtrade_engine` 的任何 TCP/HTTP/gRPC 端口。
 
@@ -342,7 +361,7 @@ config-service 通过 `GetConfig(engine_id)` 返回该实例专属子集；`Watc
 | 方向 | 协议 | 说明 |
 |---|---|---|
 | 外部 → 接入层 | HTTP/HTTPS + REST | OpenAPI 由**接入层项目**维护，非本仓库 |
-| 接入层 → QTrade 支撑服务 | gRPC + Protobuf | 调用 `config-service`、`history-service`、`observability-service` 等（本仓库 `src/service/`） |
+| 接入层 → QTrade 支撑服务 | gRPC + Protobuf | 调用 `config-service`、`account-service`、`history-service`、`observability-service` 等（本仓库 `src/service/`） |
 | 接入层 → 交易引擎 | **禁止** | 配置变更仅 **config-service → 引擎出站 `WatchConfig`** |
 | QTrade 支撑服务 → 引擎 | **禁止主动 RPC 引擎** | 与 §4、§8.1 一致 |
 
@@ -586,11 +605,15 @@ MVP 也**不单独引入 `QuoteSourceManager` 类**（代码中不存在该模�
 - **交易引擎 → 支撑服务（D 段）**：经 `log_client`、`monitor_client` 等**异步上报接口**单向投递（A 段仅 `enqueue`；**Outbound 线程**调用 client）；载荷 Protobuf；**不等待响应**；client 内部传输（gRPC/HTTP/本地 Spool/no-op）**架构不规定**，MVP 允许 stub
 
 - **引擎 ↔ config-service（控制面，全程 gRPC）**：
-  - 冷启动：`GetConfig` 一次性拉全量配置（独立超时）；失败则读本地兜底快照
-  - 运行时：引擎以 **gRPC Client 出站**调用 `WatchConfig`（Server Streaming），config-service 在流上推送增量；**独立控制线程**消费并更新本地快照，**不阻塞 A 段**
+  - 冷启动：`GetConfig` 一次性拉全量 `EngineConfig`（独立超时）；失败则读本地兜底快照
+  - 运行时：引擎以 **gRPC Client 出站**调用 `WatchConfig`（Server Streaming），推送 `ConfigSnapshot`（`version` + `engine`）；**独立控制线程**消费并更新本地快照，**不阻塞 A 段**
   - **禁止**：引擎对外提供 gRPC Server；禁止 config-service 主动 RPC 调用引擎
 
-- **支撑服务之间**：**gRPC + Protobuf**
+- **引擎 ↔ account-service（凭证面，启动/换密阶段 gRPC）**：
+  - 冷启动 / 换密：`ResolveCredential(engine_id, account_id)` 按需拉取登录材料；结果**仅驻留进程内存**，供 EMS `Connect`/`Login`
+  - **禁止**：密码/token 进入 `EngineConfig` 或 `WatchConfig` 流；禁止策略插件直接调用 account-service
+
+- **支撑服务之间**：**gRPC + Protobuf**（如 config 写入前向 account-service 校验账户授权）
 
 - **外部 → 交易引擎**：**禁止**；外部经接入层 → 支撑服务
 
@@ -598,10 +621,12 @@ MVP 也**不单独引入 `QuoteSourceManager` 类**（代码中不存在该模�
 
 | RPC | 类型 | 调用方 | 用途 |
 |---|---|---|---|
-| `GetConfig` | Unary | engine → config-service | 冷启动全量配置 |
-| `WatchConfig` | Server Streaming | engine → config-service | 运行时配置增量（携带 `since_version`） |
+| `GetConfig` | Unary | engine → config-service | 冷启动全量 `EngineConfig` |
+| `WatchConfig` | Server Streaming | engine → config-service | 运行时配置变更（`ConfigSnapshot`） |
+| `ResolveCredential` | Unary | engine → account-service | 冷启动/换密时解析登录凭证 |
+| `RegisterAccount` / `RotateCredential` | Unary | 接入层 → account-service | 账户与凭证管理（运维） |
 
-断线时控制线程指数退避重连；重连期间沿用本地快照，交易不中断。
+断线时控制线程指数退避重连；重连期间沿用本地快照与已登录 session，交易不中断（换密场景需 EMS 重连策略，二期）。
 
 #### 旁路背压策略
 
@@ -643,9 +668,10 @@ MVP 也**不单独引入 `QuoteSourceManager` 类**（代码中不存在该模�
 **3. 控制面**
 
 ```text
-用户 → API 网关 → config-service
-  ├─ 冷启动: engine ──GetConfig(engine_id)──► 全量配置
-  └─ 运行时: engine ──WatchConfig（出站）──► 控制线程 → 本地快照
+用户 → API 网关 → config-service / account-service
+  ├─ 冷启动: engine ──GetConfig(engine_id)──► EngineConfig（策略、account_id 引用）
+  ├─ 冷启动: engine ──ResolveCredential──► 登录材料（不进 Watch 流）
+  └─ 运行时: engine ──WatchConfig（出站）──► 控制线程 → 本地 EngineConfig 快照
 ```
 
 **4. D 段旁路 / 外部 API**
@@ -662,7 +688,8 @@ A 段 enqueue → Outbound → log_client / monitor_client / …（fire-and-forg
 |交易引擎内部|内存结构体 + Lane-M/Lane-R 无锁队列|A 段微秒级；回报优先于行情（§3.1）|
 |交易引擎 ↔ 适配器|函数调用 + 回调|同进程插件，无网络|
 |交易引擎 → 支撑服务（D 段旁路）|`client/` 异步接口 + Protobuf|A 段仅入队；Outbound 线程 fire-and-forget；内部传输可插拔|
-|引擎 ↔ config-service（控制面）|gRPC + Protobuf|`GetConfig` 冷启动；`WatchConfig` 流式增量；引擎仅作 Client|
+|引擎 ↔ config-service（控制面）|gRPC + Protobuf|`GetConfig` / `WatchConfig` 下发 `EngineConfig`；引擎仅作 Client|
+|引擎 ↔ account-service（凭证面）|gRPC + Protobuf|`ResolveCredential` 按需拉取；不进 Watch 流；启动/控制线程执行|
 |支撑服务之间|gRPC + Protobuf|强类型 RPC，适合查询与批量数据（如回测拉历史）|
 |接入层 ↔ 外部|HTTP/HTTPS + REST|**外部接入层项目**维护 OpenAPI；REST ↔ gRPC 转换在接入层完成|
 |外部接入层 → QTrade 支撑服务|gRPC + Protobuf|本仓库 `src/service/` 暴露 gRPC；不对外 HTTP|
@@ -722,7 +749,7 @@ A 段 enqueue → Outbound → log_client / monitor_client / …（fire-and-forg
 
 - **网络安全**：核心交易层部署在私有网络，接入层通过防火墙/入侵检测系统（IDS）防护；API 网关支持 DDoS 防护、IP 白名单；
 
-- **数据安全**：敏感数据（账户/资金/策略参数）加密存储（AES\-256），传输加密（TLS 1.3）；数据访问需多因子认证；实例分片与行情源配置加密存储，仅授权角色可修改
+- **数据安全**：敏感数据（账户凭证/资金/策略参数）加密存储（AES\-256），传输加密（TLS 1.3）；**交易密码仅存 account-service 密文表**，不得进入 `EngineConfig`；数据访问需多因子认证
 
 - **代码安全**：策略/插件代码安全扫描，防止恶意代码；核心代码定期安全审计
 
@@ -758,7 +785,7 @@ A 段 enqueue → Outbound → log_client / monitor_client / …（fire-and-forg
 
 |阶段|建设重点|交付目标|分片/行情|
 |---|---|---|---|
-|**一期（MVP）**|核心引擎、基础适配器、config + observability 合并服务|单租户实盘（dry-run → 实盘）|**配置驱动多实例** + QuoteApi/QuoteNormalizer（failover 规划）|
+|**一期（MVP）**|核心引擎、基础适配器、config + **account** + observability|单租户实盘（dry-run → 实盘）|**配置驱动多实例** + 账户凭证分服务 + QuoteApi/QuoteNormalizer|
 |**二期**|多租户、策略管理、审计、容灾、服务拆分|多机构并行|实例 Active-Passive + Lane-M 内 Tick/Bar 分流/维护窗口改配置|
 |**三期**|跨机房主备、监管报送、智能风控|金融生产级|跨机房行情接入点选择|
 
@@ -769,7 +796,9 @@ A 段 enqueue → Outbound → log_client / monitor_client / …（fire-and-forg
 | EventBus + 引擎骨架 | MVP | ✅ 已有 |
 | EventLanes（双 EventReactor EventBus） | MVP | ✅ EventReactorLoop + event_types |
 | CMS/OMS/EMS/风控/持仓 | MVP | 🟡 模块骨架，WAL/幂等待完善 |
-| 配置驱动分片（engine_id + 一品种一策略 + 跨实例同账户风控） | MVP | 🟡 配置字段/`account_id` 待规范；config 校验与 StrategyEngine 1:1 分发待实现 |
+| 配置驱动分片（`EngineConfig` + engine_id + 一品种一策略） | MVP | 🟡 proto/DB 已对齐 `EngineConfig`；config 校验与 StrategyEngine 1:1 分发待实现 |
+| 交易账户服务（account-service） | MVP | ❌ 文档已定义（§2.5）；代码待落地 |
+| 凭证与配置分离（密码不进 WatchConfig） | MVP | 🟡 架构约束已写入；account-service 待实现 |
 | QuoteNormalizer + QuoteApi | MVP | ✅ 已有（`SetQuoteApi`、Subscribe、PublishTick）；failover 未实现 |
 | TraderNormalizer + TraderApi 回报 | MVP | 🟡 骨架已有；语义标准化与 OMS/适配器串联待完善 |
 | 旁路 client（log/monitor） | MVP | 🟡 接口已有，远程上报未实现，引擎未集成 |

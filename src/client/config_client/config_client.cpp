@@ -74,7 +74,9 @@ ErrorCode ConfigClient::FetchSnapshot() {
   }
 
   ApplySnapshot(response);
-  spdlog::info("[ConfigClient] snapshot loaded, version={}, entries={}", response.version(), response.entries_size());
+  spdlog::info("[ConfigClient] snapshot loaded, version={}, strategies={}",
+               response.version(),
+               response.has_engine() ? response.engine().strategies_size() : 0);
   return ErrorCode::kSuccess;
 }
 
@@ -110,8 +112,9 @@ ErrorCode ConfigClient::StartWatch() {
       while (impl_->watch_running.load(std::memory_order_acquire) && reader->Read(&snapshot)) {
         backoff_ms = 500;
         ApplySnapshot(snapshot);
-        spdlog::debug(
-          "[ConfigClient] applied snapshot version={}, entries={}", snapshot.version(), snapshot.entries_size());
+        spdlog::debug("[ConfigClient] applied snapshot version={}, strategies={}",
+                      snapshot.version(),
+                      snapshot.has_engine() ? snapshot.engine().strategies_size() : 0);
       }
 
       const grpc::Status status = reader->Finish();

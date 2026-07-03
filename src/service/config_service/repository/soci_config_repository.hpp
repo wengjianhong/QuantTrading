@@ -12,17 +12,28 @@
 
 namespace qtrade::service {
 
+/// @brief 基于 SOCI 的配置持久化实现（engine_config 表存 EngineConfig JSON）
 class SociConfigRepository final : public IConfigRepository {
  public:
-  explicit SociConfigRepository(const DbRepositoryOptions& options);
+  /// @brief 根据数据库选项建立连接或连接池
+  /// @param options 数据库连接选项
+  explicit SociConfigRepository(const DatabaseOptions& options);
+
+  /// @brief 关闭连接并释放连接池
   ~SociConfigRepository() override;
 
+  /// @brief 确保 engine_config 表存在
+  /// @return ErrorCode::kSuccess 表示成功
   ErrorCode EnsureSchema() override;
+
+  /// @brief 从数据库加载指定作用域 EngineConfig
   ErrorCode Load(const ConfigScope& scope,
-                 std::map<std::string, std::string>& entries,
+                 qtrade::config::v1::EngineConfig& config,
                  std::uint64_t& version) override;
+
+  /// @brief 将 EngineConfig 写入数据库
   ErrorCode Save(const ConfigScope& scope,
-                 const std::map<std::string, std::string>& entries,
+                 const qtrade::config::v1::EngineConfig& config,
                  std::uint64_t version) override;
 
  private:

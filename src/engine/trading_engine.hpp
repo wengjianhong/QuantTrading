@@ -21,13 +21,8 @@
 #include "client/log_client/log_client.hpp"
 #include "client/monitor_client/monitor_client.hpp"
 #include "engine/engine_options.hpp"
+#include <qtrade/config/v1/config.pb.h>
 #include <qtrade/error_code/error_codes.hpp>
-
-#include <string>
-
-namespace qtrade::config::v1 {
-class ConfigSnapshot;
-}
 
 namespace qtrade::engine {
 
@@ -52,7 +47,7 @@ class TradingEngine {
   /// @return ErrorCode::kSuccess 表示成功
   ErrorCode Init();
 
-  /// @brief 从本地 JSON 文件加载/重载引擎配置（如 config/engine.json）
+  /// @brief 从本地 JSON 文件加载/重载引擎配置（如 config/qtrade_engine.json）
   /// @param json_path 配置文件路径
   /// @return ErrorCode::kSuccess 表示成功；文件不存在返回 ErrorCode::kNotFound
   ErrorCode ReloadFromJson(const std::string& json_path);
@@ -98,13 +93,14 @@ class TradingEngine {
   /// @return ErrorCode::kSuccess 表示成功
   ErrorCode InitConfigClient(const EngineOptions& options);
 
-  /// @brief 配置全量快照回调：替换本地配置视图并旁路日志
-  /// @param snapshot 含 version 与 entries 的全量快照
+  /// @brief 配置全量快照回调：应用 EngineConfig 并旁路日志
+  /// @param snapshot 含 version 与 engine 的全量快照
   void OnConfigSnapshot(const qtrade::config::v1::ConfigSnapshot& snapshot);
 
   bool initialized_ = false;                        ///< 是否已完成 Init
   bool running_ = false;                            ///< 是否已 Start
-  EngineOptions options_;                           ///< 启动选项副本
+  EngineOptions options_;                           ///< 进程引导选项
+  qtrade::config::v1::EngineConfig runtime_config_;  ///< config-service 下发的业务配置
   event_bus::EventLanes event_lanes_;               ///< Lane-M / Lane-R 事件通道
   strategy::StrategyEngine strategy_engine_;        ///< 策略引擎
   normalizer::QuoteNormalizer quote_normalizer_;    ///< 行情标准化（QuoteNormalizer）

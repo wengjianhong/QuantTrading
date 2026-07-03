@@ -35,6 +35,9 @@ ErrorCode ParseEngineOptionsFromJson(const std::string& json_path, EngineOptions
   if (root.contains("config_service")) {
     options.config_server_address = root["config_service"].get<std::string>();
   }
+  if (root.contains("account_service")) {
+    options.account_server_address = root["account_service"].get<std::string>();
+  }
   if (root.contains("tenant_id")) {
     options.tenant_id = root["tenant_id"].get<std::string>();
   }
@@ -129,9 +132,29 @@ ErrorCode TradingEngine::InitConfigClient(const EngineOptions& options) {
 }
 
 void TradingEngine::OnConfigSnapshot(const qtrade::config::v1::ConfigSnapshot& snapshot) {
-  spdlog::info("[TradingEngine] config snapshot version={}, entries={}", snapshot.version(), snapshot.entries_size());
-  for (const auto& entry : snapshot.entries()) {
-    log_client_.Emit("info", entry.key() + "=" + entry.value());
+  if (!snapshot.has_engine()) {
+    spdlog::warn("[TradingEngine] config snapshot version={} has no engine config", snapshot.version());
+    return;
+  }
+
+  const auto& engine = snapshot.engine();
+  if (!engine.tenant_id().empty() && engine.tenant_id() != options_.tenant_id) {
+    spdlog::warn("[TradingEngine] tenant_id mismatch: snapshot={} local={}", engine.tenant_id(), options_.tenant_id);
+  }
+  if (!engine.engine_id().empty() && engine.engine_id() != options_.engine_id) {
+    spdlog::warn("[TradingEngine] engine_id mismatch: snapshot={} local={}", engine.engine_id(), options_.engine_id);
+  }
+
+  runtime_config_ = engine;
+  spdlog::info("[TradingEngine] config snapshot version={}, account={}, quote_source={}, strategies={}",
+               snapshot.version(),
+               engine.account_id(),
+               engine.quote_source(),
+               engine.strategies_size());
+
+  for (const auto& strategy : engine.strategies()) {
+    log_client_.Emit("info",
+                     "strategy " + strategy.strategy_id() + " enabled=" + (strategy.enabled() ? "true" : "false"));
   }
 }
 

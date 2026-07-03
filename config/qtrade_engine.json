@@ -1,7 +1,8 @@
 {
   "config_service": "127.0.0.1:50051",
+  "account_service": "127.0.0.1:50052",
   "tenant_id": "default",
   "engine_id": "engine-1",
-  "log_topic": "engine",
+  "log_topic": "qtrade_engine",
   "monitor_endpoint": "stub://local"
 }

@@ -10,7 +10,7 @@
 |---|---|
 |适配层|`src/adapter/`（可插拔动态库：行情源、交易通道协议转换）|
 |交易引擎层|`src/engine/`（单进程封闭运行：事件总线、行情/交易标准化、策略引擎、OMS、EMS、账户、持仓、实时风控、合规）|
-|支撑服务客户端|`src/client/`（轻量级异步客户端：日志、配置、监控、服务发现）|
+|支撑服务客户端|`src/client/`（轻量级异步客户端：日志、配置、**账户凭证**、监控、服务发现）|
 |支撑服务层|`src/service/<名称>/`（独立进程 / 镜像部署；与引擎经 gRPC 控制面与 `client/` 旁路接口交互）|
 |接入层（外部独立项目）|不在本仓库；北向 HTTP REST，南向调 QTrade 支撑服务 gRPC|见《架构》§五|
 |企业级治理|多与**外部接入层**、运维流水线耦合：`release/deploy/`、`release/ci/`；Keycloak 等 IdP 可外置|
@@ -66,22 +66,27 @@ qtrade/
 │   │   ├── cms/                    # 合规管理：实时交易合规校验（限仓、限购、日内频次）
 │   │   ├── ems/                    # 执行管理：订单路由、拆单、算法执行、通道管理、故障切换
 │   │   ├── oms/                    # 订单管理：订单全生命周期、状态机、幂等性、WAL持久化
-│   │   ├── account/                # 账户管理：资金、资产、可用额度实时核算，多租户隔离
+│   │   ├── account/                # AccountManager：运行时资金账簿（≠ account-service，见《架构》§2.5）
 │   │   ├── position/               # 持仓管理：持仓、开平、冻结、盈亏实时核算，异常校验
 │   │   └── risk/                   # 风控管理
 │   ├── client/                     # 【引擎内部】支撑服务出站客户端（头文件与 .cpp 同目录，不对外暴露）
 │   │   ├── common/                 # OutboundWorker、ReportPriority
 │   │   ├── log_client/             # 日志客户端：A 段仅内存队列；Outbound 线程异步上报
-│   │   ├── config_client/          # 配置客户端：GetConfig 冷启动；WatchConfig 运行时订阅（gRPC 出站）
+│   │   ├── config_client/          # 配置客户端：GetConfig / WatchConfig（EngineConfig）
+│   │   ├── account_client/         # 【规划】账户凭证客户端：ResolveCredential（启动阶段）
 │   │   ├── monitor_client/         # 监控客户端：异步上报业务指标
 │   │   └── registry_client/        # 服务发现客户端：仅用于支撑服务间
 │   └── service/                    # 【支撑服务层】业务实现（无 main；入口在 src/apps/）
-│       ├── config_service/         # 配置管理服务实现
+│       ├── config_service/         # 配置管理：EngineConfig 下发（不含密码）
+│       ├── account_service/        # 【规划】交易账户：主数据 + 凭证托管 + 授权绑定
 │       ├── log_service/
 │       └── ...
-├── config/                         # 【示例配置】本地开发默认 JSON（--config 传入，非编译产物）
-│   ├── engine.json                 # 交易引擎
-│   └── config_service.json         # 配置管理服务
+├── config/                         # 【示例配置】与 build/bin 二进制同名（--config 传入）
+│   ├── qtrade_engine.json          # 引擎引导：config/account 地址、engine_id、log/monitor
+│   ├── qtrade_config_service.json
+│   ├── qtrade_account_service.json # 【规划】account-service 进程配置
+│   ├── qtrade_log_service.json
+│   └── ...                         # 其余 qtrade_*_service.json
 ├── demo/                           # 【示例代码】仅用于演示，不参与生产部署
 │   └── strategy/                   # 可插拔策略插件开发示例：趋势跟踪、套利等简单策略实现
 ├── test/                           # 【测试代码】按模块分类，单元测试、集成测试、性能测试
@@ -98,14 +103,19 @@ qtrade/
 
 **说明**：
 
-1. **进程模型**：可执行入口在 **`src/apps/`**（仅 `main.cpp`）；**构建定义在 `cmake/`**（`src/` 下不放 CMakeLists）。`qtrade_core` 供引擎与测试链接；`qtrade_common` 供支撑服务链接。
+1. **进程模型**：可执行入口在 **`src/apps/`**（仅 `main.cpp`）；服务实现编译为静态库（如 `qtrade_config_service_static`、`qtrade_account_service_static`），供可执行文件与单元测试链接。**构建定义在 `cmake/`**。可执行目标名与安装二进制同名（如 `qtrade_account_service`），与 `_static` 静态库目标区分。
 
-2. **本地运行示例**（`build/bin/`，在项目根目录执行）：
+2. **本地运行示例**（`build/bin/`，在项目根目录执行；配置文件与二进制同名）：
    ```shell
-   ./build/bin/qtrade_config_service --config config/config_service.json
-   ./build/bin/qtrade_engine --config config/engine.json
+   ./build/bin/qtrade_config_service --config config/qtrade_config_service.json
+   ./build/bin/qtrade_account_service --config config/qtrade_account_service.json  # 规划
+   ./build/bin/qtrade_engine --config config/qtrade_engine.json
+   ./build/bin/qtrade_log_service --config config/qtrade_log_service.json
+   ./build/bin/qtrade_monitor_service --config config/qtrade_monitor_service.json
    ```
    Ctrl+C 退出支撑服务。
+
+   **配置分层**见《架构》§2.5。
 
 3. 尚未创建的目录（如 `history_market_service/`）可在对应里程碑落地时补齐。**接入层（网关/控制台）为外部独立项目，不在本仓库。**
 
@@ -146,18 +156,22 @@ qtrade/
 |交易引擎内部|内存结构体 + 无锁队列|无网络、无序列化|
 |交易引擎 ↔ 适配器|函数调用 + 回调接口|同进程内|
 |交易引擎 → 支撑服务（D 段）|`client/` 异步接口 + Protobuf|Outbound 线程 fire-and-forget；内部传输可插拔，MVP 可 stub|
-|引擎 ↔ config-service|gRPC + Protobuf|引擎仅作 Client：`GetConfig` + `WatchConfig`|
-|支撑服务之间|gRPC + Protobuf|同步 / 异步均可|
+|引擎 ↔ config-service|gRPC + Protobuf|引擎仅作 Client：`GetConfig` + `WatchConfig`（`EngineConfig`）|
+|引擎 ↔ account-service|gRPC + Protobuf|【规划】引擎 Client：`ResolveCredential`（启动/换密，不进 A 段）|
+|支撑服务之间|gRPC + Protobuf|同步 / 异步均可（如 config 写入前校验 account 授权）|
 |接入层 ↔ 外部系统|HTTP(S)/WebSocket|**外部独立项目**；RESTful 北向，网关转 gRPC 调本仓库支撑服务|
-|外部接入层 → QTrade 支撑服务|gRPC + Protobuf|config / history / observability 等（`src/service/`）|
+|外部接入层 → QTrade 支撑服务|gRPC + Protobuf|config / **account** / history / observability 等（`src/service/`）|
 
 ### 4.2 旁路上报与配置订阅规范
 
 - **D 段**：`log_client`、`monitor_client` 等仅定义引擎侧异步接口；是否实现远程 gRPC/HTTP、是否 no-op 由里程碑决定
 
-- **控制面**：配置变更经 config-service 审计后，由 `WatchConfig` 流推送；引擎按 `config_version` 幂等应用
+- **控制面（config）**：配置变更经 config-service 审计后，由 `WatchConfig` 流推送 `ConfigSnapshot`（`version` + `EngineConfig`）；引擎按 `version` 幂等应用
+
+- **凭证面（account）**：登录凭证经 account-service 按需拉取，不进 `WatchConfig`（详见《架构》§2.5）
 
 - **优先级**：P0 审计须经本地 Spool 保底，不得仅依赖远程上报
+
 
 ---
 
@@ -224,7 +238,7 @@ Spi 适配器**不**继承 `qtrade_sdk::*Spi`；`#include` 该头文件仅为使
 
 - 策略**仅由内部行情 Tick/Bar 事件驱动**，不接受任何外部触发信号
 
-- 所有配置更新经 config-service 的 gRPC `WatchConfig` 推送，引擎出站订阅；禁止外部直接修改交易引擎内存
+- 所有**引擎业务配置**更新经 config-service 的 gRPC `WatchConfig` 推送；**交易凭证**经 account-service 单独管理（《架构》§2.5）；禁止外部直接修改交易引擎内存
 
 ### 6.3 可观测性
 

@@ -1,3 +1,4 @@
+# ---------------------------------------------------------------------------
 # Install rules for find_package(qtrade CONFIG).
 #
 # Default prefix: /usr/local (override with -DCMAKE_INSTALL_PREFIX=).
@@ -9,6 +10,7 @@
 #   lib/cmake/qtrade/qtrade-config-version.cmake
 #   lib/cmake/qtrade/qtradeTargets.cmake
 #   bin/qtrade_engine, bin/qtrade_*_service
+# ---------------------------------------------------------------------------
 
 include(CMakePackageConfigHelpers)
 

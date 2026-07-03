@@ -6,7 +6,7 @@
 #ifndef QTRADE_SERVICE_CONFIG_GRPC_ASYNC_HANDLER_HPP_
 #define QTRADE_SERVICE_CONFIG_GRPC_ASYNC_HANDLER_HPP_
 
-#include "service/config_service/config_store.hpp"
+#include "service/config_service/repository/config_repository.hpp"
 
 #include <qtrade/config/v1/config.grpc.pb.h>
 
@@ -18,45 +18,60 @@ class ServerCompletionQueue;
 
 namespace qtrade::service {
 
-namespace detail {
-class WatchSessionRegistry;
-}
-
 /// @brief 管理 GetConfig / WatchConfig 的 Async CallData 生命周期
 class ConfigGrpcAsyncHandler {
  public:
+  /// @brief 构造 RPC 处理器
   ConfigGrpcAsyncHandler();
+
+  /// @brief 析构并调用 Shutdown
   ~ConfigGrpcAsyncHandler();
 
   ConfigGrpcAsyncHandler(const ConfigGrpcAsyncHandler&) = delete;
   ConfigGrpcAsyncHandler& operator=(const ConfigGrpcAsyncHandler&) = delete;
 
-  /// @brief 绑定 AsyncService、CQ 与配置存储
+  /// @brief 绑定 AsyncService、CQ 与数据库仓储
+  /// @param async_service gRPC 异步服务指针
+  /// @param cq 服务端 CompletionQueue
+  /// @param repository 数据库仓储
   void Init(qtrade::config::v1::ConfigService::AsyncService* async_service,
             grpc::ServerCompletionQueue* cq,
-            std::shared_ptr<ConfigStore> store);
+            std::shared_ptr<IConfigRepository> repository);
 
-  /// @brief 注册版本监听并预投递 RPC 接收
+  /// @brief 预投递 RPC 接收
   void Start();
 
   /// @brief 停止新推送（Shutdown 前调用）
   void Shutdown();
 
+  /// @brief 预投递下一个 GetConfig 异步接收
   void SpawnGetConfig();
+
+  /// @brief 预投递下一个 WatchConfig 异步接收
   void SpawnWatchConfig();
 
-  void OnStoreVersion(std::uint64_t version);
+  /// @brief 从数据库查询指定作用域配置快照
+  /// @param scope 租户与引擎实例
+  /// @return 配置快照
+  [[nodiscard]] qtrade::config::v1::ConfigSnapshot QuerySnapshot(const ConfigScope& scope) const;
 
-  [[nodiscard]] std::shared_ptr<ConfigStore> Store() const { return store_; }
+  /// @brief 获取数据库仓储
+  /// @return 仓储共享指针
+  [[nodiscard]] std::shared_ptr<IConfigRepository> Repository() const { return repository_; }
+
+  /// @brief 获取 CompletionQueue
+  /// @return 服务端 CQ 指针
   [[nodiscard]] grpc::ServerCompletionQueue* CompletionQueue() const { return cq_; }
+
+  /// @brief 获取 gRPC 异步服务
+  /// @return AsyncService 指针
   [[nodiscard]] qtrade::config::v1::ConfigService::AsyncService* AsyncService() const { return async_service_; }
 
  private:
-  qtrade::config::v1::ConfigService::AsyncService* async_service_ = nullptr;
-  std::unique_ptr<detail::WatchSessionRegistry> watch_registry_;
-  grpc::ServerCompletionQueue* cq_ = nullptr;
-  std::shared_ptr<ConfigStore> store_;
-  bool started_ = false;
+  qtrade::config::v1::ConfigService::AsyncService* async_service_ = nullptr;  ///< gRPC 异步服务
+  grpc::ServerCompletionQueue* cq_ = nullptr;                                  ///< 服务端 CQ
+  std::shared_ptr<IConfigRepository> repository_;                              ///< 数据库仓储
+  bool started_ = false;                                                       ///< 是否已启动
 };
 
 }  // namespace qtrade::service

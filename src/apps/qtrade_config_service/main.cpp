@@ -46,15 +46,15 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  auto store = std::make_shared<qtrade::service::ConfigStore>();
-  if (const auto rc = qtrade::service::BootstrapConfigStore(config_path, *store); rc != qtrade::ErrorCode::kSuccess) {
-    spdlog::warn("[qtrade_config_service] config bootstrap failed, starting with empty store");
-    store->LoadFromMap({}, 1);
+  const auto context = qtrade::service::BootstrapConfigService(config_path);
+  if (!context.repository) {
+    spdlog::error("[qtrade_config_service] database not ready, check qtrade_config_service.json");
+    return EXIT_FAILURE;
   }
 
   const std::string listen = ReadListenAddress(config_path);
   qtrade::service::ConfigServer server;
-  if (const auto rc = server.Start(listen, store); rc != qtrade::ErrorCode::kSuccess) {
+  if (const auto rc = server.Start(listen, context); rc != qtrade::ErrorCode::kSuccess) {
     spdlog::error("[qtrade_config_service] server start failed");
     return EXIT_FAILURE;
   }

@@ -1,0 +1,67 @@
+// @file      account.proto
+// @brief     交易账户服务 gRPC 接口定义
+// @details   资金账户主数据、凭证托管与按需解析（§Architecture 2.5）
+syntax = "proto3";
+
+package qtrade.account.v1;
+
+option cc_enable_arenas = true;
+
+// 资金账户元数据（不含密码）
+message TradingAccount {
+  string account_id = 1;
+  string tenant_id = 2;
+  string broker_id = 3;
+  string connection_string = 4;
+  string status = 5;  // active / disabled
+}
+
+message RegisterAccountRequest {
+  TradingAccount account = 1;
+  string password = 2;
+}
+
+message RegisterAccountResponse {}
+
+message RotateCredentialRequest {
+  string account_id = 1;
+  string password = 2;
+}
+
+message RotateCredentialResponse {}
+
+message BindAccountToEngineRequest {
+  string account_id = 1;
+  string engine_id = 2;
+}
+
+message BindAccountToEngineResponse {}
+
+message ListAccountsRequest {
+  string tenant_id = 1;
+}
+
+message ListAccountsResponse {
+  repeated TradingAccount accounts = 1;
+}
+
+message ResolveCredentialRequest {
+  string engine_id = 1;
+  string account_id = 2;
+}
+
+// 引擎登录材料（仅 ResolveCredential 返回，不进 WatchConfig）
+message ResolveCredentialResponse {
+  string account_id = 1;
+  string broker_id = 2;
+  string connection_string = 3;
+  string password = 4;
+}
+
+service AccountService {
+  rpc RegisterAccount(RegisterAccountRequest) returns (RegisterAccountResponse);
+  rpc RotateCredential(RotateCredentialRequest) returns (RotateCredentialResponse);
+  rpc BindAccountToEngine(BindAccountToEngineRequest) returns (BindAccountToEngineResponse);
+  rpc ListAccounts(ListAccountsRequest) returns (ListAccountsResponse);
+  rpc ResolveCredential(ResolveCredentialRequest) returns (ResolveCredentialResponse);
+}

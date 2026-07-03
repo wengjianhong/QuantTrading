@@ -1,0 +1,22 @@
+{
+  "grpc": {
+    "listen": "0.0.0.0:50051"
+  },
+  "database": {
+    "enabled": true,
+    "type": "mysql",
+    "config": {
+      "port": 3306,
+      "host": "127.0.0.1",
+      "user": "config",
+      "password": "config",
+      "database_name": "config",
+      "connect_timeout": 0
+    },
+    "pool": {
+      "enabled": true,
+      "size": 4,
+      "lease_timeout": 0
+    }
+  }
+}

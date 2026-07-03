@@ -1,5 +1,8 @@
-# 工程路径（集中维护，避免与 src/ 混放 CMakeLists）
-# 命名约定：cmake/*.cmake 统一使用 qtrade_ 前缀 + snake_case
+# ---------------------------------------------------------------------------
+# Project paths (centralized; keep CMake out of src/)
+# Naming: cmake/*.cmake uses qtrade_ prefix + snake_case
+# ---------------------------------------------------------------------------
+
 set(QTRADE_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/include)
 set(QTRADE_SRC_DIR ${CMAKE_SOURCE_DIR}/src)
 set(QTRADE_DEMO_DIR ${CMAKE_SOURCE_DIR}/demo)

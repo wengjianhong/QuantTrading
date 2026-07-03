@@ -9,37 +9,21 @@
 
 #include <grpcpp/alarm.h>
 #include <grpcpp/grpcpp.h>
-#include <spdlog/spdlog.h>
-
-#include <mutex>
-#include <unordered_set>
-#include <utility>
 
 namespace qtrade::service {
 
 namespace detail {
 
-class WatchConfigCallData;
+/// @brief WatchConfig 轮询数据库的间隔（毫秒）
+constexpr int kWatchPollIntervalMs = 2000;
 
-/// @brief WatchConfig 会话注册表（版本 bump 时 SchedulePush）
-class WatchSessionRegistry {
- public:
-  void Add(WatchConfigCallData* call);
-  void Remove(WatchConfigCallData* call);
-  void NotifyAll();
-
- private:
-  std::mutex mutex_;
-  std::unordered_set<WatchConfigCallData*> sessions_;
-};
-
+/// @brief GetConfig 异步 CallData（Unary RPC）
 class GetConfigCallData final : public qtrade::common::grpc_async::CallDataBase {
  public:
   GetConfigCallData(ConfigGrpcAsyncHandler* handler,
                     qtrade::config::v1::ConfigService::AsyncService* service,
-                    grpc::ServerCompletionQueue* cq,
-                    std::shared_ptr<ConfigStore> store)
-    : handler_(handler), service_(service), cq_(cq), store_(std::move(store)), responder_(&ctx_) {
+                    grpc::ServerCompletionQueue* cq)
+    : handler_(handler), service_(service), cq_(cq), responder_(&ctx_) {
     Proceed(true);
   }
 
@@ -57,7 +41,8 @@ class GetConfigCallData final : public qtrade::common::grpc_async::CallDataBase 
 
     if (status_ == CallStatus::kProcess) {
       status_ = CallStatus::kFinish;
-      response_ = store_->GetSnapshot();
+      const ConfigScope scope = MakeConfigScope(request_);
+      response_ = handler_->QuerySnapshot(scope);
       responder_.Finish(response_, grpc::Status::OK, this);
       return;
     }
@@ -72,7 +57,6 @@ class GetConfigCallData final : public qtrade::common::grpc_async::CallDataBase 
   ConfigGrpcAsyncHandler* handler_;
   qtrade::config::v1::ConfigService::AsyncService* service_;
   grpc::ServerCompletionQueue* cq_;
-  std::shared_ptr<ConfigStore> store_;
   grpc::ServerContext ctx_;
   qtrade::config::v1::GetConfigRequest request_;
   qtrade::config::v1::ConfigSnapshot response_;
@@ -80,22 +64,14 @@ class GetConfigCallData final : public qtrade::common::grpc_async::CallDataBase 
   CallStatus status_ = CallStatus::kCreate;
 };
 
+/// @brief WatchConfig 异步 CallData（Server Streaming；定时查库推送）
 class WatchConfigCallData final : public qtrade::common::grpc_async::CallDataBase {
  public:
   WatchConfigCallData(ConfigGrpcAsyncHandler* handler,
                       qtrade::config::v1::ConfigService::AsyncService* service,
-                      grpc::ServerCompletionQueue* cq,
-                      std::shared_ptr<ConfigStore> store,
-                      WatchSessionRegistry* registry)
-    : handler_(handler), service_(service), cq_(cq), store_(std::move(store)), registry_(registry), writer_(&ctx_) {
+                      grpc::ServerCompletionQueue* cq)
+    : handler_(handler), service_(service), cq_(cq), writer_(&ctx_) {
     Proceed(true);
-  }
-
-  void SchedulePush() {
-    if (finished_) {
-      return;
-    }
-    alarm_.Set(cq_, gpr_now(GPR_CLOCK_MONOTONIC), this);
   }
 
   void Proceed(bool ok) override {
@@ -113,11 +89,14 @@ class WatchConfigCallData final : public qtrade::common::grpc_async::CallDataBas
     if (status_ == CallStatus::kAccept) {
       if (!accepted_) {
         accepted_ = true;
+        scope_ = MakeConfigScope(request_);
         since_version_ = request_.since_version();
-        registry_->Add(this);
         handler_->SpawnWatchConfig();
       }
-      TryWrite();
+      PollAndMaybeWrite();
+      if (!finished_ && !write_in_flight_) {
+        SchedulePoll();
+      }
       return;
     }
 
@@ -129,7 +108,9 @@ class WatchConfigCallData final : public qtrade::common::grpc_async::CallDataBas
       }
       since_version_ = outgoing_.version();
       status_ = CallStatus::kAccept;
-      TryWrite();
+      if (!finished_) {
+        SchedulePoll();
+      }
       return;
     }
 
@@ -139,15 +120,24 @@ class WatchConfigCallData final : public qtrade::common::grpc_async::CallDataBas
   }
 
  private:
-  friend class WatchSessionRegistry;
-
   enum class CallStatus { kCreate, kAccept, kWrite, kFinish };
 
-  void TryWrite() {
+  /// @brief 调度下一次数据库轮询
+  void SchedulePoll() {
+    if (finished_) {
+      return;
+    }
+    const gpr_timespec deadline =
+        gpr_time_add(gpr_now(GPR_CLOCK_MONOTONIC), gpr_time_from_millis(kWatchPollIntervalMs, GPR_TIMESPAN));
+    alarm_.Set(cq_, deadline, this);
+  }
+
+  /// @brief 查库并在版本更新时推送快照
+  void PollAndMaybeWrite() {
     if (finished_ || write_in_flight_) {
       return;
     }
-    const auto snapshot = store_->GetSnapshot();
+    const auto snapshot = handler_->QuerySnapshot(scope_);
     if (snapshot.version() <= since_version_) {
       return;
     }
@@ -163,7 +153,6 @@ class WatchConfigCallData final : public qtrade::common::grpc_async::CallDataBas
     }
     finished_ = true;
     alarm_.Cancel();
-    registry_->Remove(this);
     status_ = CallStatus::kFinish;
     writer_.Finish(status, this);
   }
@@ -171,40 +160,18 @@ class WatchConfigCallData final : public qtrade::common::grpc_async::CallDataBas
   ConfigGrpcAsyncHandler* handler_;
   qtrade::config::v1::ConfigService::AsyncService* service_;
   grpc::ServerCompletionQueue* cq_;
-  std::shared_ptr<ConfigStore> store_;
-  WatchSessionRegistry* registry_;
   grpc::ServerContext ctx_;
   qtrade::config::v1::WatchConfigRequest request_;
   qtrade::config::v1::ConfigSnapshot outgoing_;
   grpc::ServerAsyncWriter<qtrade::config::v1::ConfigSnapshot> writer_;
   grpc::Alarm alarm_;
+  ConfigScope scope_;
   CallStatus status_ = CallStatus::kCreate;
   std::uint64_t since_version_ = 0;
   bool accepted_ = false;
   bool write_in_flight_ = false;
   bool finished_ = false;
 };
-
-void WatchSessionRegistry::Add(WatchConfigCallData* call) {
-  std::lock_guard lock(mutex_);
-  sessions_.insert(call);
-}
-
-void WatchSessionRegistry::Remove(WatchConfigCallData* call) {
-  std::lock_guard lock(mutex_);
-  sessions_.erase(call);
-}
-
-void WatchSessionRegistry::NotifyAll() {
-  std::unordered_set<WatchConfigCallData*> copy;
-  {
-    std::lock_guard lock(mutex_);
-    copy = sessions_;
-  }
-  for (auto* call : copy) {
-    call->SchedulePush();
-  }
-}
 
 }  // namespace detail
 
@@ -214,56 +181,41 @@ ConfigGrpcAsyncHandler::~ConfigGrpcAsyncHandler() { Shutdown(); }
 
 void ConfigGrpcAsyncHandler::Init(qtrade::config::v1::ConfigService::AsyncService* async_service,
                                   grpc::ServerCompletionQueue* cq,
-                                  std::shared_ptr<ConfigStore> store) {
+                                  std::shared_ptr<IConfigRepository> repository) {
   async_service_ = async_service;
   cq_ = cq;
-  store_ = std::move(store);
-  watch_registry_ = std::make_unique<detail::WatchSessionRegistry>();
+  repository_ = std::move(repository);
 }
 
 void ConfigGrpcAsyncHandler::Start() {
-  if (started_ || async_service_ == nullptr || cq_ == nullptr || !store_) {
+  if (started_ || async_service_ == nullptr || cq_ == nullptr || !repository_) {
     return;
   }
-
-  store_->SetVersionListener([this](std::uint64_t version) { OnStoreVersion(version); });
 
   SpawnGetConfig();
   SpawnWatchConfig();
 
   started_ = true;
-  spdlog::info("[ConfigGrpcAsyncHandler] async RPC handlers started");
 }
 
-void ConfigGrpcAsyncHandler::Shutdown() {
-  if (!started_) {
-    return;
-  }
-  if (store_) {
-    store_->SetVersionListener(nullptr);
-  }
-  started_ = false;
-}
+void ConfigGrpcAsyncHandler::Shutdown() { started_ = false; }
 
 void ConfigGrpcAsyncHandler::SpawnGetConfig() {
-  if (async_service_ == nullptr || cq_ == nullptr || !store_) {
+  if (async_service_ == nullptr || cq_ == nullptr || !repository_) {
     return;
   }
-  new detail::GetConfigCallData(this, async_service_, cq_, store_);
+  new detail::GetConfigCallData(this, async_service_, cq_);
 }
 
 void ConfigGrpcAsyncHandler::SpawnWatchConfig() {
-  if (async_service_ == nullptr || cq_ == nullptr || !store_ || !watch_registry_) {
+  if (async_service_ == nullptr || cq_ == nullptr || !repository_) {
     return;
   }
-  new detail::WatchConfigCallData(this, async_service_, cq_, store_, watch_registry_.get());
+  new detail::WatchConfigCallData(this, async_service_, cq_);
 }
 
-void ConfigGrpcAsyncHandler::OnStoreVersion(std::uint64_t version) {
-  (void)version;
-  if (watch_registry_) {
-    watch_registry_->NotifyAll();
-  }
+qtrade::config::v1::ConfigSnapshot ConfigGrpcAsyncHandler::QuerySnapshot(const ConfigScope& scope) const {
+  return QueryConfigSnapshot(repository_.get(), scope);
 }
 
 }  // namespace qtrade::service

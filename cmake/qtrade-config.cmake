@@ -1,5 +1,7 @@
+# ---------------------------------------------------------------------------
 # Entry point for find_package(qtrade CONFIG).
 # Defines imported targets: qtrade::qtrade_proto, qtrade::qtrade_common, qtrade::qtrade_core
+# ---------------------------------------------------------------------------
 
 include(CMakeFindDependencyMacro)
 

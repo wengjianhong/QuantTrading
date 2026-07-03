@@ -1,5 +1,8 @@
 # ---------------------------------------------------------------------------
-# 独立进程：策略管理服务（qtrade_strategy_service）
+# Standalone process: strategy management service (qtrade_strategy_service)
+#
+# Status: MVP stub (main only); split *_static lib when implementation lands
+# Config: config/qtrade_strategy_service.json
 # ---------------------------------------------------------------------------
 
 # Build Service Executable

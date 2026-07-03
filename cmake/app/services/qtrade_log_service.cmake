@@ -1,5 +1,8 @@
 # ---------------------------------------------------------------------------
-# 独立进程：日志分析服务（qtrade_log_service）
+# Standalone process: log service (qtrade_log_service)
+#
+# Status: MVP stub (main only); split *_static lib when implementation lands
+# Config: config/qtrade_log_service.json
 # ---------------------------------------------------------------------------
 
 # Build Service Executable
