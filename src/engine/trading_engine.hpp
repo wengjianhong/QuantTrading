@@ -21,7 +21,7 @@
 #include "client/log_client/log_client.hpp"
 #include "client/monitor_client/monitor_client.hpp"
 #include "engine/engine_options.hpp"
-#include <qtrade/config/v1/config.pb.h>
+#include <qtrade/proto/config/v1/config.pb.h>
 #include <qtrade/error_code/error_codes.hpp>
 
 namespace qtrade::engine {

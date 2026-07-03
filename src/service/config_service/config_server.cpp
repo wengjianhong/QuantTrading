@@ -5,6 +5,7 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "service/config_service/config_server.hpp"
 
+#include "common/database/database_options.hpp"
 #include "common/grpc/grpc_async_server.hpp"
 #include "service/config_service/config_grpc_async_handler.hpp"
 
@@ -74,7 +75,7 @@ void ConfigServer::Wait() {
 ConfigServiceContext BootstrapConfigService(const std::string& json_path) {
   ConfigServiceContext context;
 
-  const auto database_options = ParseDatabaseOptions(json_path);
+  const auto database_options = qtrade::common::ParseDatabaseOptions(json_path);
   if (!database_options.enabled) {
     spdlog::error("[ConfigServer] database disabled");
     return context;

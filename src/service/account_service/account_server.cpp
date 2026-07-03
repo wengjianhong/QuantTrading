@@ -5,6 +5,7 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "service/account_service/account_server.hpp"
 
+#include "common/database/database_options.hpp"
 #include "common/grpc/grpc_async_server.hpp"
 #include "service/account_service/account_grpc_async_handler.hpp"
 
@@ -74,7 +75,7 @@ void AccountServer::Wait() {
 AccountServiceContext BootstrapAccountService(const std::string& json_path) {
   AccountServiceContext context;
 
-  const auto database_options = ParseAccountDatabaseOptions(json_path);
+  const auto database_options = qtrade::common::ParseDatabaseOptions(json_path);
   if (!database_options.enabled) {
     spdlog::error("[AccountServer] database disabled");
     return context;

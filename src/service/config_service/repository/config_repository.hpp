@@ -6,10 +6,10 @@
 #ifndef QTRADE_SERVICE_CONFIG_REPOSITORY_HPP_
 #define QTRADE_SERVICE_CONFIG_REPOSITORY_HPP_
 
-#include <qtrade/config/v1/config.pb.h>
+#include <qtrade/proto/config/v1/config.pb.h>
 #include <qtrade/error_code/error_codes.hpp>
 
-#include "common/database/service_database_options.hpp"
+#include "common/database/database_options.hpp"
 
 #include <cstdint>
 #include <memory>
@@ -50,9 +50,8 @@ class IConfigRepository {
                          std::uint64_t version) = 0;
 };
 
-[[nodiscard]] std::shared_ptr<IConfigRepository> CreateConfigRepository(const DatabaseOptions& options);
-
-[[nodiscard]] DatabaseOptions ParseDatabaseOptions(const std::string& json_path);
+[[nodiscard]] std::shared_ptr<IConfigRepository> CreateConfigRepository(
+    const qtrade::common::DatabaseOptions& options);
 
 /// @brief 查库并组装 ConfigSnapshot（gRPC 响应）
 [[nodiscard]] qtrade::config::v1::ConfigSnapshot QueryConfigSnapshot(IConfigRepository* repository,

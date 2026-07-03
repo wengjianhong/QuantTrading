@@ -6,9 +6,9 @@
 #ifndef QTRADE_SERVICE_ACCOUNT_REPOSITORY_HPP_
 #define QTRADE_SERVICE_ACCOUNT_REPOSITORY_HPP_
 
-#include "common/database/service_database_options.hpp"
+#include "common/database/database_options.hpp"
 
-#include <qtrade/account/v1/account.pb.h>
+#include <qtrade/proto/account/v1/account.pb.h>
 #include <qtrade/error_code/error_codes.hpp>
 
 #include <memory>
@@ -39,9 +39,8 @@ class IAccountRepository {
                                       qtrade::account::v1::ResolveCredentialResponse& response) = 0;
 };
 
-[[nodiscard]] std::shared_ptr<IAccountRepository> CreateAccountRepository(const DatabaseOptions& options);
-
-[[nodiscard]] DatabaseOptions ParseAccountDatabaseOptions(const std::string& json_path);
+[[nodiscard]] std::shared_ptr<IAccountRepository> CreateAccountRepository(
+    const qtrade::common::DatabaseOptions& options);
 
 }  // namespace qtrade::service
 

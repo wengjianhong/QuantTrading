@@ -6,7 +6,7 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "engine/trading_engine.hpp"
 
-#include <qtrade/config/v1/config.pb.h>
+#include <qtrade/proto/config/v1/config.pb.h>
 
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>

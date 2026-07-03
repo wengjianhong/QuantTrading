@@ -33,7 +33,7 @@ ConfigScope MakeConfigScope(const qtrade::config::v1::WatchConfigRequest& reques
   };
 }
 
-std::shared_ptr<IConfigRepository> CreateConfigRepository(const DatabaseOptions& options) {
+std::shared_ptr<IConfigRepository> CreateConfigRepository(const qtrade::common::DatabaseOptions& options) {
   if (!options.enabled) {
     return nullptr;
   }
@@ -71,10 +71,6 @@ qtrade::config::v1::ConfigSnapshot QueryConfigSnapshot(IConfigRepository* reposi
     snapshot.mutable_engine()->set_engine_id(scope.engine_id);
   }
   return snapshot;
-}
-
-DatabaseOptions ParseDatabaseOptions(const std::string& json_path) {
-  return ParseServiceDatabaseOptions(json_path);
 }
 
 }  // namespace qtrade::service

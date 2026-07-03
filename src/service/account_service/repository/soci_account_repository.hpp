@@ -14,7 +14,7 @@ namespace qtrade::service {
 
 class SociAccountRepository final : public IAccountRepository {
  public:
-  explicit SociAccountRepository(const DatabaseOptions& options);
+  explicit SociAccountRepository(const qtrade::common::DatabaseOptions& options);
   ~SociAccountRepository() override;
 
   ErrorCode EnsureSchema() override;

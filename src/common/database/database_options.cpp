@@ -1,9 +1,9 @@
-/// @file      service_database_options.cpp
-/// @brief     支撑服务 database 段 JSON 解析实现
+/// @file      database_options.cpp
+/// @brief     JSON database section parsing implementation
 /// @author    wengjianhong
 /// @date      2026-07-03
 /// @copyright CC BY-NC-SA 4.0
-#include "common/database/service_database_options.hpp"
+#include "common/database/database_options.hpp"
 
 #include <cpputils/database/database.hpp>
 
@@ -14,7 +14,7 @@
 #include <map>
 #include <utility>
 
-namespace qtrade::service {
+namespace qtrade::common {
 namespace {
 
 cpp_utils::database::DatabaseType ParseDatabaseType(const std::string& name) {
@@ -198,7 +198,7 @@ void ParsePoolOptions(const nlohmann::json& database, DatabaseOptions& options) 
 
 }  // namespace
 
-DatabaseOptions ParseServiceDatabaseOptions(const std::string& json_path) {
+DatabaseOptions ParseDatabaseOptions(const std::string& json_path) {
   DatabaseOptions options;
 
   std::ifstream ifs(json_path);
@@ -210,7 +210,7 @@ DatabaseOptions ParseServiceDatabaseOptions(const std::string& json_path) {
   try {
     ifs >> root;
   } catch (const nlohmann::json::exception& ex) {
-    spdlog::warn("[ServiceDatabaseOptions] invalid JSON in {}: {}", json_path, ex.what());
+    spdlog::warn("[DatabaseOptions] invalid JSON in {}: {}", json_path, ex.what());
     return options;
   }
 
@@ -229,4 +229,4 @@ DatabaseOptions ParseServiceDatabaseOptions(const std::string& json_path) {
   return options;
 }
 
-}  // namespace qtrade::service
+}  // namespace qtrade::common

@@ -17,7 +17,7 @@ class SociConfigRepository final : public IConfigRepository {
  public:
   /// @brief 根据数据库选项建立连接或连接池
   /// @param options 数据库连接选项
-  explicit SociConfigRepository(const DatabaseOptions& options);
+  explicit SociConfigRepository(const qtrade::common::DatabaseOptions& options);
 
   /// @brief 关闭连接并释放连接池
   ~SociConfigRepository() override;

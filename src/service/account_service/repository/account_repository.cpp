@@ -9,15 +9,11 @@
 
 namespace qtrade::service {
 
-std::shared_ptr<IAccountRepository> CreateAccountRepository(const DatabaseOptions& options) {
+std::shared_ptr<IAccountRepository> CreateAccountRepository(const qtrade::common::DatabaseOptions& options) {
   if (!options.enabled) {
     return nullptr;
   }
   return std::make_shared<SociAccountRepository>(options);
-}
-
-DatabaseOptions ParseAccountDatabaseOptions(const std::string& json_path) {
-  return ParseServiceDatabaseOptions(json_path);
 }
 
 }  // namespace qtrade::service

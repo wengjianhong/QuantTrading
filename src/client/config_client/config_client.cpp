@@ -5,7 +5,7 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "client/config_client/config_client.hpp"
 
-#include <qtrade/config/v1/config.grpc.pb.h>
+#include <qtrade/proto/config/v1/config.grpc.pb.h>
 
 #include <grpcpp/grpcpp.h>
 #include <spdlog/spdlog.h>

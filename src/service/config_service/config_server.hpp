@@ -8,7 +8,7 @@
 
 #include "service/config_service/repository/config_repository.hpp"
 
-#include <qtrade/config/v1/config.grpc.pb.h>
+#include <qtrade/proto/config/v1/config.grpc.pb.h>
 #include <qtrade/error_code/error_codes.hpp>
 
 #include <memory>

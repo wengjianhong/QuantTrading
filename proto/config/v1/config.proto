@@ -47,6 +47,8 @@ message WatchConfigRequest {
 
 // 配置中心 gRPC 服务（引擎仅作 Client，不对外暴露 Server）
 service ConfigService {
+  // 获取配置全量快照
   rpc GetConfig(GetConfigRequest) returns (ConfigSnapshot);
+  // 订阅配置全量快照
   rpc WatchConfig(WatchConfigRequest) returns (stream ConfigSnapshot);
 }

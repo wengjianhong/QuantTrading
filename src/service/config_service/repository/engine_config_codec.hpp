@@ -6,7 +6,7 @@
 #ifndef QTRADE_SERVICE_ENGINE_CONFIG_CODEC_HPP_
 #define QTRADE_SERVICE_ENGINE_CONFIG_CODEC_HPP_
 
-#include <qtrade/config/v1/config.pb.h>
+#include <qtrade/proto/config/v1/config.pb.h>
 
 #include <string>
 

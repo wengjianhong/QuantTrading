@@ -60,7 +60,7 @@ ErrorCode MapDbError(cpp_utils::database::Error error) {
 
 }  // namespace
 
-SociConfigRepository::SociConfigRepository(const DatabaseOptions& options) {
+SociConfigRepository::SociConfigRepository(const qtrade::common::DatabaseOptions& options) {
   if (options.pool.has_value()) {
     pool_ = cpp_utils::database::CreateConnectionPool();
     if (const auto rc = pool_->Open(*options.pool); rc != cpp_utils::database::Error::kSuccess) {

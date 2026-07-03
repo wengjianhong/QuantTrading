@@ -8,7 +8,7 @@
 
 #include "service/account_service/repository/account_repository.hpp"
 
-#include <qtrade/account/v1/account.grpc.pb.h>
+#include <qtrade/proto/account/v1/account.grpc.pb.h>
 #include <qtrade/error_code/error_codes.hpp>
 
 #include <memory>
