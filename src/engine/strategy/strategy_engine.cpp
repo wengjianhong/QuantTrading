@@ -9,8 +9,7 @@
 
 namespace qtrade::engine::strategy {
 
-StrategyEngine::StrategyEngine(event_bus::EventLanes& event_lanes)
-    : event_lanes_(event_lanes), running_(false) {}
+StrategyEngine::StrategyEngine(event_bus::EventLanes& event_lanes) : event_lanes_(event_lanes), running_(false) {}
 
 StrategyEngine::~StrategyEngine() { Stop(); }
 

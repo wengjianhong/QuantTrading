@@ -5,7 +5,7 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "client/config_client/config_client.hpp"
 
-#include <qtrade/config/v1/config.grpc.pb.h>
+#include <qtrade/proto/config/v1/config.grpc.pb.h>
 
 #include <grpcpp/grpcpp.h>
 #include <spdlog/spdlog.h>
@@ -74,7 +74,9 @@ ErrorCode ConfigClient::FetchSnapshot() {
   }
 
   ApplySnapshot(response);
-  spdlog::info("[ConfigClient] snapshot loaded, version={}, entries={}", response.version(), response.entries_size());
+  spdlog::info("[ConfigClient] snapshot loaded, version={}, strategies={}",
+               response.version(),
+               response.has_engine() ? response.engine().strategies_size() : 0);
   return ErrorCode::kSuccess;
 }
 
@@ -105,13 +107,14 @@ ErrorCode ConfigClient::StartWatch() {
       grpc::ClientContext context;
       qtrade::config::v1::ConfigSnapshot snapshot;
       std::unique_ptr<grpc::ClientReader<qtrade::config::v1::ConfigSnapshot>> reader(
-          impl_->stub->WatchConfig(&context, request));
+        impl_->stub->WatchConfig(&context, request));
 
       while (impl_->watch_running.load(std::memory_order_acquire) && reader->Read(&snapshot)) {
         backoff_ms = 500;
         ApplySnapshot(snapshot);
-        spdlog::debug("[ConfigClient] applied snapshot version={}, entries={}", snapshot.version(),
-                      snapshot.entries_size());
+        spdlog::debug("[ConfigClient] applied snapshot version={}, strategies={}",
+                      snapshot.version(),
+                      snapshot.has_engine() ? snapshot.engine().strategies_size() : 0);
       }
 
       const grpc::Status status = reader->Finish();

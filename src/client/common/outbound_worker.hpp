@@ -24,7 +24,7 @@ namespace qtrade::client::detail {
 
 /// @brief Outbound 队列单条待上报项
 struct OutboundItem {
-  ReportPriority priority = ReportPriority::kP3Debug; ///< 旁路优先级
+  ReportPriority priority = ReportPriority::kP3Debug;  ///< 旁路优先级
   std::string payload;                                 ///< 序列化后的上报载荷
 };
 
@@ -78,15 +78,15 @@ class OutboundWorker {
   /// @param payload 审计载荷
   void SpoolP0Locked(std::string payload);
 
-  std::mutex mutex_;                      ///< 保护 queue_ 与 p0_spool_
-  std::condition_variable cv_;            ///< 通知 worker 有新项
-  std::deque<OutboundItem> queue_;        ///< 待上报内存队列
-  std::deque<std::string> p0_spool_;      ///< P0 审计本地 spool
-  std::thread worker_;                    ///< Outbound 专用线程
-  std::atomic<bool> running_{false};      ///< worker 运行标志
-  SinkFn sink_;                           ///< 实际上报回调
-  std::size_t max_queue_size_ = 4096;     ///< 内存队列容量上限
-  static constexpr std::size_t kP0SpoolCapacity = 1024; ///< P0 spool 容量上限
+  std::mutex mutex_;                                     ///< 保护 queue_ 与 p0_spool_
+  std::condition_variable cv_;                           ///< 通知 worker 有新项
+  std::deque<OutboundItem> queue_;                       ///< 待上报内存队列
+  std::deque<std::string> p0_spool_;                     ///< P0 审计本地 spool
+  std::thread worker_;                                   ///< Outbound 专用线程
+  std::atomic<bool> running_{false};                     ///< worker 运行标志
+  SinkFn sink_;                                          ///< 实际上报回调
+  std::size_t max_queue_size_ = 4096;                    ///< 内存队列容量上限
+  static constexpr std::size_t kP0SpoolCapacity = 1024;  ///< P0 spool 容量上限
 };
 
 }  // namespace qtrade::client::detail

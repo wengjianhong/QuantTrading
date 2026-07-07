@@ -29,12 +29,12 @@ enum class ModuleNumber : int32_t {
   kExecutionAdapter = 101,  /// 交易执行适配器模块
 
   /// 交易引擎层（BBB=200~299）
-  kEngineCommon = 200,    /// 交易引擎通用错误码段
-  kAccount = 201,         /// 账号管理模块
-  kEventBus = 202,        /// 事件总线模块
-  kCompliance = 203,      /// 交易合规模块(cms)
-  kExecution = 204,       /// 交易执行模块(ems)
-  kOrder = 205,           /// 订单管理模块(oms)
+  kEngineCommon = 200,      /// 交易引擎通用错误码段
+  kAccount = 201,           /// 账号管理模块
+  kEventBus = 202,          /// 事件总线模块
+  kCompliance = 203,        /// 交易合规模块(cms)
+  kExecution = 204,         /// 交易执行模块(ems)
+  kOrder = 205,             /// 订单管理模块(oms)
   kQuoteNormalizer = 206,   /// 行情标准化模块（QuoteNormalizer）
   kPosition = 207,          /// 持仓管理模块
   kRisk = 208,              /// 风险管理模块

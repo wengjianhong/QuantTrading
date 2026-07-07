@@ -11,8 +11,8 @@
 #include <qtrade_sdk/quote/quote_struct.hpp>
 #include <qtrade_sdk/trader/trader_struct.hpp>
 
-#include <memory>
 #include <functional>
+#include <memory>
 
 namespace qtrade::engine::event_bus {
 

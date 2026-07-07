@@ -5,8 +5,8 @@
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
 #include "example_strategy.hpp"
-#include <spdlog/spdlog.h>
 #include <cmath>
+#include <spdlog/spdlog.h>
 
 namespace qtrade::demo {
 

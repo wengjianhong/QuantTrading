@@ -1,5 +1,8 @@
 # ---------------------------------------------------------------------------
-# 独立进程：服务注册发现（qtrade_registry_service）
+# Standalone process: service registry (qtrade_registry_service)
+#
+# Status: MVP stub (main only); etcd-based discovery in phase 2
+# Config: config/qtrade_registry_service.json
 # ---------------------------------------------------------------------------
 
 # Build Service Executable

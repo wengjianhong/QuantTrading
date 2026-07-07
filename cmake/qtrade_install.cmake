@@ -1,14 +1,16 @@
+# ---------------------------------------------------------------------------
 # Install rules for find_package(qtrade CONFIG).
 #
 # Default prefix: /usr/local (override with -DCMAKE_INSTALL_PREFIX=).
 # Installed layout:
 #   lib/libqtrade_{proto,common,core}.a
 #   include/qtrade/...
-#   include/qtrade/config/v1/*.pb.h (generated)
+#   include/qtrade/proto/config/v1/*.pb.h (generated)
 #   lib/cmake/qtrade/qtrade-config.cmake
 #   lib/cmake/qtrade/qtrade-config-version.cmake
 #   lib/cmake/qtrade/qtradeTargets.cmake
 #   bin/qtrade_engine, bin/qtrade_*_service
+# ---------------------------------------------------------------------------
 
 include(CMakePackageConfigHelpers)
 
@@ -29,11 +31,10 @@ install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-# Generated protobuf/gRPC headers
+# Generated protobuf/gRPC headers (staged under qtrade/proto/)
 if(QTRADE_PROTO_FILES)
-  install(DIRECTORY ${QTRADE_PROTO_GEN_DIR}/
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    FILES_MATCHING PATTERN "*.h"
+  install(DIRECTORY ${QTRADE_PROTO_PUBLIC_INCLUDE_DIR}/qtrade/proto/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/qtrade/proto
   )
 endif()
 

@@ -1,5 +1,8 @@
 # ---------------------------------------------------------------------------
-# 独立进程：业务监控服务（qtrade_monitor_service）
+# Standalone process: monitor service (qtrade_monitor_service)
+#
+# Status: MVP stub (main only); split *_static lib when implementation lands
+# Config: config/qtrade_monitor_service.json
 # ---------------------------------------------------------------------------
 
 # Build Service Executable

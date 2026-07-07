@@ -1,0 +1,14 @@
+{
+  "grpc": {
+    "listen": "0.0.0.0:50057"
+  },
+  "history_order_service": "127.0.0.1:50055",
+  "worker": {
+    "max_concurrent_jobs": 2,
+    "job_queue_size": 32
+  },
+  "simulation": {
+    "default_slippage_bps": 1,
+    "default_commission_rate": 0.0003
+  }
+}

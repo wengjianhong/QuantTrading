@@ -1,5 +1,8 @@
 # ---------------------------------------------------------------------------
-# 独立进程：历史成交服务（qtrade_history_order_service）
+# Standalone process: history order service (qtrade_history_order_service)
+#
+# Status: MVP stub (main only); split *_static lib when implementation lands
+# Config: config/qtrade_history_order_service.json
 # ---------------------------------------------------------------------------
 
 # Build Service Executable

@@ -1,0 +1,19 @@
+{
+  "tenant_id": "default",
+  "engine_id": "engine-1",
+  "account_id": "acc_001",
+  "quote_source": "mock-primary",
+  "quote_failover": "mock-backup",
+  "strategies": [
+    {
+      "strategy_id": "mean_reversion_01",
+      "plugin": "libmean_reversion.so",
+      "enabled": true,
+      "instruments": ["IF2506", "IH2506"],
+      "params": {
+        "lookback": "20",
+        "threshold": "0.02"
+      }
+    }
+  ]
+}

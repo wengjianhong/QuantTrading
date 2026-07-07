@@ -11,7 +11,7 @@
 namespace qtrade::engine::normalizer {
 
 TraderNormalizer::TraderNormalizer(event_bus::ReturnEventReactor& return_event_reactor)
-    : return_event_reactor_(return_event_reactor), running_(false) {
+  : return_event_reactor_(return_event_reactor), running_(false) {
   (void)return_event_reactor_;
 }
 

@@ -56,9 +56,9 @@ class LogClient {
   /// @return 对应的 ReportPriority
   static ReportPriority LevelToPriority(std::string_view level);
 
-  std::string topic_;                              ///< 日志主题/分类
-  bool initialized_ = false;                       ///< 是否已完成 Init
-  std::unique_ptr<detail::OutboundWorker> worker_; ///< Outbound 队列与专用线程
+  std::string topic_;                               ///< 日志主题/分类
+  bool initialized_ = false;                        ///< 是否已完成 Init
+  std::unique_ptr<detail::OutboundWorker> worker_;  ///< Outbound 队列与专用线程
 };
 
 }  // namespace qtrade::client

@@ -75,9 +75,8 @@ void OutboundWorker::WorkerLoop() {
     OutboundItem item;
     {
       std::unique_lock lock(mutex_);
-      cv_.wait(lock, [this] {
-        return !running_.load(std::memory_order_acquire) || !queue_.empty() || !p0_spool_.empty();
-      });
+      cv_.wait(lock,
+               [this] { return !running_.load(std::memory_order_acquire) || !queue_.empty() || !p0_spool_.empty(); });
 
       if (!running_.load(std::memory_order_acquire) && queue_.empty() && p0_spool_.empty()) {
         break;
@@ -104,8 +103,7 @@ void OutboundWorker::WorkerLoop() {
 bool OutboundWorker::DropOldestNonP0Locked() {
   for (auto it = queue_.begin(); it != queue_.end(); ++it) {
     if (it->priority != ReportPriority::kP0Audit) {
-      spdlog::warn("[OutboundWorker] dropping oldest non-P0 batch (priority={})",
-                   static_cast<int>(it->priority));
+      spdlog::warn("[OutboundWorker] dropping oldest non-P0 batch (priority={})", static_cast<int>(it->priority));
       queue_.erase(it);
       return true;
     }
@@ -121,8 +119,6 @@ void OutboundWorker::ReplayP0SpoolLocked() {
   }
 }
 
-void OutboundWorker::SpoolP0Locked(std::string payload) {
-  p0_spool_.push_back(std::move(payload));
-}
+void OutboundWorker::SpoolP0Locked(std::string payload) { p0_spool_.push_back(std::move(payload)); }
 
 }  // namespace qtrade::client::detail

@@ -26,7 +26,7 @@ class CompletionQueueLoop;
 class GrpcAsyncServer {
  public:
   struct Options {
-    std::string listen_address;   ///< 监听地址
+    std::string listen_address;       ///< 监听地址
     std::size_t cq_thread_count = 1;  ///< CQ 轮询线程数
   };
 

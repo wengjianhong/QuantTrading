@@ -1,50 +1,54 @@
 // @file      config.proto
 // @brief     配置中心 gRPC 接口定义
-// @details   控制面：引擎出站调用 GetConfig（冷启动）与 WatchConfig（运行时按版本全量推送）
+// @details   控制面：引擎出站 GetConfig / WatchConfig；EngineConfig 为唯一业务配置模型
 syntax = "proto3";
 
 package qtrade.config.v1;
 
 option cc_enable_arenas = true;
 
-// 单条配置键值对
-message ConfigEntry {
-  // 配置键，如 strategy.example.enabled
-  string key = 1;
-  // 配置值，字符串形式
-  string value = 2;
+// 单条策略绑定（与 Architecture §2.4 对齐）
+message StrategyConfig {
+  string strategy_id = 1;
+  string plugin = 2;
+  bool enabled = 3;
+  repeated string instruments = 4;
+  map<string, string> params = 5;
 }
 
-// GetConfig 请求：按租户与引擎实例拉取全量快照
-message GetConfigRequest {
-  // 租户 ID
+// 引擎实例业务配置（按 tenant_id + engine_id 分片）
+message EngineConfig {
   string tenant_id = 1;
-  // 引擎实例 ID
+  string engine_id = 2;
+  string account_id = 3;
+  string quote_source = 4;
+  string quote_failover = 5;
+  repeated StrategyConfig strategies = 6;
+}
+
+// GetConfig 请求：按租户与引擎实例拉取配置
+message GetConfigRequest {
+  string tenant_id = 1;
   string engine_id = 2;
 }
 
 // 配置全量快照（冷启动与 Watch 推送均使用同一结构）
 message ConfigSnapshot {
-  // 单调递增配置版本号
   uint64 version = 1;
-  // 全量键值对列表
-  repeated ConfigEntry entries = 2;
+  EngineConfig engine = 2;
 }
 
 // WatchConfig 请求：订阅 since_version 之后的全量快照
 message WatchConfigRequest {
-  // 租户 ID
   string tenant_id = 1;
-  // 引擎实例 ID
   string engine_id = 2;
-  // 客户端已应用的最新版本；服务端仅推送更大版本的 ConfigSnapshot
   uint64 since_version = 3;
 }
 
 // 配置中心 gRPC 服务（引擎仅作 Client，不对外暴露 Server）
 service ConfigService {
-  // 冷启动：一次性拉取全量配置
+  // 获取配置全量快照
   rpc GetConfig(GetConfigRequest) returns (ConfigSnapshot);
-  // 运行时：Server Streaming 按版本推送全量快照
+  // 订阅配置全量快照
   rpc WatchConfig(WatchConfigRequest) returns (stream ConfigSnapshot);
 }

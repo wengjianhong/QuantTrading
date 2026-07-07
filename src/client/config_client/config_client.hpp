@@ -22,9 +22,9 @@ namespace qtrade::client {
 
 /// @brief 配置客户端连接参数
 struct ConfigClientOptions {
-  std::string server_address;        ///< config-service gRPC 地址，如 localhost:50051
-  std::string tenant_id = "default"; ///< 租户 ID，用于多租户隔离
-  std::string engine_id = "default"; ///< 引擎实例 ID，用于按实例推送
+  std::string server_address;         ///< config-service gRPC 地址，如 localhost:50051
+  std::string tenant_id = "default";  ///< 租户 ID，用于多租户隔离
+  std::string engine_id = "default";  ///< 引擎实例 ID，用于按实例推送
 };
 
 /// @brief 配置管理客户端类
@@ -73,8 +73,8 @@ class ConfigClient {
  private:
   void ApplySnapshot(const qtrade::config::v1::ConfigSnapshot& snapshot);
 
-  struct Impl;                 ///< 实现细节（隐藏 gRPC 依赖）
-  std::unique_ptr<Impl> impl_; ///< pimpl 实现体
+  struct Impl;                  ///< 实现细节（隐藏 gRPC 依赖）
+  std::unique_ptr<Impl> impl_;  ///< pimpl 实现体
 };
 
 }  // namespace qtrade::client

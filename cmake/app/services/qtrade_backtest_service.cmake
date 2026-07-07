@@ -1,5 +1,8 @@
 # ---------------------------------------------------------------------------
-# 独立进程：回测引擎服务（qtrade_backtest_service）
+# Standalone process: backtest service (qtrade_backtest_service)
+#
+# Status: MVP stub (main only); split *_static lib when implementation lands
+# Config: config/qtrade_backtest_service.json
 # ---------------------------------------------------------------------------
 
 # Build Service Executable

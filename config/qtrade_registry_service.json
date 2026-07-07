@@ -1,0 +1,13 @@
+{
+  "grpc": {
+    "listen": "0.0.0.0:50054"
+  },
+  "backend": {
+    "type": "static",
+    "static_services": {
+      "config-service": "127.0.0.1:50051",
+      "log-service": "127.0.0.1:50052",
+      "monitor-service": "127.0.0.1:50053"
+    }
+  }
+}

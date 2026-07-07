@@ -46,8 +46,8 @@ ErrorCode GrpcAsyncServer::Start(const Options& options, grpc::Service* async_se
   loop_->Start(cq_.get(), options.cq_thread_count);
 
   running_ = true;
-  spdlog::info("[GrpcAsyncServer] listening on {} (async, cq_threads={})", options.listen_address,
-               options.cq_thread_count);
+  spdlog::info(
+    "[GrpcAsyncServer] listening on {} (async, cq_threads={})", options.listen_address, options.cq_thread_count);
   return ErrorCode::kSuccess;
 }
 

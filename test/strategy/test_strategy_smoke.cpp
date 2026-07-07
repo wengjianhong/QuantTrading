@@ -8,6 +8,4 @@
 
 #include <qtrade/strategy/strategy.hpp>
 
-TEST(StrategySmoke, InterfaceVisible) {
-  SUCCEED();
-}
+TEST(StrategySmoke, InterfaceVisible) { SUCCEED(); }

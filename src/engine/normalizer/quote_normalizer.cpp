@@ -14,7 +14,7 @@
 namespace qtrade::engine::normalizer {
 
 QuoteNormalizer::QuoteNormalizer(event_bus::MarketEventReactor& market_event_reactor)
-    : market_event_reactor_(market_event_reactor), running_(false) {}
+  : market_event_reactor_(market_event_reactor), running_(false) {}
 
 QuoteNormalizer::~QuoteNormalizer() { Stop(); }
 

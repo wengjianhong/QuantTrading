@@ -6,9 +6,9 @@
 /// @copyright CC BY-NC-SA 4.0
 #include <gtest/gtest.h>
 
-#include <qtrade_sdk/quote/quote_struct.hpp>
 #include "engine/engine_options.hpp"
 #include "engine/trading_engine.hpp"
+#include <qtrade_sdk/quote/quote_struct.hpp>
 
 TEST(EngineSmoke, TradingEngineStartStop) {
   qtrade::engine::EngineOptions options;

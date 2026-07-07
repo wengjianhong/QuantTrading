@@ -6,7 +6,7 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "engine/trading_engine.hpp"
 
-#include <qtrade/config/v1/config.pb.h>
+#include <qtrade/proto/config/v1/config.pb.h>
 
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
@@ -35,6 +35,9 @@ ErrorCode ParseEngineOptionsFromJson(const std::string& json_path, EngineOptions
   if (root.contains("config_service")) {
     options.config_server_address = root["config_service"].get<std::string>();
   }
+  if (root.contains("account_service")) {
+    options.account_server_address = root["account_service"].get<std::string>();
+  }
   if (root.contains("tenant_id")) {
     options.tenant_id = root["tenant_id"].get<std::string>();
   }
@@ -54,9 +57,9 @@ ErrorCode ParseEngineOptionsFromJson(const std::string& json_path, EngineOptions
 }  // namespace
 
 TradingEngine::TradingEngine()
-    : strategy_engine_(event_lanes_),
-      quote_normalizer_(event_lanes_.Market()),
-      trader_normalizer_(event_lanes_.Return()) {}
+  : strategy_engine_(event_lanes_),
+    quote_normalizer_(event_lanes_.Market()),
+    trader_normalizer_(event_lanes_.Return()) {}
 
 TradingEngine::~TradingEngine() { Stop(); }
 
@@ -84,8 +87,7 @@ ErrorCode TradingEngine::Init(const EngineOptions& options) {
     return rc;
   }
 
-  const std::string monitor_endpoint =
-      options_.monitor_endpoint.empty() ? "stub://local" : options_.monitor_endpoint;
+  const std::string monitor_endpoint = options_.monitor_endpoint.empty() ? "stub://local" : options_.monitor_endpoint;
   if (const auto rc = monitor_client_.Init(monitor_endpoint); rc != ErrorCode::kSuccess) {
     spdlog::warn("[TradingEngine] monitor_client init failed, code={}", static_cast<int>(rc));
     log_client_.Shutdown();
@@ -94,8 +96,7 @@ ErrorCode TradingEngine::Init(const EngineOptions& options) {
 
   if (!options_.config_server_address.empty()) {
     if (const auto rc = InitConfigClient(options_); rc != ErrorCode::kSuccess) {
-      spdlog::warn("[TradingEngine] config_client init failed, code={} (using local defaults)",
-                   static_cast<int>(rc));
+      spdlog::warn("[TradingEngine] config_client init failed, code={} (using local defaults)", static_cast<int>(rc));
     }
   } else {
     spdlog::info("[TradingEngine] config_server_address empty, skipping config_client");
@@ -116,9 +117,8 @@ ErrorCode TradingEngine::InitConfigClient(const EngineOptions& options) {
     return rc;
   }
 
-  config_client_.SetOnSnapshot([this](const qtrade::config::v1::ConfigSnapshot& snapshot) {
-    OnConfigSnapshot(snapshot);
-  });
+  config_client_.SetOnSnapshot(
+    [this](const qtrade::config::v1::ConfigSnapshot& snapshot) { OnConfigSnapshot(snapshot); });
 
   if (const auto rc = config_client_.FetchSnapshot(); rc != ErrorCode::kSuccess) {
     spdlog::warn("[TradingEngine] GetConfig failed, continuing with local snapshot");
@@ -132,9 +132,29 @@ ErrorCode TradingEngine::InitConfigClient(const EngineOptions& options) {
 }
 
 void TradingEngine::OnConfigSnapshot(const qtrade::config::v1::ConfigSnapshot& snapshot) {
-  spdlog::info("[TradingEngine] config snapshot version={}, entries={}", snapshot.version(), snapshot.entries_size());
-  for (const auto& entry : snapshot.entries()) {
-    log_client_.Emit("info", entry.key() + "=" + entry.value());
+  if (!snapshot.has_engine()) {
+    spdlog::warn("[TradingEngine] config snapshot version={} has no engine config", snapshot.version());
+    return;
+  }
+
+  const auto& engine = snapshot.engine();
+  if (!engine.tenant_id().empty() && engine.tenant_id() != options_.tenant_id) {
+    spdlog::warn("[TradingEngine] tenant_id mismatch: snapshot={} local={}", engine.tenant_id(), options_.tenant_id);
+  }
+  if (!engine.engine_id().empty() && engine.engine_id() != options_.engine_id) {
+    spdlog::warn("[TradingEngine] engine_id mismatch: snapshot={} local={}", engine.engine_id(), options_.engine_id);
+  }
+
+  runtime_config_ = engine;
+  spdlog::info("[TradingEngine] config snapshot version={}, account={}, quote_source={}, strategies={}",
+               snapshot.version(),
+               engine.account_id(),
+               engine.quote_source(),
+               engine.strategies_size());
+
+  for (const auto& strategy : engine.strategies()) {
+    log_client_.Emit("info",
+                     "strategy " + strategy.strategy_id() + " enabled=" + (strategy.enabled() ? "true" : "false"));
   }
 }
 

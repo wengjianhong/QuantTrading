@@ -51,9 +51,9 @@ class MonitorClient {
   void Gauge(std::string_view name, double value);
 
  private:
-  std::string endpoint_;                           ///< 监控服务端点（预留）
-  bool initialized_ = false;                       ///< 是否已完成 Init
-  std::unique_ptr<detail::OutboundWorker> worker_; ///< Outbound 队列与专用线程
+  std::string endpoint_;                            ///< 监控服务端点（预留）
+  bool initialized_ = false;                        ///< 是否已完成 Init
+  std::unique_ptr<detail::OutboundWorker> worker_;  ///< Outbound 队列与专用线程
 };
 
 }  // namespace qtrade::client

@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# qtrade_core：交易引擎核心库（adapter/mock、adapter/emt / engine / client / demo）
+# qtrade_core: trading engine (adapter/mock, adapter/emt, engine, client, demo)
 # ---------------------------------------------------------------------------
 
 # Source Files
@@ -16,14 +16,18 @@ list(APPEND CORE_SRC_FILES
 
 # Build Core Library
 add_library(qtrade_core STATIC ${CORE_SRC_FILES})
+
+## Include Public Directories
 target_include_directories(qtrade_core PUBLIC
     $<BUILD_INTERFACE:${QTRADE_INCLUDE_DIR}>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
+## Include Private Directories
 target_include_directories(qtrade_core PRIVATE
     ${QTRADE_SRC_DIR}
     ${QTRADE_DEMO_DIR}
 )
+## Link Public Libraries
 target_link_libraries(qtrade_core PUBLIC
     qtrade_common
     qtrade_proto

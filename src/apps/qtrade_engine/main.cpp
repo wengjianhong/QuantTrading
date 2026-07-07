@@ -4,10 +4,10 @@
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
+#include "adapter/mock/quote/mock_quote_api.hpp"
 #include "common/app/app_runner.hpp"
 #include "common/logging/logger.hpp"
 #include "engine/trading_engine.hpp"
-#include "adapter/mock/quote/mock_quote_api.hpp"
 #include "strategy/example_strategy.hpp"
 
 #include <spdlog/spdlog.h>

@@ -61,9 +61,7 @@ std::string EmtTraderApi::GetAccountByEMTID(std::uint64_t order_emt_id) {
   return account_id_;
 }
 
-void EmtTraderApi::SubscribePublicTopic(sdk::ResumeType resume_type) {
-  (void)resume_type;
-}
+void EmtTraderApi::SubscribePublicTopic(sdk::ResumeType resume_type) { (void)resume_type; }
 
 void EmtTraderApi::SetSoftwareVersion(const std::string& version) { software_version_ = version; }
 
@@ -133,9 +131,7 @@ int EmtTraderApi::QueryOrderByEMTID(std::uint64_t order_emt_id, std::uint64_t se
   return -1;
 }
 
-int EmtTraderApi::QueryOrders(const sdk::QueryOrdersRequest& query_param,
-                              std::uint64_t session_id,
-                              int request_id) {
+int EmtTraderApi::QueryOrders(const sdk::QueryOrdersRequest& query_param, std::uint64_t session_id, int request_id) {
   (void)query_param;
   (void)session_id;
   (void)request_id;
@@ -171,9 +167,7 @@ int EmtTraderApi::QueryTradesByEMTID(std::uint64_t order_emt_id, std::uint64_t s
   return -1;
 }
 
-int EmtTraderApi::QueryTrades(const sdk::QueryTradesRequest& query_param,
-                              std::uint64_t session_id,
-                              int request_id) {
+int EmtTraderApi::QueryTrades(const sdk::QueryTradesRequest& query_param, std::uint64_t session_id, int request_id) {
   (void)query_param;
   (void)session_id;
   (void)request_id;
@@ -211,8 +205,7 @@ int EmtTraderApi::QueryAsset(std::uint64_t session_id, int request_id) {
   return -1;
 }
 
-qtrade::ErrorCode EmtTraderApi::QueryAsset(const sdk::QueryAssetRequest& request,
-                                           sdk::QueryAssetResponse& response) {
+qtrade::ErrorCode EmtTraderApi::QueryAsset(const sdk::QueryAssetRequest& request, sdk::QueryAssetResponse& response) {
   (void)request;
   response.asset = {};
   return qtrade::ErrorCode::kNotSupported;

@@ -7,8 +7,8 @@
 #ifndef QTRADE_TRADING_ENGINE_RETURN_EVENT_REACTOR_HPP_
 #define QTRADE_TRADING_ENGINE_RETURN_EVENT_REACTOR_HPP_
 
-#include "engine/event_bus/event_types.hpp"
 #include "engine/event_bus/event_reactor_loop.hpp"
+#include "engine/event_bus/event_types.hpp"
 
 #include <cstddef>
 #include <mutex>

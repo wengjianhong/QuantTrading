@@ -129,9 +129,7 @@ int MockTraderApi::QueryOrderByEMTID(std::uint64_t order_emt_id, std::uint64_t s
   return -1;
 }
 
-int MockTraderApi::QueryOrders(const sdk::QueryOrdersRequest& query_param,
-                               std::uint64_t session_id,
-                               int request_id) {
+int MockTraderApi::QueryOrders(const sdk::QueryOrdersRequest& query_param, std::uint64_t session_id, int request_id) {
   (void)query_param;
   (void)session_id;
   (void)request_id;
@@ -167,9 +165,7 @@ int MockTraderApi::QueryTradesByEMTID(std::uint64_t order_emt_id, std::uint64_t 
   return -1;
 }
 
-int MockTraderApi::QueryTrades(const sdk::QueryTradesRequest& query_param,
-                               std::uint64_t session_id,
-                               int request_id) {
+int MockTraderApi::QueryTrades(const sdk::QueryTradesRequest& query_param, std::uint64_t session_id, int request_id) {
   (void)query_param;
   (void)session_id;
   (void)request_id;
@@ -207,8 +203,7 @@ int MockTraderApi::QueryAsset(std::uint64_t session_id, int request_id) {
   return -1;
 }
 
-qtrade::ErrorCode MockTraderApi::QueryAsset(const sdk::QueryAssetRequest& request,
-                                            sdk::QueryAssetResponse& response) {
+qtrade::ErrorCode MockTraderApi::QueryAsset(const sdk::QueryAssetRequest& request, sdk::QueryAssetResponse& response) {
   (void)request;
   response.asset = {};
   return qtrade::ErrorCode::kNotSupported;
@@ -246,8 +241,8 @@ int MockTraderApi::QueryCreditQuotaTransfer(const sdk::QueryQuotaTransferLogRequ
 }
 
 int MockTraderApi::QueryFundTransfer(const sdk::QueryFundTransferLogRequest& query_param,
-                                   std::uint64_t session_id,
-                                   int request_id) {
+                                     std::uint64_t session_id,
+                                     int request_id) {
   (void)query_param;
   (void)session_id;
   (void)request_id;
@@ -262,8 +257,6 @@ void MockTraderApi::SetTradeCallback(TradeCallback cb) { on_trade_ = std::move(c
 
 namespace qtrade::adapter::mock::trader {
 
-std::unique_ptr<qtrade_sdk::trader::TraderApi> CreateMockTraderApi() {
-  return std::make_unique<MockTraderApi>();
-}
+std::unique_ptr<qtrade_sdk::trader::TraderApi> CreateMockTraderApi() { return std::make_unique<MockTraderApi>(); }
 
 }  // namespace qtrade::adapter::mock::trader

@@ -1,0 +1,14 @@
+{
+  "grpc": {
+    "listen": "0.0.0.0:50052"
+  },
+  "storage": {
+    "type": "local",
+    "path": "data/logs",
+    "retention_days": 90
+  },
+  "ingest": {
+    "batch_size": 256,
+    "flush_interval_ms": 1000
+  }
+}

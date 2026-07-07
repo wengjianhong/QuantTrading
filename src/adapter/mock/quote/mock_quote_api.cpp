@@ -229,8 +229,6 @@ void MockQuoteApi::GenerateMockTicks() {
 
 namespace qtrade::adapter::mock::quote {
 
-std::unique_ptr<qtrade_sdk::quote::QuoteApi> CreateMockQuoteApi() {
-  return std::make_unique<MockQuoteApi>();
-}
+std::unique_ptr<qtrade_sdk::quote::QuoteApi> CreateMockQuoteApi() { return std::make_unique<MockQuoteApi>(); }
 
 }  // namespace qtrade::adapter::mock::quote
