@@ -21,6 +21,8 @@ namespace qtrade::service {
 /// @brief 管理 GetConfig / WatchConfig 的 Async CallData 生命周期
 class ConfigGrpcAsyncHandler {
  public:
+  using RepositoryT = IConfigRepository;
+
   /// @brief 构造 RPC 处理器
   ConfigGrpcAsyncHandler();
 

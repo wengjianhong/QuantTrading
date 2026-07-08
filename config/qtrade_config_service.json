@@ -1,6 +1,7 @@
 {
   "grpc": {
-    "listen": "0.0.0.0:50051"
+    "host": "0.0.0.0",
+    "port": 50051
   },
   "database": {
     "enabled": true,

@@ -20,6 +20,8 @@ namespace qtrade::service {
 
 class AccountGrpcAsyncHandler {
  public:
+  using RepositoryT = IAccountRepository;
+
   AccountGrpcAsyncHandler();
   ~AccountGrpcAsyncHandler();
 

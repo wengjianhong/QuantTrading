@@ -33,7 +33,7 @@ cd qtrade
 
 # 编译安装
 cmake -B build
-cmake --build build -j
+cmake --build build -j $(($(nproc)/4))
 sudo cmake --install build
 sudo ldconfig
 
@@ -59,7 +59,7 @@ cpputils 已安装到 `/usr/local/cpputils`（见 [cpputils README](https://gith
 cmake -B build \
   -DCMAKE_INSTALL_PREFIX=/usr/local/qtrade \
   -DCMAKE_PREFIX_PATH=/usr/local/cpputils
-cmake --build build -j
+cmake --build build -j $(($(nproc)/4))
 sudo cmake --install build
 
 # 配置PATH，注册运行期库可执行文件路径

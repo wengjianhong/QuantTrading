@@ -1,6 +1,7 @@
 {
   "grpc": {
-    "listen": "0.0.0.0:50058"
+    "host": "0.0.0.0",
+    "port": 50058
   },
   "config_service": "127.0.0.1:50051",
   "workspace": {
