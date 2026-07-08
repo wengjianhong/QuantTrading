@@ -5,7 +5,8 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "service/config_service/config_grpc_async_handler.hpp"
 
-#include "common/grpc/call_data_base.hpp"
+#include "common/grpc/call_tag_base.hpp"
+#include "common/grpc/unary_call_tag.hpp"
 
 #include <grpcpp/alarm.h>
 #include <grpcpp/grpcpp.h>
@@ -17,60 +18,19 @@ namespace detail {
 /// @brief WatchConfig 轮询数据库的间隔（毫秒）
 constexpr int kWatchPollIntervalMs = 2000;
 
-/// @brief GetConfig 异步 CallData（Unary RPC）
-class GetConfigCallData final : public qtrade::common::grpc_async::CallDataBase {
+using ConfigUnaryCallTag = qtrade::common::grpc_async::UnaryCallTag<
+    qtrade::config::v1::ConfigService::AsyncService,
+    ConfigGrpcAsyncHandler,
+    qtrade::config::v1::GetConfigRequest,
+    qtrade::config::v1::ConfigSnapshot>;
+
+/// @brief WatchConfig 异步 CallTag（Server Streaming；定时查库推送）
+class WatchConfigCallTag final : public qtrade::common::grpc_async::CallTagBase {
  public:
-  GetConfigCallData(ConfigGrpcAsyncHandler* handler,
-                    qtrade::config::v1::ConfigService::AsyncService* service,
-                    grpc::ServerCompletionQueue* cq)
-    : handler_(handler), service_(service), cq_(cq), responder_(&ctx_) {
-    Proceed(true);
-  }
-
-  void Proceed(bool ok) override {
-    if (!ok) {
-      delete this;
-      return;
-    }
-
-    if (status_ == CallStatus::kCreate) {
-      status_ = CallStatus::kProcess;
-      service_->RequestGetConfig(&ctx_, &request_, &responder_, cq_, cq_, this);
-      return;
-    }
-
-    if (status_ == CallStatus::kProcess) {
-      status_ = CallStatus::kFinish;
-      const ConfigScope scope = MakeConfigScope(request_);
-      response_ = handler_->QuerySnapshot(scope);
-      responder_.Finish(response_, grpc::Status::OK, this);
-      return;
-    }
-
-    handler_->SpawnGetConfig();
-    delete this;
-  }
-
- private:
-  enum class CallStatus { kCreate, kProcess, kFinish };
-
-  ConfigGrpcAsyncHandler* handler_;
-  qtrade::config::v1::ConfigService::AsyncService* service_;
-  grpc::ServerCompletionQueue* cq_;
-  grpc::ServerContext ctx_;
-  qtrade::config::v1::GetConfigRequest request_;
-  qtrade::config::v1::ConfigSnapshot response_;
-  grpc::ServerAsyncResponseWriter<qtrade::config::v1::ConfigSnapshot> responder_;
-  CallStatus status_ = CallStatus::kCreate;
-};
-
-/// @brief WatchConfig 异步 CallData（Server Streaming；定时查库推送）
-class WatchConfigCallData final : public qtrade::common::grpc_async::CallDataBase {
- public:
-  WatchConfigCallData(ConfigGrpcAsyncHandler* handler,
-                      qtrade::config::v1::ConfigService::AsyncService* service,
-                      grpc::ServerCompletionQueue* cq)
-    : handler_(handler), service_(service), cq_(cq), writer_(&ctx_) {
+  WatchConfigCallTag(ConfigGrpcAsyncHandler* handler,
+                     qtrade::config::v1::ConfigService::AsyncService* service,
+                     grpc::ServerCompletionQueue* cq)
+      : handler_(handler), service_(service), cq_(cq), writer_(&ctx_) {
     Proceed(true);
   }
 
@@ -204,14 +164,25 @@ void ConfigGrpcAsyncHandler::SpawnGetConfig() {
   if (async_service_ == nullptr || cq_ == nullptr || !repository_) {
     return;
   }
-  new detail::GetConfigCallData(this, async_service_, cq_);
+  new detail::ConfigUnaryCallTag(
+      this,
+      async_service_,
+      cq_,
+      &qtrade::config::v1::ConfigService::AsyncService::RequestGetConfig,
+      [](ConfigGrpcAsyncHandler* handler, const qtrade::config::v1::GetConfigRequest& request,
+         qtrade::config::v1::ConfigSnapshot* response) {
+        const ConfigScope scope = MakeConfigScope(request);
+        *response = handler->QuerySnapshot(scope);
+        return grpc::Status::OK;
+      },
+      [](ConfigGrpcAsyncHandler* handler) { handler->SpawnGetConfig(); });
 }
 
 void ConfigGrpcAsyncHandler::SpawnWatchConfig() {
   if (async_service_ == nullptr || cq_ == nullptr || !repository_) {
     return;
   }
-  new detail::WatchConfigCallData(this, async_service_, cq_);
+  new detail::WatchConfigCallTag(this, async_service_, cq_);
 }
 
 qtrade::config::v1::ConfigSnapshot ConfigGrpcAsyncHandler::QuerySnapshot(const ConfigScope& scope) const {

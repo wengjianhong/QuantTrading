@@ -19,26 +19,21 @@ namespace {
 
 constexpr const char* kEnsureSchemaSql = R"(
 CREATE TABLE IF NOT EXISTS trading_account (
-  account_id TEXT NOT NULL,
   tenant_id TEXT NOT NULL,
+  account_id TEXT NOT NULL,
   broker_id TEXT NOT NULL,
   connection_string TEXT NOT NULL,
   status TEXT NOT NULL,
-  PRIMARY KEY (account_id)
+  PRIMARY KEY (tenant_id, account_id)
 );
 
 CREATE TABLE IF NOT EXISTS account_credential (
+  tenant_id TEXT NOT NULL,
   account_id TEXT NOT NULL,
   key_id TEXT NOT NULL,
   ciphertext TEXT NOT NULL,
   version INTEGER NOT NULL,
-  PRIMARY KEY (account_id)
-);
-
-CREATE TABLE IF NOT EXISTS account_engine_binding (
-  account_id TEXT NOT NULL,
-  engine_id TEXT NOT NULL,
-  PRIMARY KEY (account_id, engine_id)
+  PRIMARY KEY (tenant_id, account_id)
 );
 )";
 
@@ -55,6 +50,13 @@ std::string EscapeSqlLiteral(const std::string& value) {
   return escaped;
 }
 
+std::string AccountKeyWhereClause(const std::string& tenant_id, const std::string& account_id) {
+  std::ostringstream sql;
+  sql << "tenant_id = '" << EscapeSqlLiteral(tenant_id) << "' AND account_id = '"
+      << EscapeSqlLiteral(account_id) << "'";
+  return sql.str();
+}
+
 ErrorCode MapDbError(cpp_utils::database::Error error) {
   switch (error) {
     case cpp_utils::database::Error::kSuccess:
@@ -66,6 +68,36 @@ ErrorCode MapDbError(cpp_utils::database::Error error) {
     default:
       return ErrorCode::kSystemError;
   }
+}
+
+qtrade::account::v1::TradingAccount ParseTradingAccountRow(const cpp_utils::database::Row& row) {
+  qtrade::account::v1::TradingAccount account;
+  if (const auto cell = row.get_value("account_id")) {
+    if (const auto v = cell->as_string()) {
+      account.set_account_id(v.value());
+    }
+  }
+  if (const auto cell = row.get_value("tenant_id")) {
+    if (const auto v = cell->as_string()) {
+      account.set_tenant_id(v.value());
+    }
+  }
+  if (const auto cell = row.get_value("broker_id")) {
+    if (const auto v = cell->as_string()) {
+      account.set_broker_id(v.value());
+    }
+  }
+  if (const auto cell = row.get_value("connection_string")) {
+    if (const auto v = cell->as_string()) {
+      account.set_connection_string(v.value());
+    }
+  }
+  if (const auto cell = row.get_value("status")) {
+    if (const auto v = cell->as_string()) {
+      account.set_status(v.value());
+    }
+  }
+  return account;
 }
 
 }  // namespace
@@ -113,13 +145,24 @@ ErrorCode SociAccountRepository::EnsureSchema() {
   return MapDbError(rc);
 }
 
-ErrorCode SociAccountRepository::RegisterAccount(const qtrade::account::v1::TradingAccount& account,
-                                               const std::string& password) {
+ErrorCode SociAccountRepository::AddAccount(const qtrade::account::v1::TradingAccount& account) {
   if (!IsReady()) {
     return ErrorCode::kSystemError;
   }
-  if (account.account_id().empty() || password.empty()) {
+  if (account.tenant_id().empty() || account.account_id().empty() || account.password().empty()) {
     return ErrorCode::kInternal;
+  }
+
+  const std::string& password = account.password();
+
+  std::ostringstream exists_sql;
+  exists_sql << "SELECT 1 FROM trading_account WHERE " << AccountKeyWhereClause(account.tenant_id(), account.account_id());
+  auto [exists_err, exists_result] = connection_->Query(exists_sql.str());
+  if (exists_err != cpp_utils::database::Error::kSuccess || exists_result == nullptr) {
+    return MapDbError(exists_err);
+  }
+  if (exists_result->Fetch().has_value()) {
+    return ErrorCode::kSystemError;
   }
 
   std::string key_id;
@@ -135,51 +178,23 @@ ErrorCode SociAccountRepository::RegisterAccount(const qtrade::account::v1::Trad
 
   const std::string status = account.status().empty() ? "active" : account.status();
 
-  std::ostringstream upsert_account;
-  upsert_account << "UPDATE trading_account SET tenant_id = '" << EscapeSqlLiteral(account.tenant_id())
-                 << "', broker_id = '" << EscapeSqlLiteral(account.broker_id()) << "', connection_string = '"
-                 << EscapeSqlLiteral(account.connection_string()) << "', status = '" << EscapeSqlLiteral(status)
-                 << "' WHERE account_id = '" << EscapeSqlLiteral(account.account_id()) << "'";
-
-  cpp_utils::database::ExecuteResult update_result;
-  if (const auto rc = connection_->Execute(upsert_account.str(), &update_result);
-      rc != cpp_utils::database::Error::kSuccess) {
+  std::ostringstream insert_account;
+  insert_account << "INSERT INTO trading_account(tenant_id, account_id, broker_id, connection_string, status) VALUES('"
+                 << EscapeSqlLiteral(account.tenant_id()) << "', '" << EscapeSqlLiteral(account.account_id()) << "', '"
+                 << EscapeSqlLiteral(account.broker_id()) << "', '" << EscapeSqlLiteral(account.connection_string())
+                 << "', '" << EscapeSqlLiteral(status) << "')";
+  if (const auto rc = connection_->Execute(insert_account.str()); rc != cpp_utils::database::Error::kSuccess) {
     (void)tx.Rollback();
     return MapDbError(rc);
   }
 
-  if (update_result.affected_rows == 0) {
-    std::ostringstream insert_account;
-    insert_account << "INSERT INTO trading_account(account_id, tenant_id, broker_id, connection_string, status) VALUES('"
-                   << EscapeSqlLiteral(account.account_id()) << "', '" << EscapeSqlLiteral(account.tenant_id())
-                   << "', '" << EscapeSqlLiteral(account.broker_id()) << "', '"
-                   << EscapeSqlLiteral(account.connection_string()) << "', '" << EscapeSqlLiteral(status) << "')";
-    if (const auto rc = connection_->Execute(insert_account.str()); rc != cpp_utils::database::Error::kSuccess) {
-      (void)tx.Rollback();
-      return MapDbError(rc);
-    }
-  }
-
-  std::ostringstream upsert_credential;
-  upsert_credential << "UPDATE account_credential SET key_id = '" << EscapeSqlLiteral(key_id) << "', ciphertext = '"
-                    << EscapeSqlLiteral(ciphertext) << "', version = version + 1 WHERE account_id = '"
-                    << EscapeSqlLiteral(account.account_id()) << "'";
-
-  if (const auto rc = connection_->Execute(upsert_credential.str(), &update_result);
-      rc != cpp_utils::database::Error::kSuccess) {
+  std::ostringstream insert_credential;
+  insert_credential << "INSERT INTO account_credential(tenant_id, account_id, key_id, ciphertext, version) VALUES('"
+                    << EscapeSqlLiteral(account.tenant_id()) << "', '" << EscapeSqlLiteral(account.account_id())
+                    << "', '" << EscapeSqlLiteral(key_id) << "', '" << EscapeSqlLiteral(ciphertext) << "', 1)";
+  if (const auto rc = connection_->Execute(insert_credential.str()); rc != cpp_utils::database::Error::kSuccess) {
     (void)tx.Rollback();
     return MapDbError(rc);
-  }
-
-  if (update_result.affected_rows == 0) {
-    std::ostringstream insert_credential;
-    insert_credential << "INSERT INTO account_credential(account_id, key_id, ciphertext, version) VALUES('"
-                      << EscapeSqlLiteral(account.account_id()) << "', '" << EscapeSqlLiteral(key_id) << "', '"
-                      << EscapeSqlLiteral(ciphertext) << "', 1)";
-    if (const auto rc = connection_->Execute(insert_credential.str()); rc != cpp_utils::database::Error::kSuccess) {
-      (void)tx.Rollback();
-      return MapDbError(rc);
-    }
   }
 
   if (const auto rc = tx.Commit(); rc != cpp_utils::database::Error::kSuccess) {
@@ -188,50 +203,30 @@ ErrorCode SociAccountRepository::RegisterAccount(const qtrade::account::v1::Trad
   return ErrorCode::kSuccess;
 }
 
-ErrorCode SociAccountRepository::RotateCredential(const std::string& account_id, const std::string& password) {
+ErrorCode SociAccountRepository::GetAccount(const std::string& tenant_id,
+                                            const std::string& account_id,
+                                            qtrade::account::v1::TradingAccount& account) {
   if (!IsReady()) {
     return ErrorCode::kSystemError;
   }
-  if (account_id.empty() || password.empty()) {
-    return ErrorCode::kInternal;
-  }
-
-  std::string key_id;
-  std::string ciphertext;
-  if (!EncryptCredential(password, key_id, ciphertext)) {
+  if (tenant_id.empty() || account_id.empty()) {
     return ErrorCode::kInternal;
   }
 
   std::ostringstream sql;
-  sql << "UPDATE account_credential SET key_id = '" << EscapeSqlLiteral(key_id) << "', ciphertext = '"
-      << EscapeSqlLiteral(ciphertext) << "', version = version + 1 WHERE account_id = '"
-      << EscapeSqlLiteral(account_id) << "'";
+  sql << "SELECT account_id, tenant_id, broker_id, connection_string, status FROM trading_account WHERE "
+      << AccountKeyWhereClause(tenant_id, account_id);
 
-  cpp_utils::database::ExecuteResult result;
-  if (const auto rc = connection_->Execute(sql.str(), &result); rc != cpp_utils::database::Error::kSuccess) {
-    return MapDbError(rc);
+  auto [query_err, result] = connection_->Query(sql.str());
+  if (query_err != cpp_utils::database::Error::kSuccess || result == nullptr) {
+    return MapDbError(query_err);
   }
-  if (result.affected_rows == 0) {
+  const auto row = result->Fetch();
+  if (!row.has_value()) {
     return ErrorCode::kNotFound;
   }
-  return ErrorCode::kSuccess;
-}
 
-ErrorCode SociAccountRepository::BindAccountToEngine(const std::string& account_id, const std::string& engine_id) {
-  if (!IsReady()) {
-    return ErrorCode::kSystemError;
-  }
-  if (account_id.empty() || engine_id.empty()) {
-    return ErrorCode::kInternal;
-  }
-
-  std::ostringstream sql;
-  sql << "INSERT INTO account_engine_binding(account_id, engine_id) VALUES('" << EscapeSqlLiteral(account_id)
-      << "', '" << EscapeSqlLiteral(engine_id) << "')";
-
-  if (const auto rc = connection_->Execute(sql.str()); rc != cpp_utils::database::Error::kSuccess) {
-    return MapDbError(rc);
-  }
+  account = ParseTradingAccountRow(*row);
   return ErrorCode::kSuccess;
 }
 
@@ -255,95 +250,96 @@ ErrorCode SociAccountRepository::ListAccounts(const std::string& tenant_id,
   }
 
   while (const auto row = result->Fetch()) {
-    qtrade::account::v1::TradingAccount account;
-    if (const auto cell = row->get_value("account_id")) {
-      if (const auto v = cell->as_string()) {
-        account.set_account_id(v.value());
-      }
-    }
-    if (const auto cell = row->get_value("tenant_id")) {
-      if (const auto v = cell->as_string()) {
-        account.set_tenant_id(v.value());
-      }
-    }
-    if (const auto cell = row->get_value("broker_id")) {
-      if (const auto v = cell->as_string()) {
-        account.set_broker_id(v.value());
-      }
-    }
-    if (const auto cell = row->get_value("connection_string")) {
-      if (const auto v = cell->as_string()) {
-        account.set_connection_string(v.value());
-      }
-    }
-    if (const auto cell = row->get_value("status")) {
-      if (const auto v = cell->as_string()) {
-        account.set_status(v.value());
-      }
-    }
-    accounts.push_back(std::move(account));
+    accounts.push_back(ParseTradingAccountRow(*row));
   }
   return ErrorCode::kSuccess;
 }
 
-ErrorCode SociAccountRepository::ResolveCredential(const std::string& engine_id,
-                                                 const std::string& account_id,
-                                                 qtrade::account::v1::ResolveCredentialResponse& response) {
+ErrorCode SociAccountRepository::UpdateAccount(const qtrade::account::v1::TradingAccount& account) {
   if (!IsReady()) {
     return ErrorCode::kSystemError;
   }
-  if (engine_id.empty() || account_id.empty()) {
+  if (account.tenant_id().empty() || account.account_id().empty()) {
     return ErrorCode::kInternal;
   }
 
-  std::ostringstream binding_sql;
-  binding_sql << "SELECT 1 FROM account_engine_binding WHERE account_id = '" << EscapeSqlLiteral(account_id)
-              << "' AND engine_id = '" << EscapeSqlLiteral(engine_id) << "'";
+  const bool update_password = !account.password().empty();
 
-  auto [binding_err, binding_result] = connection_->Query(binding_sql.str());
-  if (binding_err != cpp_utils::database::Error::kSuccess || binding_result == nullptr) {
-    return MapDbError(binding_err);
+  auto [begin_rc, tx] = connection_->BeginTransaction();
+  if (begin_rc != cpp_utils::database::Error::kSuccess) {
+    return MapDbError(begin_rc);
   }
-  if (!binding_result->Fetch().has_value()) {
-    spdlog::warn("[SociAccountRepository] engine {} not authorized for account {}", engine_id, account_id);
+
+  const std::string status = account.status().empty() ? "active" : account.status();
+  std::ostringstream update_account;
+  update_account << "UPDATE trading_account SET broker_id = '" << EscapeSqlLiteral(account.broker_id())
+                 << "', connection_string = '" << EscapeSqlLiteral(account.connection_string()) << "', status = '"
+                 << EscapeSqlLiteral(status) << "' WHERE " << AccountKeyWhereClause(account.tenant_id(), account.account_id());
+
+  cpp_utils::database::ExecuteResult update_result;
+  if (const auto rc = connection_->Execute(update_account.str(), &update_result);
+      rc != cpp_utils::database::Error::kSuccess) {
+    (void)tx.Rollback();
+    return MapDbError(rc);
+  }
+  if (update_result.affected_rows == 0) {
+    (void)tx.Rollback();
     return ErrorCode::kNotFound;
   }
 
-  std::ostringstream account_sql;
-  account_sql << "SELECT broker_id, connection_string, status FROM trading_account WHERE account_id = '"
-              << EscapeSqlLiteral(account_id) << "'";
+  if (update_password) {
+    const std::string& password = account.password();
+    std::string key_id;
+    std::string ciphertext;
+    if (!EncryptCredential(password, key_id, ciphertext)) {
+      (void)tx.Rollback();
+      return ErrorCode::kInternal;
+    }
 
-  auto [account_err, account_result] = connection_->Query(account_sql.str());
-  if (account_err != cpp_utils::database::Error::kSuccess || account_result == nullptr) {
-    return MapDbError(account_err);
-  }
-  const auto account_row = account_result->Fetch();
-  if (!account_row.has_value()) {
-    return ErrorCode::kNotFound;
+    std::ostringstream update_credential;
+    update_credential << "UPDATE account_credential SET key_id = '" << EscapeSqlLiteral(key_id) << "', ciphertext = '"
+                      << EscapeSqlLiteral(ciphertext) << "', version = version + 1 WHERE "
+                      << AccountKeyWhereClause(account.tenant_id(), account.account_id());
+    if (const auto rc = connection_->Execute(update_credential.str(), &update_result);
+        rc != cpp_utils::database::Error::kSuccess) {
+      (void)tx.Rollback();
+      return MapDbError(rc);
+    }
+    if (update_result.affected_rows == 0) {
+      (void)tx.Rollback();
+      return ErrorCode::kNotFound;
+    }
   }
 
-  std::optional<std::string> broker_id;
-  std::optional<std::string> connection_string;
-  std::optional<std::string> status;
-  if (const auto cell = account_row->get_value("broker_id")) {
-    broker_id = cell->as_string();
+  if (const auto rc = tx.Commit(); rc != cpp_utils::database::Error::kSuccess) {
+    return MapDbError(rc);
   }
-  if (const auto cell = account_row->get_value("connection_string")) {
-    connection_string = cell->as_string();
-  }
-  if (const auto cell = account_row->get_value("status")) {
-    status = cell->as_string();
-  }
-  if (!broker_id.has_value() || !connection_string.has_value()) {
+  return ErrorCode::kSuccess;
+}
+
+ErrorCode SociAccountRepository::GetCredential(const std::string& tenant_id,
+                                               const std::string& engine_id,
+                                               const std::string& account_id,
+                                               qtrade::account::v1::GetCredentialResponse& response) {
+  if (!IsReady()) {
     return ErrorCode::kSystemError;
   }
-  if (status.has_value() && status.value() == "disabled") {
+  if (tenant_id.empty() || engine_id.empty() || account_id.empty()) {
+    return ErrorCode::kInternal;
+  }
+
+  qtrade::account::v1::TradingAccount account;
+  const auto account_rc = GetAccount(tenant_id, account_id, account);
+  if (account_rc != ErrorCode::kSuccess) {
+    return account_rc;
+  }
+  if (account.status() == "disabled") {
     return ErrorCode::kInternal;
   }
 
   std::ostringstream credential_sql;
-  credential_sql << "SELECT key_id, ciphertext FROM account_credential WHERE account_id = '"
-                 << EscapeSqlLiteral(account_id) << "'";
+  credential_sql << "SELECT key_id, ciphertext FROM account_credential WHERE "
+                 << AccountKeyWhereClause(tenant_id, account_id);
 
   auto [cred_err, cred_result] = connection_->Query(credential_sql.str());
   if (cred_err != cpp_utils::database::Error::kSuccess || cred_result == nullptr) {
@@ -366,15 +362,15 @@ ErrorCode SociAccountRepository::ResolveCredential(const std::string& engine_id,
     return ErrorCode::kSystemError;
   }
 
-  std::string password;
-  if (!DecryptCredential(key_id.value(), ciphertext.value(), password)) {
+  std::string plain_password;
+  if (!DecryptCredential(key_id.value(), ciphertext.value(), plain_password)) {
     return ErrorCode::kInternal;
   }
 
-  response.set_account_id(account_id);
-  response.set_broker_id(broker_id.value());
-  response.set_connection_string(connection_string.value());
-  response.set_password(password);
+  spdlog::info("[SociAccountRepository] credential fetched for tenant={} engine={} account={}", tenant_id, engine_id,
+               account_id);
+  account.set_password(plain_password);
+  *response.mutable_account() = std::move(account);
   return ErrorCode::kSuccess;
 }
 

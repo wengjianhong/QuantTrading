@@ -27,9 +27,7 @@ class SociConfigRepository final : public IConfigRepository {
   ErrorCode EnsureSchema() override;
 
   /// @brief 从数据库加载指定作用域 EngineConfig
-  ErrorCode Load(const ConfigScope& scope,
-                 qtrade::config::v1::EngineConfig& config,
-                 std::uint64_t& version) override;
+  ErrorCode Load(const ConfigScope& scope, qtrade::config::v1::EngineConfig& config, std::uint64_t& version) override;
 
   /// @brief 将 EngineConfig 写入数据库
   ErrorCode Save(const ConfigScope& scope,

@@ -101,11 +101,11 @@ class GrpcServiceHost {
   [[nodiscard]] bool IsRunning() const { return running_; }
 
  private:
-  AsyncServiceT async_service_;                           ///< protobuf 异步服务实例
-  std::unique_ptr<GrpcAsyncServer> grpc_server_;          ///< gRPC 服务端
-  std::unique_ptr<HandlerT> handler_;                       ///< RPC 异步处理器
-  std::shared_ptr<RepositoryT> repository_;                 ///< 数据库仓储
-  bool running_ = false;                                  ///< 是否已启动
+  AsyncServiceT async_service_;                   ///< protobuf 异步服务实例
+  std::unique_ptr<GrpcAsyncServer> grpc_server_;  ///< gRPC 服务端
+  std::unique_ptr<HandlerT> handler_;             ///< RPC 异步处理器
+  std::shared_ptr<RepositoryT> repository_;       ///< 数据库仓储
+  bool running_ = false;                          ///< 是否已启动
 };
 
 }  // namespace qtrade::common::grpc_async

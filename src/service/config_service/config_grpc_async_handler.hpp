@@ -18,7 +18,7 @@ class ServerCompletionQueue;
 
 namespace qtrade::service {
 
-/// @brief 管理 GetConfig / WatchConfig 的 Async CallData 生命周期
+/// @brief 管理 GetConfig / WatchConfig 的 Async CallTag 生命周期
 class ConfigGrpcAsyncHandler {
  public:
   using RepositoryT = IConfigRepository;
@@ -71,9 +71,9 @@ class ConfigGrpcAsyncHandler {
 
  private:
   qtrade::config::v1::ConfigService::AsyncService* async_service_ = nullptr;  ///< gRPC 异步服务
-  grpc::ServerCompletionQueue* cq_ = nullptr;                                  ///< 服务端 CQ
-  std::shared_ptr<IConfigRepository> repository_;                              ///< 数据库仓储
-  bool started_ = false;                                                       ///< 是否已启动
+  grpc::ServerCompletionQueue* cq_ = nullptr;                                 ///< 服务端 CQ
+  std::shared_ptr<IConfigRepository> repository_;                             ///< 数据库仓储
+  bool started_ = false;                                                      ///< 是否已启动
 };
 
 }  // namespace qtrade::service

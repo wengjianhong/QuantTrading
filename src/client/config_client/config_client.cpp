@@ -60,7 +60,6 @@ ErrorCode ConfigClient::FetchSnapshot() {
   }
 
   qtrade::config::v1::GetConfigRequest request;
-  request.set_tenant_id(impl_->options.tenant_id);
   request.set_engine_id(impl_->options.engine_id);
 
   qtrade::config::v1::ConfigSnapshot response;
@@ -100,7 +99,6 @@ ErrorCode ConfigClient::StartWatch() {
       }
 
       qtrade::config::v1::WatchConfigRequest request;
-      request.set_tenant_id(impl_->options.tenant_id);
       request.set_engine_id(impl_->options.engine_id);
       request.set_since_version(impl_->version.load(std::memory_order_acquire));
 

@@ -19,19 +19,21 @@ class SociAccountRepository final : public IAccountRepository {
 
   ErrorCode EnsureSchema() override;
 
-  ErrorCode RegisterAccount(const qtrade::account::v1::TradingAccount& account,
-                            const std::string& password) override;
+  ErrorCode AddAccount(const qtrade::account::v1::TradingAccount& account) override;
 
-  ErrorCode RotateCredential(const std::string& account_id, const std::string& password) override;
-
-  ErrorCode BindAccountToEngine(const std::string& account_id, const std::string& engine_id) override;
+  ErrorCode GetAccount(const std::string& tenant_id,
+                       const std::string& account_id,
+                       qtrade::account::v1::TradingAccount& account) override;
 
   ErrorCode ListAccounts(const std::string& tenant_id,
                          std::vector<qtrade::account::v1::TradingAccount>& accounts) override;
 
-  ErrorCode ResolveCredential(const std::string& engine_id,
-                              const std::string& account_id,
-                              qtrade::account::v1::ResolveCredentialResponse& response) override;
+  ErrorCode UpdateAccount(const qtrade::account::v1::TradingAccount& account) override;
+
+  ErrorCode GetCredential(const std::string& tenant_id,
+                          const std::string& engine_id,
+                          const std::string& account_id,
+                          qtrade::account::v1::GetCredentialResponse& response) override;
 
  private:
   [[nodiscard]] bool IsReady() const;

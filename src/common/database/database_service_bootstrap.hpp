@@ -31,9 +31,9 @@ struct DatabaseServiceContext {
 /// @param log_tag 日志标识
 template <typename RepositoryT>
 [[nodiscard]] DatabaseServiceContext<RepositoryT> BootstrapDatabaseService(
-    const std::string& json_path,
-    const std::function<std::shared_ptr<RepositoryT>(const DatabaseOptions&)>& create_repo,
-    const std::string_view log_tag) {
+  const std::string& json_path,
+  const std::function<std::shared_ptr<RepositoryT>(const DatabaseOptions&)>& create_repo,
+  const std::string_view log_tag) {
   DatabaseServiceContext<RepositoryT> context;
 
   const auto database_options = ParseDatabaseOptions(json_path);

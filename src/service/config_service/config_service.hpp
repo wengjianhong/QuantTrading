@@ -19,8 +19,8 @@ namespace qtrade::service {
 
 /// @brief 配置中心支撑服务
 class ConfigService final
-    : public qtrade::common::support::SupportServiceImpl<qtrade::config::v1::ConfigService::AsyncService,
-                                                         ConfigGrpcAsyncHandler> {
+  : public qtrade::common::support::SupportServiceImpl<qtrade::config::v1::ConfigService::AsyncService,
+                                                       ConfigGrpcAsyncHandler> {
  public:
   ConfigService();
 

@@ -27,7 +27,7 @@ template <typename AsyncServiceT, typename HandlerT>
 class SupportServiceImpl : public ISupportService {
  public:
   SupportServiceImpl(std::string service_name, int default_port)
-      : service_name_(std::move(service_name)), default_port_(default_port) {}
+    : service_name_(std::move(service_name)), default_port_(default_port) {}
 
   ~SupportServiceImpl() override { Stop(); }
 
@@ -47,8 +47,7 @@ class SupportServiceImpl : public ISupportService {
       return ErrorCode::kSystemError;
     }
 
-    if (const auto rc = grpc_host_.Start(listen_address_, repository_, service_name_);
-        rc != ErrorCode::kSuccess) {
+    if (const auto rc = grpc_host_.Start(listen_address_, repository_, service_name_); rc != ErrorCode::kSuccess) {
       state_ = SupportServiceState::kFailed;
       last_error_ = rc;
       return rc;
@@ -80,12 +79,12 @@ class SupportServiceImpl : public ISupportService {
   [[nodiscard]] SupportServiceStatus GetStatus() const override {
     std::lock_guard lock(mutex_);
     return SupportServiceStatus{
-        .service_name = service_name_,
-        .config_path = config_path_,
-        .listen_address = listen_address_,
-        .last_error_message = {},
-        .last_error = last_error_,
-        .state = state_,
+      .service_name = service_name_,
+      .config_path = config_path_,
+      .listen_address = listen_address_,
+      .last_error_message = {},
+      .last_error = last_error_,
+      .state = state_,
     };
   }
 

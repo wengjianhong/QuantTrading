@@ -6,8 +6,8 @@
 #ifndef QTRADE_SERVICE_CONFIG_REPOSITORY_HPP_
 #define QTRADE_SERVICE_CONFIG_REPOSITORY_HPP_
 
-#include <qtrade/proto/config/v1/config.pb.h>
 #include <qtrade/error_code/error_codes.hpp>
+#include <qtrade/proto/config/v1/config.pb.h>
 
 #include "common/database/database_options.hpp"
 
@@ -18,7 +18,7 @@
 
 namespace qtrade::service {
 
-/// @brief 配置作用域（与 GetConfigRequest / EngineConfig 身份字段对齐）
+/// @brief 配置作用域（DB 主键：tenant_id + engine_id；gRPC 请求仅传 engine_id）
 struct ConfigScope {
   std::string tenant_id = "default";  ///< 租户 ID
   std::string engine_id = "default";  ///< 引擎实例 ID
@@ -50,12 +50,11 @@ class IConfigRepository {
                          std::uint64_t version) = 0;
 };
 
-[[nodiscard]] std::shared_ptr<IConfigRepository> CreateConfigRepository(
-    const qtrade::common::DatabaseOptions& options);
+[[nodiscard]] std::shared_ptr<IConfigRepository> CreateConfigRepository(const qtrade::common::DatabaseOptions& options);
 
 /// @brief 查库并组装 ConfigSnapshot（gRPC 响应）
 [[nodiscard]] qtrade::config::v1::ConfigSnapshot QueryConfigSnapshot(IConfigRepository* repository,
-                                                                       const ConfigScope& scope);
+                                                                     const ConfigScope& scope);
 
 }  // namespace qtrade::service
 

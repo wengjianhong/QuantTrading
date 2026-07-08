@@ -1,6 +1,6 @@
 /// @file      account_client.hpp
 /// @brief     交易账户凭证客户端
-/// @details   引擎出站 gRPC ResolveCredential（启动阶段按需拉取）
+/// @details   引擎出站 gRPC GetCredential（启动阶段按需拉取）
 /// @author    wengjianhong
 /// @date      2026-07-03
 /// @copyright CC BY-NC-SA 4.0
@@ -13,13 +13,14 @@
 #include <string>
 
 namespace qtrade::account::v1 {
-class ResolveCredentialResponse;
+class GetCredentialResponse;
 }
 
 namespace qtrade::client {
 
 struct AccountClientOptions {
   std::string server_address;
+  std::string tenant_id = "default";
   std::string engine_id = "default";
 };
 
@@ -34,8 +35,7 @@ class AccountClient {
   ErrorCode Init(const AccountClientOptions& options);
   void Shutdown();
 
-  ErrorCode ResolveCredential(const std::string& account_id,
-                              qtrade::account::v1::ResolveCredentialResponse& response);
+  ErrorCode GetCredential(const std::string& account_id, qtrade::account::v1::GetCredentialResponse& response);
 
   [[nodiscard]] bool IsInitialized() const;
 

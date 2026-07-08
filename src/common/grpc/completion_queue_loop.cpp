@@ -5,7 +5,7 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "common/grpc/completion_queue_loop.hpp"
 
-#include "common/grpc/call_data_base.hpp"
+#include "common/grpc/call_tag_base.hpp"
 
 #include <grpcpp/completion_queue.h>
 #include <spdlog/spdlog.h>
@@ -52,8 +52,8 @@ void CompletionQueueLoop::Run() {
     if (tag == nullptr) {
       continue;
     }
-    auto* call = static_cast<CallDataBase*>(tag);
-    call->Proceed(ok);
+    auto* tag_obj = static_cast<CallTagBase*>(tag);
+    tag_obj->Proceed(ok);
   }
 }
 

@@ -142,9 +142,8 @@ ErrorCode SociConfigRepository::Load(const ConfigScope& scope,
 
   version = static_cast<std::uint64_t>(version_opt.value());
   if (!EngineConfigFromJson(payload_opt.value(), config)) {
-    spdlog::error("[SociConfigRepository] invalid payload JSON for tenant={} engine={}",
-                  scope.tenant_id,
-                  scope.engine_id);
+    spdlog::error(
+      "[SociConfigRepository] invalid payload JSON for tenant={} engine={}", scope.tenant_id, scope.engine_id);
     return ErrorCode::kInternal;
   }
   return ErrorCode::kSuccess;

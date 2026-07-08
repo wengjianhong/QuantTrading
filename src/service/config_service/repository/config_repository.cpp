@@ -21,14 +21,14 @@ std::string NormalizeScopeField(const std::string& value) { return value.empty()
 
 ConfigScope MakeConfigScope(const qtrade::config::v1::GetConfigRequest& request) {
   return ConfigScope{
-      .tenant_id = NormalizeScopeField(request.tenant_id()),
+      .tenant_id = "default",
       .engine_id = NormalizeScopeField(request.engine_id()),
   };
 }
 
 ConfigScope MakeConfigScope(const qtrade::config::v1::WatchConfigRequest& request) {
   return ConfigScope{
-      .tenant_id = NormalizeScopeField(request.tenant_id()),
+      .tenant_id = "default",
       .engine_id = NormalizeScopeField(request.engine_id()),
   };
 }
@@ -51,22 +51,16 @@ qtrade::config::v1::ConfigSnapshot QueryConfigSnapshot(IConfigRepository* reposi
   const auto load_rc = repository->Load(scope, engine, version);
   if (load_rc == ErrorCode::kNotFound) {
     snapshot.set_version(1);
-    snapshot.mutable_engine()->set_tenant_id(scope.tenant_id);
     snapshot.mutable_engine()->set_engine_id(scope.engine_id);
     return snapshot;
   }
   if (load_rc != ErrorCode::kSuccess) {
-    spdlog::warn("[ConfigRepository] query scope tenant={} engine={} failed",
-                 scope.tenant_id,
-                 scope.engine_id);
+    spdlog::warn("[ConfigRepository] query scope tenant={} engine={} failed", scope.tenant_id, scope.engine_id);
     return snapshot;
   }
 
   snapshot.set_version(version);
   *snapshot.mutable_engine() = std::move(engine);
-  if (snapshot.engine().tenant_id().empty()) {
-    snapshot.mutable_engine()->set_tenant_id(scope.tenant_id);
-  }
   if (snapshot.engine().engine_id().empty()) {
     snapshot.mutable_engine()->set_engine_id(scope.engine_id);
   }

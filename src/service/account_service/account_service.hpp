@@ -19,8 +19,8 @@ namespace qtrade::service {
 
 /// @brief 交易账户支撑服务
 class AccountService final
-    : public qtrade::common::support::SupportServiceImpl<qtrade::account::v1::AccountService::AsyncService,
-                                                         AccountGrpcAsyncHandler> {
+  : public qtrade::common::support::SupportServiceImpl<qtrade::account::v1::AccountService::AsyncService,
+                                                       AccountGrpcAsyncHandler> {
  public:
   AccountService();
 

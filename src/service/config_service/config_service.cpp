@@ -24,8 +24,8 @@ ErrorCode ConfigService::Initialize(const std::string& config_path) {
   config_path_ = config_path;
   listen_address_ = qtrade::common::ParseGrpcOptions(config_path, default_port_).ListenAddress();
 
-  const auto context = qtrade::common::BootstrapDatabaseService<IConfigRepository>(
-      config_path, CreateConfigRepository, service_name_);
+  const auto context =
+    qtrade::common::BootstrapDatabaseService<IConfigRepository>(config_path, CreateConfigRepository, service_name_);
   if (!context.repository) {
     repository_.reset();
     state_ = qtrade::common::support::SupportServiceState::kFailed;

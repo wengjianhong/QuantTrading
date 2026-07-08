@@ -1,54 +1,65 @@
 // @file      config.proto
 // @brief     配置中心 gRPC 接口定义
-// @details   控制面：引擎出站 GetConfig / WatchConfig；EngineConfig 为唯一业务配置模型
+// @details   控制面：引擎出站 GetConfig / WatchConfig；仅下发策略与行情源等业务配置，不含账户凭证
+// @author    wengjianhong
+// @date      2026-06-28
+// @copyright CC BY-NC-SA 4.0
 syntax = "proto3";
 
 package qtrade.config.v1;
 
 option cc_enable_arenas = true;
 
-// 单条策略绑定（与 Architecture §2.4 对齐）
+// @brief 单条策略绑定
 message StrategyConfig {
-  string strategy_id = 1;
-  string plugin = 2;
-  bool enabled = 3;
-  repeated string instruments = 4;
-  map<string, string> params = 5;
+    // 策略实例标识
+    string strategy_id = 1;
+    // 策略插件名
+    string plugin = 2;
+    // 是否启用
+    bool enabled = 3;
+    // 订阅合约列表
+    repeated string instruments = 4;
+    // 策略参数键值对
+    map<string, string> params = 5;
 }
 
-// 引擎实例业务配置（按 tenant_id + engine_id 分片）
+// @brief 引擎实例业务配置（按 engine_id 分片）
 message EngineConfig {
-  string tenant_id = 1;
-  string engine_id = 2;
-  string account_id = 3;
-  string quote_source = 4;
-  string quote_failover = 5;
-  repeated StrategyConfig strategies = 6;
+    // 引擎实例标识
+    string engine_id = 1;
+    // 主行情源
+    string quote_source = 2;
+    // 策略绑定列表
+    repeated StrategyConfig strategies = 3;
 }
 
-// GetConfig 请求：按租户与引擎实例拉取配置
+// @brief GetConfig 请求
 message GetConfigRequest {
-  string tenant_id = 1;
-  string engine_id = 2;
+    // 引擎实例标识
+    string engine_id = 1;
 }
 
-// 配置全量快照（冷启动与 Watch 推送均使用同一结构）
+// @brief 配置全量快照（冷启动与 Watch 推送均使用同一结构）
 message ConfigSnapshot {
-  uint64 version = 1;
-  EngineConfig engine = 2;
+    // 单调递增版本号
+    uint64 version = 1;
+    // 引擎业务配置
+    EngineConfig engine = 2;
 }
 
-// WatchConfig 请求：订阅 since_version 之后的全量快照
+// @brief WatchConfig 请求
 message WatchConfigRequest {
-  string tenant_id = 1;
-  string engine_id = 2;
-  uint64 since_version = 3;
+    // 引擎实例标识
+    string engine_id = 1;
+    // 客户端已接收的最新版本（0 表示从头订阅）
+    uint64 since_version = 2;
 }
 
-// 配置中心 gRPC 服务（引擎仅作 Client，不对外暴露 Server）
+// @brief 配置中心 gRPC 服务
 service ConfigService {
-  // 获取配置全量快照
-  rpc GetConfig(GetConfigRequest) returns (ConfigSnapshot);
-  // 订阅配置全量快照
-  rpc WatchConfig(WatchConfigRequest) returns (stream ConfigSnapshot);
+    // @brief 冷启动拉取配置全量快照
+    rpc GetConfig(GetConfigRequest) returns (ConfigSnapshot);
+    // @brief 订阅配置变更并推送全量快照流
+    rpc WatchConfig(WatchConfigRequest) returns (stream ConfigSnapshot);
 }

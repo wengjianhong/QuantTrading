@@ -44,6 +44,9 @@ ErrorCode ParseEngineOptionsFromJson(const std::string& json_path, EngineOptions
   if (root.contains("engine_id")) {
     options.engine_id = root["engine_id"].get<std::string>();
   }
+  if (root.contains("account_id")) {
+    options.account_id = root["account_id"].get<std::string>();
+  }
   if (root.contains("log_topic")) {
     options.log_topic = root["log_topic"].get<std::string>();
   }
@@ -138,9 +141,6 @@ void TradingEngine::OnConfigSnapshot(const qtrade::config::v1::ConfigSnapshot& s
   }
 
   const auto& engine = snapshot.engine();
-  if (!engine.tenant_id().empty() && engine.tenant_id() != options_.tenant_id) {
-    spdlog::warn("[TradingEngine] tenant_id mismatch: snapshot={} local={}", engine.tenant_id(), options_.tenant_id);
-  }
   if (!engine.engine_id().empty() && engine.engine_id() != options_.engine_id) {
     spdlog::warn("[TradingEngine] engine_id mismatch: snapshot={} local={}", engine.engine_id(), options_.engine_id);
   }
@@ -148,7 +148,7 @@ void TradingEngine::OnConfigSnapshot(const qtrade::config::v1::ConfigSnapshot& s
   runtime_config_ = engine;
   spdlog::info("[TradingEngine] config snapshot version={}, account={}, quote_source={}, strategies={}",
                snapshot.version(),
-               engine.account_id(),
+               options_.account_id,
                engine.quote_source(),
                engine.strategies_size());
 

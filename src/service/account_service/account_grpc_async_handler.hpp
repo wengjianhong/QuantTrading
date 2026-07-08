@@ -11,6 +11,7 @@
 #include <qtrade/proto/account/v1/account.grpc.pb.h>
 
 #include <memory>
+#include <string>
 
 namespace grpc {
 class ServerCompletionQueue;
@@ -35,23 +36,24 @@ class AccountGrpcAsyncHandler {
   void Start();
   void Shutdown();
 
-  void SpawnRegisterAccount();
-  void SpawnRotateCredential();
-  void SpawnBindAccountToEngine();
+  void SpawnAddAccount();
+  void SpawnGetAccount();
   void SpawnListAccounts();
-  void SpawnResolveCredential();
+  void SpawnUpdateAccount();
+  void SpawnGetCredential();
 
   [[nodiscard]] std::shared_ptr<IAccountRepository> Repository() const { return repository_; }
   [[nodiscard]] grpc::ServerCompletionQueue* CompletionQueue() const { return cq_; }
   [[nodiscard]] qtrade::account::v1::AccountService::AsyncService* AsyncService() const { return async_service_; }
 
-  ErrorCode HandleRegisterAccount(const qtrade::account::v1::RegisterAccountRequest& request);
-  ErrorCode HandleRotateCredential(const qtrade::account::v1::RotateCredentialRequest& request);
-  ErrorCode HandleBindAccountToEngine(const qtrade::account::v1::BindAccountToEngineRequest& request);
+  ErrorCode HandleAddAccount(const qtrade::account::v1::AddAccountRequest& request);
+  ErrorCode HandleGetAccount(const qtrade::account::v1::GetAccountRequest& request,
+                             qtrade::account::v1::GetAccountResponse& response);
   ErrorCode HandleListAccounts(const qtrade::account::v1::ListAccountsRequest& request,
                                qtrade::account::v1::ListAccountsResponse& response);
-  ErrorCode HandleResolveCredential(const qtrade::account::v1::ResolveCredentialRequest& request,
-                                    qtrade::account::v1::ResolveCredentialResponse& response);
+  ErrorCode HandleUpdateAccount(const qtrade::account::v1::UpdateAccountRequest& request);
+  ErrorCode HandleGetCredential(const qtrade::account::v1::GetCredentialRequest& request,
+                                qtrade::account::v1::GetCredentialResponse& response);
 
  private:
   qtrade::account::v1::AccountService::AsyncService* async_service_ = nullptr;

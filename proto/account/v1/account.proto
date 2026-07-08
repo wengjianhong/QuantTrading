@@ -1,67 +1,101 @@
 // @file      account.proto
 // @brief     交易账户服务 gRPC 接口定义
-// @details   资金账户主数据、凭证托管与按需解析（§Architecture 2.5）
+// @details   管理租户下的券商资金账户与登录凭证；平台系统用户鉴权不在此服务
+// @author    wengjianhong
+// @date      2026-07-08
+// @copyright CC BY-NC-SA 4.0
 syntax = "proto3";
 
 package qtrade.account.v1;
 
 option cc_enable_arenas = true;
 
-// 资金账户元数据（不含密码）
+// 交易账户（券商资金账号，租户内唯一）
 message TradingAccount {
-  string account_id = 1;
-  string tenant_id = 2;
-  string broker_id = 3;
-  string connection_string = 4;
-  string status = 5;  // active / disabled
+    // 租户标识
+    string tenant_id = 1;
+    // 交易账户号
+    string account_id = 2;
+    // 交易柜台标识
+    string broker_id = 3;
+    // 交易登录密码
+    string password = 4;
+    // 柜台网关连接参数（如 tcp://host:port；不含登录密码）
+    string connection_string = 5;
+    // 账户状态：active / disabled
+    string status = 6;
 }
 
-message RegisterAccountRequest {
-  TradingAccount account = 1;
-  string password = 2;
+// 添加交易账户请求
+message AddAccountRequest {
+    // 账户信息（tenant_id、account_id、broker_id、password 必填）
+    TradingAccount account = 1;
 }
 
-message RegisterAccountResponse {}
+// 添加交易账户响应
+message AddAccountResponse {}
 
-message RotateCredentialRequest {
-  string account_id = 1;
-  string password = 2;
+// 查询单个交易账户请求
+message GetAccountRequest {
+    // 租户标识
+    string tenant_id = 1;
+    // 交易账户号
+    string account_id = 2;
 }
 
-message RotateCredentialResponse {}
-
-message BindAccountToEngineRequest {
-  string account_id = 1;
-  string engine_id = 2;
+// 查询单个交易账户响应
+message GetAccountResponse {
+    // 账户元数据（password 置空）
+    TradingAccount account = 1;
 }
 
-message BindAccountToEngineResponse {}
-
+// 查询交易账户列表请求
 message ListAccountsRequest {
-  string tenant_id = 1;
+    // 租户标识；空表示不过滤
+    string tenant_id = 1;
 }
 
+// 查询交易账户列表响应
 message ListAccountsResponse {
-  repeated TradingAccount accounts = 1;
+    // 账户列表（password 置空）
+    repeated TradingAccount accounts = 1;
 }
 
-message ResolveCredentialRequest {
-  string engine_id = 1;
-  string account_id = 2;
+// 更新交易账户请求
+message UpdateAccountRequest {
+    // 待更新账户（tenant_id、account_id 必填；password 非空时更新密码）
+    TradingAccount account = 1;
 }
 
-// 引擎登录材料（仅 ResolveCredential 返回，不进 WatchConfig）
-message ResolveCredentialResponse {
-  string account_id = 1;
-  string broker_id = 2;
-  string connection_string = 3;
-  string password = 4;
+// 更新交易账户响应
+message UpdateAccountResponse {}
+
+// 获取登录凭证信息请求
+message GetCredentialRequest {
+    // 租户标识
+    string tenant_id = 1;
+    // 交易账户号
+    string account_id = 2;
+    // 引擎实例标识
+    string engine_id = 3;
 }
 
+// 获取登录凭证信息响应
+message GetCredentialResponse {
+    // 账户信息
+    TradingAccount account = 1;
+}
+
+// 交易账户 gRPC 服务
 service AccountService {
-  rpc RegisterAccount(RegisterAccountRequest) returns (RegisterAccountResponse);
-  rpc RotateCredential(RotateCredentialRequest) returns (RotateCredentialResponse);
-  rpc BindAccountToEngine(BindAccountToEngineRequest) returns (BindAccountToEngineResponse);
-  rpc ListAccounts(ListAccountsRequest) returns (ListAccountsResponse);
-  rpc ResolveCredential(ResolveCredentialRequest) returns (ResolveCredentialResponse);
+    // 添加交易账户并设置密码
+    rpc AddAccount(AddAccountRequest) returns (AddAccountResponse);
+    // 查询单个交易账户
+    rpc GetAccount(GetAccountRequest) returns (GetAccountResponse);
+    // 查询交易账户列表
+    rpc ListAccounts(ListAccountsRequest) returns (ListAccountsResponse);
+    // 更新交易账户元数据或登录密码
+    rpc UpdateAccount(UpdateAccountRequest) returns (UpdateAccountResponse);
+    // 获取登录凭证信息
+    rpc GetCredential(GetCredentialRequest) returns (GetCredentialResponse);
 }

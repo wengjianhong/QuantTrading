@@ -46,8 +46,8 @@ void AccountClient::Shutdown() {
   impl_->initialized = false;
 }
 
-ErrorCode AccountClient::ResolveCredential(const std::string& account_id,
-                                           qtrade::account::v1::ResolveCredentialResponse& response) {
+ErrorCode AccountClient::GetCredential(const std::string& account_id,
+                                       qtrade::account::v1::GetCredentialResponse& response) {
   if (!impl_->initialized || !impl_->stub) {
     return ErrorCode::kNotInitialized;
   }
@@ -55,20 +55,21 @@ ErrorCode AccountClient::ResolveCredential(const std::string& account_id,
     return ErrorCode::kInternal;
   }
 
-  qtrade::account::v1::ResolveCredentialRequest request;
+  qtrade::account::v1::GetCredentialRequest request;
+  request.set_tenant_id(impl_->options.tenant_id);
   request.set_engine_id(impl_->options.engine_id);
   request.set_account_id(account_id);
 
   grpc::ClientContext context;
   context.set_deadline(std::chrono::system_clock::now() + std::chrono::seconds(5));
 
-  const grpc::Status status = impl_->stub->ResolveCredential(&context, request, &response);
+  const grpc::Status status = impl_->stub->GetCredential(&context, request, &response);
   if (!status.ok()) {
-    spdlog::warn("[AccountClient] ResolveCredential failed: {}", status.error_message());
+    spdlog::warn("[AccountClient] GetCredential failed: {}", status.error_message());
     return ErrorCode::kTimeout;
   }
 
-  spdlog::info("[AccountClient] credential resolved for account={}", account_id);
+  spdlog::info("[AccountClient] credential fetched for tenant={} account={}", impl_->options.tenant_id, account_id);
   return ErrorCode::kSuccess;
 }
 
