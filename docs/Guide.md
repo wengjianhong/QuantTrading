@@ -37,11 +37,14 @@ qtrade/
 │   ├── architecture.md             # 系统架构权威文档：架构总览、模块设计、交互方式、容灾方案、安全合规
 │   ├── guide.md                    # 开发指南：编码规范、插件开发流程、部署步骤、调试方法、协作规则
 │   └── deploy.md                   # 部署文档：各模块部署要求、机器配置、网络拓扑、监控告警、容灾切换
-├── include/qtrade/                 # 【对外公共头文件】插件接口、共享数据结构、错误码
-│   ├── structs/                    # 框架通用结构（如 result.hpp）
-│   ├── error_code/                 # 错误码：error_codes.hpp、code_segment.hpp、code_message.hpp
-│   ├── qtrade_sdk/                 # 插件 Target 接口：quote/、trader/（Api + Spi）
-│   └── strategy/                   # 策略基类接口：IStrategy
+├── include/
+│   ├── qtrade/                 # 【对外公共头文件】插件接口、共享数据结构、错误码
+│   │   ├── structs/            # 框架通用结构（如 result.hpp）
+│   │   ├── error_code/         # 错误码：error_codes.hpp、code_segment.hpp、code_message.hpp
+│   │   └── strategy/           # 策略基类接口：IStrategy
+│   ├── qtrade_sdk/             # 插件 Target 接口：quote/、trader/（Api + Spi）
+│   └── qtrade_framework/       # 【内部框架头文件】不 install；#include <qtrade_framework/...>
+│       └── database/           # 内部 DB 工具（如 sql_utils.hpp）；DAO 基类等待迁入
 ├── src/
 │   ├── apps/                       # 【可部署二进制入口】仅含 main，目录名 = 产物名
 │   │   ├── qtrade_engine/main.cpp  # → build/bin/qtrade_engine

@@ -52,8 +52,8 @@ std::string EscapeSqlLiteral(const std::string& value) {
 
 std::string AccountKeyWhereClause(const std::string& tenant_id, const std::string& account_id) {
   std::ostringstream sql;
-  sql << "tenant_id = '" << EscapeSqlLiteral(tenant_id) << "' AND account_id = '"
-      << EscapeSqlLiteral(account_id) << "'";
+  sql << "tenant_id = '" << EscapeSqlLiteral(tenant_id) << "' AND account_id = '" << EscapeSqlLiteral(account_id)
+      << "'";
   return sql.str();
 }
 
@@ -156,7 +156,8 @@ ErrorCode SociAccountRepository::AddAccount(const qtrade::account::v1::TradingAc
   const std::string& password = account.password();
 
   std::ostringstream exists_sql;
-  exists_sql << "SELECT 1 FROM trading_account WHERE " << AccountKeyWhereClause(account.tenant_id(), account.account_id());
+  exists_sql << "SELECT 1 FROM trading_account WHERE "
+             << AccountKeyWhereClause(account.tenant_id(), account.account_id());
   auto [exists_err, exists_result] = connection_->Query(exists_sql.str());
   if (exists_err != cpp_utils::database::Error::kSuccess || exists_result == nullptr) {
     return MapDbError(exists_err);
@@ -274,7 +275,8 @@ ErrorCode SociAccountRepository::UpdateAccount(const qtrade::account::v1::Tradin
   std::ostringstream update_account;
   update_account << "UPDATE trading_account SET broker_id = '" << EscapeSqlLiteral(account.broker_id())
                  << "', connection_string = '" << EscapeSqlLiteral(account.connection_string()) << "', status = '"
-                 << EscapeSqlLiteral(status) << "' WHERE " << AccountKeyWhereClause(account.tenant_id(), account.account_id());
+                 << EscapeSqlLiteral(status) << "' WHERE "
+                 << AccountKeyWhereClause(account.tenant_id(), account.account_id());
 
   cpp_utils::database::ExecuteResult update_result;
   if (const auto rc = connection_->Execute(update_account.str(), &update_result);
@@ -367,8 +369,8 @@ ErrorCode SociAccountRepository::GetCredential(const std::string& tenant_id,
     return ErrorCode::kInternal;
   }
 
-  spdlog::info("[SociAccountRepository] credential fetched for tenant={} engine={} account={}", tenant_id, engine_id,
-               account_id);
+  spdlog::info(
+    "[SociAccountRepository] credential fetched for tenant={} engine={} account={}", tenant_id, engine_id, account_id);
   account.set_password(plain_password);
   *response.mutable_account() = std::move(account);
   return ErrorCode::kSuccess;

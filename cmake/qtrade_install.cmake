@@ -5,7 +5,9 @@
 # Installed layout:
 #   lib/libqtrade_{proto,common,core}.a
 #   include/qtrade/...
+#   include/qtrade_sdk/...
 #   include/qtrade/proto/config/v1/*.pb.h (generated)
+#   (qtrade_framework/ is NOT installed)
 #   lib/cmake/qtrade/qtrade-config.cmake
 #   lib/cmake/qtrade/qtrade-config-version.cmake
 #   lib/cmake/qtrade/qtradeTargets.cmake
@@ -26,9 +28,12 @@ install(TARGETS qtrade_proto qtrade_common qtrade_core
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 
-# Public headers; downstream uses #include <qtrade/...>
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+# Public headers only; qtrade_framework/ is internal and must not be installed.
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/qtrade/
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/qtrade
+)
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/qtrade_sdk/
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/qtrade_sdk
 )
 
 # Generated protobuf/gRPC headers (staged under qtrade/proto/)
