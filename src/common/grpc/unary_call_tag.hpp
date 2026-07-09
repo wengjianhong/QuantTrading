@@ -37,13 +37,13 @@ class UnaryCallTag final : public CallTagBase {
                RequestMethod request_method,
                HandlerFn handler_fn,
                RespawnFn respawn_fn)
-      : handler_(handler),
-        service_(service),
-        cq_(cq),
-        request_method_(request_method),
-        handler_fn_(std::move(handler_fn)),
-        respawn_fn_(std::move(respawn_fn)),
-        responder_(&ctx_) {
+    : handler_(handler),
+      service_(service),
+      cq_(cq),
+      request_method_(request_method),
+      handler_fn_(std::move(handler_fn)),
+      respawn_fn_(std::move(respawn_fn)),
+      responder_(&ctx_) {
     Proceed(true);
   }
 

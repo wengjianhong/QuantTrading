@@ -1,0 +1,29 @@
+/// @file      ddl_utils.cpp
+/// @brief     DDL 公共工具实现
+/// @author    wengjianhong
+/// @date      2026-07-09
+/// @copyright CC BY-NC-SA 4.0
+#include "common/dao/ddl_utils.hpp"
+
+namespace qtrade::framework::dao {
+
+ErrorCode EnsureTableSchema(cpp_utils::database::IConnection* connection, const ITableDdl& schema) {
+  if (connection == nullptr || !connection->IsConnected()) {
+    return ErrorCode::kSystemError;
+  }
+
+  for (const auto& sql : schema.GetCreateTableSqls()) {
+    if (const auto rc = connection->Execute(sql); rc != cpp_utils::database::Error::kSuccess) {
+      return ErrorCode::kSystemError;
+    }
+  }
+
+  for (const auto& sql : schema.GetIndexSqls()) {
+    if (const auto rc = connection->Execute(sql); rc != cpp_utils::database::Error::kSuccess) {
+      return ErrorCode::kSystemError;
+    }
+  }
+  return ErrorCode::kSuccess;
+}
+
+}  // namespace qtrade::framework::dao

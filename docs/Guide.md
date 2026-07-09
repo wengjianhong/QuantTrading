@@ -44,15 +44,18 @@ qtrade/
 │   │   └── strategy/           # 策略基类接口：IStrategy
 │   ├── qtrade_sdk/             # 插件 Target 接口：quote/、trader/（Api + Spi）
 │   └── qtrade_framework/       # 【内部框架头文件】不 install；#include <qtrade_framework/...>
-│       ├── dao/                # 表级 DML / DDL 抽象（dml.hpp、table_schema.hpp）
+│       ├── dao/                # dml.hpp / ddl.hpp 等接口声明
 │       └── support/            # 支撑服务生命周期接口（ISupportService）
 ├── src/
+│   ├── dao/                    # 表级 DAO（.hpp + .cpp，参考 ug_user 模式）
 │   ├── apps/                       # 【可部署二进制入口】仅含 main，目录名 = 产物名
 │   │   ├── qtrade_engine/main.cpp  # → build/bin/qtrade_engine
 │   │   ├── qtrade_config_service/main.cpp
 │   │   └── ...
 │   ├── common/                     # 公共基础（按功能分子目录）
 │   │   ├── app/                    # 进程 bootstrap：参数解析、信号处理、服务入口
+│   │   ├── database/               # 连接选项、DbConnectionHolder
+│   │   ├── dao/                    # dml_utils、ddl_utils、sql_utils
 │   │   └── logging/                # 日志初始化
 │   ├── public/                     # include/qtrade 公共 API 的实现（目录镜像）
 │   │   └── error_code/             # 错误码等非 header-only 实现

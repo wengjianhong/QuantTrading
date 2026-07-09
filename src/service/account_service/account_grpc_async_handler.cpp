@@ -26,11 +26,8 @@ grpc::Status ToGrpcStatus(ErrorCode code) {
 }
 
 template <typename Request, typename Response>
-using AccountUnaryCallTag = qtrade::common::grpc_async::UnaryCallTag<
-    qtrade::account::v1::AccountService::AsyncService,
-    AccountGrpcAsyncHandler,
-    Request,
-    Response>;
+using AccountUnaryCallTag = qtrade::common::grpc_async::
+  UnaryCallTag<qtrade::account::v1::AccountService::AsyncService, AccountGrpcAsyncHandler, Request, Response>;
 
 }  // namespace detail
 
@@ -69,14 +66,14 @@ void AccountGrpcAsyncHandler::SpawnAddAccount() {
   using Request = qtrade::account::v1::AddAccountRequest;
   using Response = qtrade::account::v1::AddAccountResponse;
   new detail::AccountUnaryCallTag<Request, Response>(
-      this,
-      async_service_,
-      cq_,
-      &qtrade::account::v1::AccountService::AsyncService::RequestAddAccount,
-      [](AccountGrpcAsyncHandler* handler, const Request& request, Response*) {
-        return detail::ToGrpcStatus(handler->HandleAddAccount(request));
-      },
-      [](AccountGrpcAsyncHandler* handler) { handler->SpawnAddAccount(); });
+    this,
+    async_service_,
+    cq_,
+    &qtrade::account::v1::AccountService::AsyncService::RequestAddAccount,
+    [](AccountGrpcAsyncHandler* handler, const Request& request, Response*) {
+      return detail::ToGrpcStatus(handler->HandleAddAccount(request));
+    },
+    [](AccountGrpcAsyncHandler* handler) { handler->SpawnAddAccount(); });
 }
 
 void AccountGrpcAsyncHandler::SpawnGetAccount() {
@@ -86,14 +83,14 @@ void AccountGrpcAsyncHandler::SpawnGetAccount() {
   using Request = qtrade::account::v1::GetAccountRequest;
   using Response = qtrade::account::v1::GetAccountResponse;
   new detail::AccountUnaryCallTag<Request, Response>(
-      this,
-      async_service_,
-      cq_,
-      &qtrade::account::v1::AccountService::AsyncService::RequestGetAccount,
-      [](AccountGrpcAsyncHandler* handler, const Request& request, Response* response) {
-        return detail::ToGrpcStatus(handler->HandleGetAccount(request, *response));
-      },
-      [](AccountGrpcAsyncHandler* handler) { handler->SpawnGetAccount(); });
+    this,
+    async_service_,
+    cq_,
+    &qtrade::account::v1::AccountService::AsyncService::RequestGetAccount,
+    [](AccountGrpcAsyncHandler* handler, const Request& request, Response* response) {
+      return detail::ToGrpcStatus(handler->HandleGetAccount(request, *response));
+    },
+    [](AccountGrpcAsyncHandler* handler) { handler->SpawnGetAccount(); });
 }
 
 void AccountGrpcAsyncHandler::SpawnListAccounts() {
@@ -103,14 +100,14 @@ void AccountGrpcAsyncHandler::SpawnListAccounts() {
   using Request = qtrade::account::v1::ListAccountsRequest;
   using Response = qtrade::account::v1::ListAccountsResponse;
   new detail::AccountUnaryCallTag<Request, Response>(
-      this,
-      async_service_,
-      cq_,
-      &qtrade::account::v1::AccountService::AsyncService::RequestListAccounts,
-      [](AccountGrpcAsyncHandler* handler, const Request& request, Response* response) {
-        return detail::ToGrpcStatus(handler->HandleListAccounts(request, *response));
-      },
-      [](AccountGrpcAsyncHandler* handler) { handler->SpawnListAccounts(); });
+    this,
+    async_service_,
+    cq_,
+    &qtrade::account::v1::AccountService::AsyncService::RequestListAccounts,
+    [](AccountGrpcAsyncHandler* handler, const Request& request, Response* response) {
+      return detail::ToGrpcStatus(handler->HandleListAccounts(request, *response));
+    },
+    [](AccountGrpcAsyncHandler* handler) { handler->SpawnListAccounts(); });
 }
 
 void AccountGrpcAsyncHandler::SpawnUpdateAccount() {
@@ -120,14 +117,14 @@ void AccountGrpcAsyncHandler::SpawnUpdateAccount() {
   using Request = qtrade::account::v1::UpdateAccountRequest;
   using Response = qtrade::account::v1::UpdateAccountResponse;
   new detail::AccountUnaryCallTag<Request, Response>(
-      this,
-      async_service_,
-      cq_,
-      &qtrade::account::v1::AccountService::AsyncService::RequestUpdateAccount,
-      [](AccountGrpcAsyncHandler* handler, const Request& request, Response*) {
-        return detail::ToGrpcStatus(handler->HandleUpdateAccount(request));
-      },
-      [](AccountGrpcAsyncHandler* handler) { handler->SpawnUpdateAccount(); });
+    this,
+    async_service_,
+    cq_,
+    &qtrade::account::v1::AccountService::AsyncService::RequestUpdateAccount,
+    [](AccountGrpcAsyncHandler* handler, const Request& request, Response*) {
+      return detail::ToGrpcStatus(handler->HandleUpdateAccount(request));
+    },
+    [](AccountGrpcAsyncHandler* handler) { handler->SpawnUpdateAccount(); });
 }
 
 void AccountGrpcAsyncHandler::SpawnGetCredential() {
@@ -137,14 +134,14 @@ void AccountGrpcAsyncHandler::SpawnGetCredential() {
   using Request = qtrade::account::v1::GetCredentialRequest;
   using Response = qtrade::account::v1::GetCredentialResponse;
   new detail::AccountUnaryCallTag<Request, Response>(
-      this,
-      async_service_,
-      cq_,
-      &qtrade::account::v1::AccountService::AsyncService::RequestGetCredential,
-      [](AccountGrpcAsyncHandler* handler, const Request& request, Response* response) {
-        return detail::ToGrpcStatus(handler->HandleGetCredential(request, *response));
-      },
-      [](AccountGrpcAsyncHandler* handler) { handler->SpawnGetCredential(); });
+    this,
+    async_service_,
+    cq_,
+    &qtrade::account::v1::AccountService::AsyncService::RequestGetCredential,
+    [](AccountGrpcAsyncHandler* handler, const Request& request, Response* response) {
+      return detail::ToGrpcStatus(handler->HandleGetCredential(request, *response));
+    },
+    [](AccountGrpcAsyncHandler* handler) { handler->SpawnGetCredential(); });
 }
 
 ErrorCode AccountGrpcAsyncHandler::HandleAddAccount(const qtrade::account::v1::AddAccountRequest& request) {

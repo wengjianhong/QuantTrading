@@ -1,21 +1,21 @@
-/// @file      table_schema.hpp
+/// @file      ddl.hpp
 /// @brief     单表 DDL 元数据抽象（表名、建表 SQL、索引 SQL）
 /// @author    wengjianhong
 /// @date      2026-07-09
 /// @copyright CC BY-NC-SA 4.0
-#ifndef QTRADE_FRAMEWORK_DAO_TABLE_SCHEMA_HPP_
-#define QTRADE_FRAMEWORK_DAO_TABLE_SCHEMA_HPP_
+#ifndef QTRADE_FRAMEWORK_DAO_DDL_HPP_
+#define QTRADE_FRAMEWORK_DAO_DDL_HPP_
 
 #include <string>
 #include <vector>
 
 namespace qtrade::framework::dao {
 
-/// @brief 单表 schema 抽象
-/// @details 由各表 DAO 实现，暴露表名与 DDL 脚本，供迁移等模块统一调用
-class ITableSchema {
+/// @brief 单表 DDL 抽象
+/// @details 由各表 DAO 实现，暴露表名与 DDL 脚本，供 ddl_utils 统一调用
+class ITableDdl {
  public:
-  virtual ~ITableSchema() noexcept = default;
+  virtual ~ITableDdl() noexcept = default;
 
   /// @brief 逻辑表名（与数据库中实际表名一致）
   virtual const std::string& TableName() const = 0;
@@ -29,4 +29,4 @@ class ITableSchema {
 
 }  // namespace qtrade::framework::dao
 
-#endif  // QTRADE_FRAMEWORK_DAO_TABLE_SCHEMA_HPP_
+#endif  // QTRADE_FRAMEWORK_DAO_DDL_HPP_

@@ -45,7 +45,7 @@ class IAccountRepository {
 };
 
 [[nodiscard]] std::shared_ptr<IAccountRepository> CreateAccountRepository(
-    const qtrade::common::DatabaseOptions& options);
+  const qtrade::common::DatabaseOptions& options);
 
 }  // namespace qtrade::service
 
