@@ -28,7 +28,7 @@ message TradingAccount {
 
 // 添加交易账户请求
 message AddAccountRequest {
-    // 账户信息（tenant_id、account_id、broker_id、password 必填）
+    // 账户信息
     TradingAccount account = 1;
 }
 
@@ -45,13 +45,13 @@ message GetAccountRequest {
 
 // 查询单个交易账户响应
 message GetAccountResponse {
-    // 账户元数据（password 置空）
+    // 账户元数据
     TradingAccount account = 1;
 }
 
 // 查询交易账户列表请求
 message ListAccountsRequest {
-    // 租户标识；空表示不过滤
+    // 租户标识（空表示不过滤）
     string tenant_id = 1;
 }
 
@@ -63,7 +63,7 @@ message ListAccountsResponse {
 
 // 更新交易账户请求
 message UpdateAccountRequest {
-    // 待更新账户（tenant_id、account_id 必填；password 非空时更新密码）
+    // 待更新账户
     TradingAccount account = 1;
 }
 
@@ -88,13 +88,13 @@ message GetCredentialResponse {
 
 // 交易账户 gRPC 服务
 service AccountService {
-    // 添加交易账户并设置密码
+    // 添加交易账户
     rpc AddAccount(AddAccountRequest) returns (AddAccountResponse);
     // 查询单个交易账户
     rpc GetAccount(GetAccountRequest) returns (GetAccountResponse);
     // 查询交易账户列表
     rpc ListAccounts(ListAccountsRequest) returns (ListAccountsResponse);
-    // 更新交易账户元数据或登录密码
+    // 更新交易账户
     rpc UpdateAccount(UpdateAccountRequest) returns (UpdateAccountResponse);
     // 获取登录凭证信息
     rpc GetCredential(GetCredentialRequest) returns (GetCredentialResponse);

@@ -1,6 +1,6 @@
 /// @file      config_client.hpp
 /// @brief     配置管理客户端
-/// @details   控制面：gRPC GetConfig 冷启动 + WatchConfig 出站订阅（按版本全量快照）
+/// @details   控制面：gRPC GetConfig 冷启动 + SubscribeConfig 出站监听（按版本全量快照）
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
@@ -31,7 +31,7 @@ struct ConfigClientOptions {
 /// @details 引擎作为 gRPC Client 出站连接 config-service；不对外提供 gRPC Server
 class ConfigClient {
  public:
-  /// @brief 收到全量配置快照（GetConfig 与 WatchConfig 均触发）
+  /// @brief 收到全量配置快照（GetConfig 与 SubscribeConfig 均触发）
   using SnapshotHandler = std::function<void(const qtrade::config::v1::ConfigSnapshot& snapshot)>;
 
   /// @brief 构造配置客户端（未初始化，须调用 Init）
@@ -52,7 +52,7 @@ class ConfigClient {
   /// @return ErrorCode::kSuccess 表示成功；网络失败返回 ErrorCode::kTimeout
   ErrorCode FetchSnapshot();
 
-  /// @brief 启动控制线程：WatchConfig 订阅新版本全量快照
+  /// @brief 启动控制线程：SubscribeConfig 监听新版本全量快照
   /// @return ErrorCode::kSuccess 表示成功
   ErrorCode StartWatch();
 

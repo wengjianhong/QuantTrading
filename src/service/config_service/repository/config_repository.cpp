@@ -21,15 +21,15 @@ std::string NormalizeScopeField(const std::string& value) { return value.empty()
 
 ConfigScope MakeConfigScope(const qtrade::config::v1::GetConfigRequest& request) {
   return ConfigScope{
-      .tenant_id = "default",
-      .engine_id = NormalizeScopeField(request.engine_id()),
+    .tenant_id = "default",
+    .engine_id = NormalizeScopeField(request.engine_id()),
   };
 }
 
-ConfigScope MakeConfigScope(const qtrade::config::v1::WatchConfigRequest& request) {
+ConfigScope MakeConfigScope(const qtrade::config::v1::SubscribeConfigRequest& request) {
   return ConfigScope{
-      .tenant_id = "default",
-      .engine_id = NormalizeScopeField(request.engine_id()),
+    .tenant_id = "default",
+    .engine_id = NormalizeScopeField(request.engine_id()),
   };
 }
 

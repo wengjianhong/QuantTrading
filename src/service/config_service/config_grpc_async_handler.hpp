@@ -18,7 +18,7 @@ class ServerCompletionQueue;
 
 namespace qtrade::service {
 
-/// @brief 管理 GetConfig / WatchConfig 的 Async CallTag 生命周期
+/// @brief 管理 GetConfig / SubscribeConfig 的 Async CallTag 生命周期
 class ConfigGrpcAsyncHandler {
  public:
   using RepositoryT = IConfigRepository;
@@ -49,8 +49,8 @@ class ConfigGrpcAsyncHandler {
   /// @brief 预投递下一个 GetConfig 异步接收
   void SpawnGetConfig();
 
-  /// @brief 预投递下一个 WatchConfig 异步接收
-  void SpawnWatchConfig();
+  /// @brief 预投递下一个 SubscribeConfig 异步接收
+  void SpawnSubscribeConfig();
 
   /// @brief 从数据库查询指定作用域配置快照
   /// @param scope 租户与引擎实例

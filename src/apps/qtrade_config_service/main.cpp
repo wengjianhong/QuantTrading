@@ -1,6 +1,6 @@
 /// @file      main.cpp
 /// @brief     配置中心服务（qtrade_config_service）
-/// @details   gRPC GetConfig / WatchConfig 服务端
+/// @details   gRPC GetConfig / SubscribeConfig 服务端
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0

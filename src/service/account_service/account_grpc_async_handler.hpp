@@ -11,7 +11,6 @@
 #include <qtrade/proto/account/v1/account.grpc.pb.h>
 
 #include <memory>
-#include <string>
 
 namespace grpc {
 class ServerCompletionQueue;

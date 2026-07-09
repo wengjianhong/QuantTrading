@@ -15,22 +15,21 @@ namespace qtrade::service {
 
 namespace detail {
 
-/// @brief WatchConfig 轮询数据库的间隔（毫秒）
+/// @brief SubscribeConfig 轮询数据库的间隔（毫秒）
 constexpr int kWatchPollIntervalMs = 2000;
 
-using ConfigUnaryCallTag = qtrade::common::grpc_async::UnaryCallTag<
-    qtrade::config::v1::ConfigService::AsyncService,
-    ConfigGrpcAsyncHandler,
-    qtrade::config::v1::GetConfigRequest,
-    qtrade::config::v1::ConfigSnapshot>;
+using ConfigUnaryCallTag = qtrade::common::grpc_async::UnaryCallTag<qtrade::config::v1::ConfigService::AsyncService,
+                                                                    ConfigGrpcAsyncHandler,
+                                                                    qtrade::config::v1::GetConfigRequest,
+                                                                    qtrade::config::v1::ConfigSnapshot>;
 
-/// @brief WatchConfig 异步 CallTag（Server Streaming；定时查库推送）
-class WatchConfigCallTag final : public qtrade::common::grpc_async::CallTagBase {
+/// @brief SubscribeConfig 异步 CallTag（Server Streaming；定时查库推送）
+class SubscribeConfigCallTag final : public qtrade::common::grpc_async::CallTagBase {
  public:
-  WatchConfigCallTag(ConfigGrpcAsyncHandler* handler,
-                     qtrade::config::v1::ConfigService::AsyncService* service,
-                     grpc::ServerCompletionQueue* cq)
-      : handler_(handler), service_(service), cq_(cq), writer_(&ctx_) {
+  SubscribeConfigCallTag(ConfigGrpcAsyncHandler* handler,
+                         qtrade::config::v1::ConfigService::AsyncService* service,
+                         grpc::ServerCompletionQueue* cq)
+    : handler_(handler), service_(service), cq_(cq), writer_(&ctx_) {
     Proceed(true);
   }
 
@@ -42,7 +41,7 @@ class WatchConfigCallTag final : public qtrade::common::grpc_async::CallTagBase 
 
     if (status_ == CallStatus::kCreate) {
       status_ = CallStatus::kAccept;
-      service_->RequestWatchConfig(&ctx_, &request_, &writer_, cq_, cq_, this);
+      service_->RequestSubscribeConfig(&ctx_, &request_, &writer_, cq_, cq_, this);
       return;
     }
 
@@ -51,7 +50,7 @@ class WatchConfigCallTag final : public qtrade::common::grpc_async::CallTagBase 
         accepted_ = true;
         scope_ = MakeConfigScope(request_);
         since_version_ = request_.since_version();
-        handler_->SpawnWatchConfig();
+        handler_->SpawnSubscribeConfig();
       }
       PollAndMaybeWrite();
       if (!finished_ && !write_in_flight_) {
@@ -88,7 +87,7 @@ class WatchConfigCallTag final : public qtrade::common::grpc_async::CallTagBase 
       return;
     }
     const gpr_timespec deadline =
-        gpr_time_add(gpr_now(GPR_CLOCK_MONOTONIC), gpr_time_from_millis(kWatchPollIntervalMs, GPR_TIMESPAN));
+      gpr_time_add(gpr_now(GPR_CLOCK_MONOTONIC), gpr_time_from_millis(kWatchPollIntervalMs, GPR_TIMESPAN));
     alarm_.Set(cq_, deadline, this);
   }
 
@@ -121,7 +120,7 @@ class WatchConfigCallTag final : public qtrade::common::grpc_async::CallTagBase 
   qtrade::config::v1::ConfigService::AsyncService* service_;
   grpc::ServerCompletionQueue* cq_;
   grpc::ServerContext ctx_;
-  qtrade::config::v1::WatchConfigRequest request_;
+  qtrade::config::v1::SubscribeConfigRequest request_;
   qtrade::config::v1::ConfigSnapshot outgoing_;
   grpc::ServerAsyncWriter<qtrade::config::v1::ConfigSnapshot> writer_;
   grpc::Alarm alarm_;
@@ -153,7 +152,7 @@ void ConfigGrpcAsyncHandler::Start() {
   }
 
   SpawnGetConfig();
-  SpawnWatchConfig();
+  SpawnSubscribeConfig();
 
   started_ = true;
 }
@@ -165,24 +164,25 @@ void ConfigGrpcAsyncHandler::SpawnGetConfig() {
     return;
   }
   new detail::ConfigUnaryCallTag(
-      this,
-      async_service_,
-      cq_,
-      &qtrade::config::v1::ConfigService::AsyncService::RequestGetConfig,
-      [](ConfigGrpcAsyncHandler* handler, const qtrade::config::v1::GetConfigRequest& request,
-         qtrade::config::v1::ConfigSnapshot* response) {
-        const ConfigScope scope = MakeConfigScope(request);
-        *response = handler->QuerySnapshot(scope);
-        return grpc::Status::OK;
-      },
-      [](ConfigGrpcAsyncHandler* handler) { handler->SpawnGetConfig(); });
+    this,
+    async_service_,
+    cq_,
+    &qtrade::config::v1::ConfigService::AsyncService::RequestGetConfig,
+    [](ConfigGrpcAsyncHandler* handler,
+       const qtrade::config::v1::GetConfigRequest& request,
+       qtrade::config::v1::ConfigSnapshot* response) {
+      const ConfigScope scope = MakeConfigScope(request);
+      *response = handler->QuerySnapshot(scope);
+      return grpc::Status::OK;
+    },
+    [](ConfigGrpcAsyncHandler* handler) { handler->SpawnGetConfig(); });
 }
 
-void ConfigGrpcAsyncHandler::SpawnWatchConfig() {
+void ConfigGrpcAsyncHandler::SpawnSubscribeConfig() {
   if (async_service_ == nullptr || cq_ == nullptr || !repository_) {
     return;
   }
-  new detail::WatchConfigCallTag(this, async_service_, cq_);
+  new detail::SubscribeConfigCallTag(this, async_service_, cq_);
 }
 
 qtrade::config::v1::ConfigSnapshot ConfigGrpcAsyncHandler::QuerySnapshot(const ConfigScope& scope) const {

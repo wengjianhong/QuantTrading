@@ -88,7 +88,7 @@ class TradingEngine {
   client::ConfigClient& GetConfigClient() { return config_client_; }
 
  private:
-  /// @brief 初始化并连接 config_client（GetConfig + WatchConfig）
+  /// @brief 初始化并连接 config_client（GetConfig + SubscribeConfig）
   /// @param options 引擎启动选项
   /// @return ErrorCode::kSuccess 表示成功
   ErrorCode InitConfigClient(const EngineOptions& options);

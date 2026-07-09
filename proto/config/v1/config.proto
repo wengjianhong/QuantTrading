@@ -1,6 +1,6 @@
 // @file      config.proto
 // @brief     配置中心 gRPC 接口定义
-// @details   控制面：引擎出站 GetConfig / WatchConfig；仅下发策略与行情源等业务配置，不含账户凭证
+// @details   控制面：引擎出站 GetConfig / SubscribeConfig；仅下发策略与行情源等业务配置，不含账户凭证
 // @author    wengjianhong
 // @date      2026-06-28
 // @copyright CC BY-NC-SA 4.0
@@ -10,7 +10,7 @@ package qtrade.config.v1;
 
 option cc_enable_arenas = true;
 
-// @brief 单条策略绑定
+// 策略配置
 message StrategyConfig {
     // 策略实例标识
     string strategy_id = 1;
@@ -24,7 +24,7 @@ message StrategyConfig {
     map<string, string> params = 5;
 }
 
-// @brief 引擎实例业务配置（按 engine_id 分片）
+// 引擎实例配置（按 engine_id 分片）
 message EngineConfig {
     // 引擎实例标识
     string engine_id = 1;
@@ -34,13 +34,7 @@ message EngineConfig {
     repeated StrategyConfig strategies = 3;
 }
 
-// @brief GetConfig 请求
-message GetConfigRequest {
-    // 引擎实例标识
-    string engine_id = 1;
-}
-
-// @brief 配置全量快照（冷启动与 Watch 推送均使用同一结构）
+// 配置
 message ConfigSnapshot {
     // 单调递增版本号
     uint64 version = 1;
@@ -48,18 +42,24 @@ message ConfigSnapshot {
     EngineConfig engine = 2;
 }
 
-// @brief WatchConfig 请求
-message WatchConfigRequest {
+// 获取配置请求
+message GetConfigRequest {
     // 引擎实例标识
     string engine_id = 1;
-    // 客户端已接收的最新版本（0 表示从头订阅）
+}
+
+// 订阅配置请求
+message SubscribeConfigRequest {
+    // 引擎实例标识
+    string engine_id = 1;
+    // 客户端已接收的最新版本（0 表示获取最新配置）
     uint64 since_version = 2;
 }
 
-// @brief 配置中心 gRPC 服务
+// 配置中心 gRPC 服务
 service ConfigService {
-    // @brief 冷启动拉取配置全量快照
+    // 获取配置
     rpc GetConfig(GetConfigRequest) returns (ConfigSnapshot);
-    // @brief 订阅配置变更并推送全量快照流
-    rpc WatchConfig(WatchConfigRequest) returns (stream ConfigSnapshot);
+    // 订阅配置变更（Server Streaming）
+    rpc SubscribeConfig(SubscribeConfigRequest) returns (stream ConfigSnapshot);
 }

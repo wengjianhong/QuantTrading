@@ -29,8 +29,8 @@ struct ConfigScope {
 /// @brief 从 GetConfig 请求构造作用域
 [[nodiscard]] ConfigScope MakeConfigScope(const qtrade::config::v1::GetConfigRequest& request);
 
-/// @brief 从 WatchConfig 请求构造作用域
-[[nodiscard]] ConfigScope MakeConfigScope(const qtrade::config::v1::WatchConfigRequest& request);
+/// @brief 从 SubscribeConfig 请求构造作用域
+[[nodiscard]] ConfigScope MakeConfigScope(const qtrade::config::v1::SubscribeConfigRequest& request);
 
 /// @brief 配置读写仓储接口
 class IConfigRepository {
