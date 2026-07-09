@@ -9,7 +9,7 @@
 #define QTRADE_COMMON_SUPPORT_SUPPORT_SERVICE_IMPL_HPP_
 
 #include "common/grpc/grpc_service_host.hpp"
-#include "common/support/support_service.hpp"
+#include <qtrade_framework/support/support_service.hpp>
 
 #include <qtrade/error_code/error_codes.hpp>
 

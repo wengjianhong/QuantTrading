@@ -3,8 +3,8 @@
 /// @author    wengjianhong
 /// @date      2026-07-08
 /// @copyright CC BY-NC-SA 4.0
-#ifndef QTRADE_COMMON_SUPPORT_SUPPORT_SERVICE_HPP_
-#define QTRADE_COMMON_SUPPORT_SUPPORT_SERVICE_HPP_
+#ifndef QTRADE_FRAMEWORK_SUPPORT_SUPPORT_SERVICE_HPP_
+#define QTRADE_FRAMEWORK_SUPPORT_SUPPORT_SERVICE_HPP_
 
 #include <qtrade/error_code/error_codes.hpp>
 
@@ -59,4 +59,4 @@ class ISupportService {
 
 }  // namespace qtrade::common::support
 
-#endif  // QTRADE_COMMON_SUPPORT_SUPPORT_SERVICE_HPP_
+#endif  // QTRADE_FRAMEWORK_SUPPORT_SUPPORT_SERVICE_HPP_

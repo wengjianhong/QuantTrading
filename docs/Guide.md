@@ -44,7 +44,8 @@ qtrade/
 │   │   └── strategy/           # 策略基类接口：IStrategy
 │   ├── qtrade_sdk/             # 插件 Target 接口：quote/、trader/（Api + Spi）
 │   └── qtrade_framework/       # 【内部框架头文件】不 install；#include <qtrade_framework/...>
-│       └── database/           # 内部 DB 工具（如 sql_utils.hpp）；DAO 基类等待迁入
+│       ├── dao/                # 表级 DML / DDL 抽象（dml.hpp、table_schema.hpp）
+│       └── support/            # 支撑服务生命周期接口（ISupportService）
 ├── src/
 │   ├── apps/                       # 【可部署二进制入口】仅含 main，目录名 = 产物名
 │   │   ├── qtrade_engine/main.cpp  # → build/bin/qtrade_engine
