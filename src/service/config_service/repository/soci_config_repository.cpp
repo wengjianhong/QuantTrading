@@ -11,7 +11,7 @@
 #include "common/dao/dml_utils.hpp"
 #include "dao/engine_config.hpp"
 
-#include <cpputils/database/database.hpp>
+#include <cpputils/database/connection.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -87,9 +87,9 @@ ErrorCode SociConfigRepository::Save(const ConfigScope& scope,
   }
 
   auto* connection = connection_.Connection();
-  auto [begin_rc, tx] = connection->BeginTransaction();
-  if (begin_rc != cpp_utils::database::Error::kSuccess) {
-    spdlog::error("[SociConfigRepository] begin transaction failed: {}", connection->LastError());
+  auto tx = connection->BeginTransaction();
+  if (!tx.has_value()) {
+    spdlog::error("[SociConfigRepository] begin transaction failed: {}", connection->LastError().message);
     return ErrorCode::kSystemError;
   }
 
@@ -107,21 +107,21 @@ ErrorCode SociConfigRepository::Save(const ConfigScope& scope,
   auto& dao = qtrade::framework::dao::EngineConfig::Instance();
   const auto update_result = dao.Update(row, where);
   if (update_result.error_code != ErrorCode::kSuccess) {
-    (void)tx.Rollback();
+    (void)tx->Rollback();
     return update_result.error_code;
   }
   if (!update_result.data.has_value() || update_result.data.value() == 0) {
     const auto insert_result = dao.Insert({row});
     if (insert_result.error_code != ErrorCode::kSuccess) {
-      (void)tx.Rollback();
+      (void)tx->Rollback();
       spdlog::error("[SociConfigRepository] insert failed");
       return insert_result.error_code;
     }
   }
 
   // 3. 提交事务
-  if (const auto rc = tx.Commit(); rc != cpp_utils::database::Error::kSuccess) {
-    spdlog::error("[SociConfigRepository] commit failed: {}", connection->LastError());
+  if (!tx->Commit()) {
+    spdlog::error("[SociConfigRepository] commit failed: {}", connection->LastError().message);
     return ErrorCode::kSystemError;
   }
   return ErrorCode::kSuccess;

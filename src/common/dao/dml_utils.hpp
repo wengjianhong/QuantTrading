@@ -10,7 +10,8 @@
 
 #include <qtrade/structs/result.hpp>
 
-#include <cpputils/database/database.hpp>
+#include <cpputils/database/connection.hpp>
+#include <cpputils/database/row.hpp>
 
 #include <cstdint>
 #include <memory>

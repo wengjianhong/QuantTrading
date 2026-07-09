@@ -45,6 +45,18 @@ cpp_utils::database::IConnection* g_connection = nullptr;  ///< 由 SetConnectio
   return sql.str();
 }
 
+[[nodiscard]] std::string LastDbErrorMessage() {
+  if (g_connection == nullptr) {
+    return {};
+  }
+  return g_connection->LastError().message;
+}
+
+template <typename T>
+[[nodiscard]] Result<T> DbFailureResult() {
+  return Result<T>{.error_code = ErrorCode::kSystemError, .error_message = LastDbErrorMessage()};
+}
+
 }  // namespace
 
 void SetConnection(cpp_utils::database::IConnection* connection) { g_connection = connection; }
@@ -114,8 +126,8 @@ Result<std::int64_t> InsertRow(const std::string& table, const KeyValues& values
 
   std::ostringstream sql;
   sql << "INSERT INTO " << table << " " << BuildInsertColumns(values);
-  if (const auto rc = connection->Execute(sql.str()); rc != cpp_utils::database::Error::kSuccess) {
-    return Result<std::int64_t>{.error_code = MapDbError(rc)};
+  if (!connection->Execute(sql.str())) {
+    return DbFailureResult<std::int64_t>();
   }
   return Result<std::int64_t>{.data = 1};
 }
@@ -129,11 +141,11 @@ Result<std::int64_t> DeleteRows(const std::string& table, const KeyValues& where
   std::ostringstream sql;
   sql << "DELETE FROM " << table << BuildWhereSql(where_values);
 
-  cpp_utils::database::ExecuteResult result;
-  if (const auto rc = connection->Execute(sql.str(), &result); rc != cpp_utils::database::Error::kSuccess) {
-    return Result<std::int64_t>{.error_code = MapDbError(rc)};
+  std::int64_t affected_rows = 0;
+  if (!connection->Execute(sql.str(), &affected_rows)) {
+    return DbFailureResult<std::int64_t>();
   }
-  return Result<std::int64_t>{.data = static_cast<std::int64_t>(result.affected_rows)};
+  return Result<std::int64_t>{.data = affected_rows};
 }
 
 Result<std::int64_t> UpdateRows(const std::string& table, const KeyValues& values, const KeyValues& where_values) {
@@ -145,11 +157,11 @@ Result<std::int64_t> UpdateRows(const std::string& table, const KeyValues& value
   std::ostringstream sql;
   sql << "UPDATE " << table << " SET " << BuildAssignments(values) << BuildWhereSql(where_values);
 
-  cpp_utils::database::ExecuteResult result;
-  if (const auto rc = connection->Execute(sql.str(), &result); rc != cpp_utils::database::Error::kSuccess) {
-    return Result<std::int64_t>{.error_code = MapDbError(rc)};
+  std::int64_t affected_rows = 0;
+  if (!connection->Execute(sql.str(), &affected_rows)) {
+    return DbFailureResult<std::int64_t>();
   }
-  return Result<std::int64_t>{.data = static_cast<std::int64_t>(result.affected_rows)};
+  return Result<std::int64_t>{.data = affected_rows};
 }
 
 Result<std::int64_t> CountRows(const std::string& table, const KeyValues& where_values) {
@@ -161,9 +173,9 @@ Result<std::int64_t> CountRows(const std::string& table, const KeyValues& where_
   std::ostringstream sql;
   sql << "SELECT COUNT(*) AS cnt FROM " << table << BuildWhereSql(where_values);
 
-  auto [query_err, query_result] = connection->Query(sql.str());
-  if (query_err != cpp_utils::database::Error::kSuccess || query_result == nullptr) {
-    return Result<std::int64_t>{.error_code = MapDbError(query_err)};
+  auto query_result = connection->Query(sql.str());
+  if (query_result == nullptr) {
+    return DbFailureResult<std::int64_t>();
   }
   const auto row = query_result->Fetch();
   if (!row.has_value()) {
@@ -187,9 +199,9 @@ Result<std::unique_ptr<cpp_utils::database::IResultSet>> SelectRows(const std::s
   std::ostringstream sql;
   sql << "SELECT * FROM " << table << BuildWhereSql(where_values);
 
-  auto [query_err, query_result] = connection->Query(sql.str());
-  if (query_err != cpp_utils::database::Error::kSuccess) {
-    return Result<std::unique_ptr<cpp_utils::database::IResultSet>>{.error_code = MapDbError(query_err)};
+  auto query_result = connection->Query(sql.str());
+  if (query_result == nullptr) {
+    return DbFailureResult<std::unique_ptr<cpp_utils::database::IResultSet>>();
   }
   return Result<std::unique_ptr<cpp_utils::database::IResultSet>>{.data = std::move(query_result)};
 }
@@ -203,11 +215,11 @@ Result<std::int64_t> TruncateRows(const std::string& table) {
   std::ostringstream sql;
   sql << "DELETE FROM " << table;
 
-  cpp_utils::database::ExecuteResult result;
-  if (const auto rc = connection->Execute(sql.str(), &result); rc != cpp_utils::database::Error::kSuccess) {
-    return Result<std::int64_t>{.error_code = MapDbError(rc)};
+  std::int64_t affected_rows = 0;
+  if (!connection->Execute(sql.str(), &affected_rows)) {
+    return DbFailureResult<std::int64_t>();
   }
-  return Result<std::int64_t>{.data = static_cast<std::int64_t>(result.affected_rows)};
+  return Result<std::int64_t>{.data = affected_rows};
 }
 
 }  // namespace qtrade::framework::dao

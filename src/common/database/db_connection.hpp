@@ -8,7 +8,8 @@
 
 #include "common/database/database_options.hpp"
 
-#include <cpputils/database/database.hpp>
+#include <cpputils/database/connection.hpp>
+#include <cpputils/database/connection_pool.hpp>
 
 #include <memory>
 

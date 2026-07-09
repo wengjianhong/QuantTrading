@@ -15,6 +15,8 @@ IndentCaseLabels:                   true
 AlignTrailingComments:              true
 BinPackParameters:                  false
 BinPackArguments:                   false
+AllowShortFunctionsOnASingleLine:   Empty
+AllowShortBlocksOnASingleLine:      false
 Cpp11BracedListStyle:               true
 SpacesBeforeTrailingComments:       2
 

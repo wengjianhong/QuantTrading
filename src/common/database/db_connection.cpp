@@ -15,7 +15,7 @@ DbConnectionHolder::DbConnectionHolder(const qtrade::common::DatabaseOptions& op
   // 1. 连接池模式：打开连接池并获取一条连接
   if (options.pool.has_value()) {
     pool_ = cpp_utils::database::CreateConnectionPool();
-    if (const auto rc = pool_->Open(*options.pool); rc != cpp_utils::database::Error::kSuccess) {
+    if (!pool_->Open(*options.pool)) {
       spdlog::error("[DbConnectionHolder] open pool failed");
       pool_.reset();
       return;
@@ -28,9 +28,9 @@ DbConnectionHolder::DbConnectionHolder(const qtrade::common::DatabaseOptions& op
   }
 
   // 2. 直连模式：创建连接并 Connect
-  auto owned = std::make_unique<cpp_utils::database::Connection>(options.connection);
-  if (const auto rc = owned->Connect(); rc != cpp_utils::database::Error::kSuccess) {
-    spdlog::error("[DbConnectionHolder] connect failed: {}", owned->LastError());
+  auto owned = cpp_utils::database::CreateConnection(options.connection);
+  if (!owned->Connect()) {
+    spdlog::error("[DbConnectionHolder] connect failed: {}", owned->LastError().message);
   }
   connection_ = std::move(owned);
 }

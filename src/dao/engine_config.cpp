@@ -7,8 +7,6 @@
 
 #include "common/dao/sql_utils.hpp"
 
-#include <cpputils/database/database.hpp>
-
 #include <spdlog/spdlog.h>
 
 namespace qtrade::framework::dao {
@@ -118,7 +116,7 @@ Result<std::vector<EngineConfigRecord>> EngineConfig::Select(const EngineConfigR
   if (query_result.error_code != ErrorCode::kSuccess || !query_result.data.has_value()) {
     auto* connection = GetConnection();
     spdlog::error("[EngineConfig] select failed: {}",
-                  connection != nullptr ? connection->LastError() : "no connection");
+                  connection != nullptr ? connection->LastError().message : "no connection");
     return Result<std::vector<EngineConfigRecord>>{.error_code = query_result.error_code};
   }
 

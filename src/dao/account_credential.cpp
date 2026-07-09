@@ -7,8 +7,6 @@
 
 #include "common/dao/sql_utils.hpp"
 
-#include <cpputils/database/database.hpp>
-
 #include <spdlog/spdlog.h>
 
 namespace qtrade::framework::dao {

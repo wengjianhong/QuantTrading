@@ -20,24 +20,6 @@ std::string EscapeSqlLiteral(const std::string& value) {
   return escaped;
 }
 
-ErrorCode MapDbError(cpp_utils::database::Error error) {
-  switch (error) {
-    case cpp_utils::database::Error::kSuccess:
-      return ErrorCode::kSuccess;
-    case cpp_utils::database::Error::kNotFound:
-      return ErrorCode::kNotFound;
-    case cpp_utils::database::Error::kInvalidArgument:
-      return ErrorCode::kInternal;
-    case cpp_utils::database::Error::kNotConnected:
-    case cpp_utils::database::Error::kConnectFailed:
-    case cpp_utils::database::Error::kQueryFailed:
-    case cpp_utils::database::Error::kExecuteFailed:
-    case cpp_utils::database::Error::kTransactionFailed:
-    default:
-      return ErrorCode::kSystemError;
-  }
-}
-
 void AppendStringEq(std::ostringstream& sql, const char* column, const std::string& value, bool& has_where) {
   if (value.empty()) {
     return;

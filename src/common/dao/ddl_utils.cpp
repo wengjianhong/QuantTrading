@@ -13,13 +13,13 @@ ErrorCode EnsureTableSchema(cpp_utils::database::IConnection* connection, const 
   }
 
   for (const auto& sql : schema.GetCreateTableSqls()) {
-    if (const auto rc = connection->Execute(sql); rc != cpp_utils::database::Error::kSuccess) {
+    if (!connection->Execute(sql)) {
       return ErrorCode::kSystemError;
     }
   }
 
   for (const auto& sql : schema.GetIndexSqls()) {
-    if (const auto rc = connection->Execute(sql); rc != cpp_utils::database::Error::kSuccess) {
+    if (!connection->Execute(sql)) {
       return ErrorCode::kSystemError;
     }
   }

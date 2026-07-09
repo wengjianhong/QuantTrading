@@ -9,7 +9,7 @@
 #include <qtrade/structs/result.hpp>
 #include <qtrade_framework/dao/ddl.hpp>
 
-#include <cpputils/database/database.hpp>
+#include <cpputils/database/connection.hpp>
 
 namespace qtrade::framework::dao {
 

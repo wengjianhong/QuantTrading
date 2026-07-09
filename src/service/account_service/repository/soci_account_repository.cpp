@@ -12,7 +12,7 @@
 #include "dao/account_credential.hpp"
 #include "dao/trading_account.hpp"
 
-#include <cpputils/database/database.hpp>
+#include <cpputils/database/connection.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -109,15 +109,15 @@ ErrorCode SociAccountRepository::AddAccount(const qtrade::account::v1::TradingAc
   }
 
   auto* connection = connection_.Connection();
-  auto [begin_rc, tx] = connection->BeginTransaction();
-  if (begin_rc != cpp_utils::database::Error::kSuccess) {
+  auto tx = connection->BeginTransaction();
+  if (!tx.has_value()) {
     return ErrorCode::kSystemError;
   }
 
   // 1. 插入 trading_account 与 account_credential
   if (const auto insert_account = trading_dao.Insert({ToRecord(account)});
       insert_account.error_code != ErrorCode::kSuccess) {
-    (void)tx.Rollback();
+    (void)tx->Rollback();
     return insert_account.error_code;
   }
 
@@ -129,11 +129,11 @@ ErrorCode SociAccountRepository::AddAccount(const qtrade::account::v1::TradingAc
   credential_row.version = 1;
   if (const auto insert_credential = credential_dao.Insert({credential_row});
       insert_credential.error_code != ErrorCode::kSuccess) {
-    (void)tx.Rollback();
+    (void)tx->Rollback();
     return insert_credential.error_code;
   }
 
-  if (const auto rc = tx.Commit(); rc != cpp_utils::database::Error::kSuccess) {
+  if (!tx->Commit()) {
     return ErrorCode::kSystemError;
   }
   return ErrorCode::kSuccess;
@@ -205,8 +205,8 @@ ErrorCode SociAccountRepository::UpdateAccount(const qtrade::account::v1::Tradin
   auto& credential_dao = qtrade::framework::dao::AccountCredential::Instance();
 
   auto* connection = connection_.Connection();
-  auto [begin_rc, tx] = connection->BeginTransaction();
-  if (begin_rc != cpp_utils::database::Error::kSuccess) {
+  auto tx = connection->BeginTransaction();
+  if (!tx.has_value()) {
     return ErrorCode::kSystemError;
   }
 
@@ -215,11 +215,11 @@ ErrorCode SociAccountRepository::UpdateAccount(const qtrade::account::v1::Tradin
   where.account_id = account.account_id();
   const auto update_result = trading_dao.Update(ToRecord(account), where);
   if (update_result.error_code != ErrorCode::kSuccess) {
-    (void)tx.Rollback();
+    (void)tx->Rollback();
     return update_result.error_code;
   }
   if (!update_result.data.has_value() || update_result.data.value() == 0) {
-    (void)tx.Rollback();
+    (void)tx->Rollback();
     return ErrorCode::kNotFound;
   }
 
@@ -228,7 +228,7 @@ ErrorCode SociAccountRepository::UpdateAccount(const qtrade::account::v1::Tradin
     std::string key_id;
     std::string ciphertext;
     if (!EncryptCredential(account.password(), key_id, ciphertext)) {
-      (void)tx.Rollback();
+      (void)tx->Rollback();
       return ErrorCode::kInternal;
     }
 
@@ -237,7 +237,7 @@ ErrorCode SociAccountRepository::UpdateAccount(const qtrade::account::v1::Tradin
     credential_key.account_id = account.account_id();
     const auto existing = credential_dao.Select(credential_key);
     if (existing.error_code != ErrorCode::kSuccess || !existing.data.has_value() || existing.data->empty()) {
-      (void)tx.Rollback();
+      (void)tx->Rollback();
       return ErrorCode::kNotFound;
     }
 
@@ -249,16 +249,16 @@ ErrorCode SociAccountRepository::UpdateAccount(const qtrade::account::v1::Tradin
     credential_row.version = existing.data->front().version.value_or(0) + 1;
     const auto update_credential = credential_dao.Update(credential_row, credential_key);
     if (update_credential.error_code != ErrorCode::kSuccess) {
-      (void)tx.Rollback();
+      (void)tx->Rollback();
       return update_credential.error_code;
     }
     if (!update_credential.data.has_value() || update_credential.data.value() == 0) {
-      (void)tx.Rollback();
+      (void)tx->Rollback();
       return ErrorCode::kNotFound;
     }
   }
 
-  if (const auto rc = tx.Commit(); rc != cpp_utils::database::Error::kSuccess) {
+  if (!tx->Commit()) {
     return ErrorCode::kSystemError;
   }
   return ErrorCode::kSuccess;
