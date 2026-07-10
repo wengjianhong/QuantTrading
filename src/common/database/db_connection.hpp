@@ -35,11 +35,11 @@ class DbConnectionHolder {
 
   /// @brief 获取底层数据库连接指针
   /// @return 当前持有的 IConnection 指针；未就绪时可能为 nullptr
-  [[nodiscard]] cpp_utils::database::IConnection* Connection() const;
+  [[nodiscard]] cpputils::database::IConnection* Connection() const;
 
  private:
-  std::unique_ptr<cpp_utils::database::IConnectionPool> pool_;    ///< 连接池（pool 模式时使用）
-  std::unique_ptr<cpp_utils::database::IConnection> connection_;  ///< 当前持有的连接
+  std::unique_ptr<cpputils::database::IConnectionPool> pool_;    ///< 连接池（pool 模式时使用）
+  std::unique_ptr<cpputils::database::IConnection> connection_;  ///< 当前持有的连接
 };
 
 }  // namespace qtrade::framework::dao

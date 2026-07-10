@@ -7,7 +7,7 @@
 
 namespace qtrade::framework::dao {
 
-ErrorCode EnsureTableSchema(cpp_utils::database::IConnection* connection, const ITableDdl& schema) {
+ErrorCode EnsureTableSchema(cpputils::database::IConnection* connection, const ITableDdl& schema) {
   if (connection == nullptr || !connection->IsConnected()) {
     return ErrorCode::kSystemError;
   }

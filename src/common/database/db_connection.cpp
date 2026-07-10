@@ -14,7 +14,7 @@ namespace qtrade::framework::dao {
 DbConnectionHolder::DbConnectionHolder(const qtrade::common::DatabaseOptions& options) {
   // 1. 连接池模式：打开连接池并获取一条连接
   if (options.pool.has_value()) {
-    pool_ = cpp_utils::database::CreateConnectionPool();
+    pool_ = cpputils::database::CreateConnectionPool();
     if (!pool_->Open(*options.pool)) {
       spdlog::error("[DbConnectionHolder] open pool failed");
       pool_.reset();
@@ -28,7 +28,7 @@ DbConnectionHolder::DbConnectionHolder(const qtrade::common::DatabaseOptions& op
   }
 
   // 2. 直连模式：创建连接并 Connect
-  auto owned = cpp_utils::database::CreateConnection(options.connection);
+  auto owned = cpputils::database::CreateConnection(options.connection);
   if (!owned->Connect()) {
     spdlog::error("[DbConnectionHolder] connect failed: {}", owned->LastError().message);
   }
@@ -43,8 +43,12 @@ DbConnectionHolder::~DbConnectionHolder() {
   }
 }
 
-bool DbConnectionHolder::IsReady() const { return connection_ != nullptr && connection_->IsConnected(); }
+bool DbConnectionHolder::IsReady() const {
+  return connection_ != nullptr && connection_->IsConnected();
+}
 
-cpp_utils::database::IConnection* DbConnectionHolder::Connection() const { return connection_.get(); }
+cpputils::database::IConnection* DbConnectionHolder::Connection() const {
+  return connection_.get();
+}
 
 }  // namespace qtrade::framework::dao

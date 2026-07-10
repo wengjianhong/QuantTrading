@@ -11,7 +11,7 @@
 #include <qtrade/structs/result.hpp>
 
 #include <cpputils/database/connection.hpp>
-#include <cpputils/database/row.hpp>
+#include <cpputils/database/result_row.hpp>
 
 #include <cstdint>
 #include <memory>
@@ -27,11 +27,11 @@ using KeyValues = std::vector<KeyValue>;               ///< 用于 INSERT/UPDATE
 
 /// @brief 注册当前进程使用的数据库连接
 /// @param connection 由 Repository 持有的 IConnection 指针；可为 nullptr 表示清除
-void SetConnection(cpp_utils::database::IConnection* connection);
+void SetConnection(cpputils::database::IConnection* connection);
 
 /// @brief 获取已注册的数据库连接
 /// @return 当前连接指针；未注册时返回 nullptr
-[[nodiscard]] cpp_utils::database::IConnection* GetConnection();
+[[nodiscard]] cpputils::database::IConnection* GetConnection();
 
 /// @brief 将 optional 文本字段追加到 KeyValues（无值时跳过）
 /// @param out 目标 KeyValues
@@ -55,19 +55,23 @@ void AddUInt64Value(KeyValues& out, const char* column, const std::optional<std:
 /// @param row 数据库结果行
 /// @param column 列名
 /// @param field 输出字段（有值时写入）
-void AssignTextField(const cpp_utils::database::Row& row, const char* column, std::optional<std::string>& field);
+void AssignTextField(const cpputils::database::IResultRow& row, const char* column, std::optional<std::string>& field);
 
 /// @brief 从结果行读取 int64 列到 optional 字段
 /// @param row 数据库结果行
 /// @param column 列名
 /// @param field 输出字段（有值时写入）
-void AssignInt64Field(const cpp_utils::database::Row& row, const char* column, std::optional<std::int64_t>& field);
+void AssignInt64Field(const cpputils::database::IResultRow& row,
+                      const char* column,
+                      std::optional<std::int64_t>& field);
 
 /// @brief 从结果行读取 uint64 列到 optional 字段
 /// @param row 数据库结果行
 /// @param column 列名
 /// @param field 输出字段（有值时写入）
-void AssignUInt64Field(const cpp_utils::database::Row& row, const char* column, std::optional<std::uint64_t>& field);
+void AssignUInt64Field(const cpputils::database::IResultRow& row,
+                       const char* column,
+                       std::optional<std::uint64_t>& field);
 
 /// @brief 由 KeyValues 构建 WHERE 子句（含 WHERE 关键字）
 /// @param where_values 条件列值；空列表返回空字符串
@@ -105,8 +109,8 @@ void AssignUInt64Field(const cpp_utils::database::Row& row, const char* column, 
 /// @param table 表名
 /// @param where_values 查询条件；空列表表示全表查询
 /// @return 成功时 data 为结果集
-[[nodiscard]] Result<std::unique_ptr<cpp_utils::database::IResultSet>> SelectRows(const std::string& table,
-                                                                                  const KeyValues& where_values);
+[[nodiscard]] Result<std::unique_ptr<cpputils::database::IResultSet>> SelectRows(const std::string& table,
+                                                                                 const KeyValues& where_values);
 
 /// @brief 清空表全部记录
 /// @param table 表名

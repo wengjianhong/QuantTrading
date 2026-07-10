@@ -87,8 +87,7 @@ ErrorCode SociConfigRepository::Save(const ConfigScope& scope,
   }
 
   auto* connection = connection_.Connection();
-  auto tx = connection->BeginTransaction();
-  if (!tx.has_value()) {
+  if (!connection->BeginTransaction()) {
     spdlog::error("[SociConfigRepository] begin transaction failed: {}", connection->LastError().message);
     return ErrorCode::kSystemError;
   }
@@ -107,20 +106,20 @@ ErrorCode SociConfigRepository::Save(const ConfigScope& scope,
   auto& dao = qtrade::framework::dao::EngineConfig::Instance();
   const auto update_result = dao.Update(row, where);
   if (update_result.error_code != ErrorCode::kSuccess) {
-    (void)tx->Rollback();
+    (void)connection->RollbackTransaction();
     return update_result.error_code;
   }
   if (!update_result.data.has_value() || update_result.data.value() == 0) {
     const auto insert_result = dao.Insert({row});
     if (insert_result.error_code != ErrorCode::kSuccess) {
-      (void)tx->Rollback();
+      (void)connection->RollbackTransaction();
       spdlog::error("[SociConfigRepository] insert failed");
       return insert_result.error_code;
     }
   }
 
   // 3. 提交事务
-  if (!tx->Commit()) {
+  if (!connection->CommitTransaction()) {
     spdlog::error("[SociConfigRepository] commit failed: {}", connection->LastError().message);
     return ErrorCode::kSystemError;
   }

@@ -119,7 +119,7 @@ Result<std::vector<AccountCredentialRecord>> AccountCredential::Select(
 
   std::vector<AccountCredentialRecord> rows;
   while (const auto row = query_result.data.value()->Fetch()) {
-    rows.push_back(BuildAccountCredentialRecord(*row));
+    rows.push_back(BuildAccountCredentialRecord(**row));
   }
   return Result<std::vector<AccountCredentialRecord>>{.data = std::move(rows)};
 }

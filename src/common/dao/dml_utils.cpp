@@ -10,7 +10,7 @@
 namespace qtrade::framework::dao {
 namespace {
 
-cpp_utils::database::IConnection* g_connection = nullptr;  ///< 由 SetConnection 注册的全局连接
+cpputils::database::IConnection* g_connection = nullptr;  ///< 由 SetConnection 注册的全局连接
 
 /// @brief 将 KeyValues 转为 UPDATE SET 赋值片段
 /// @param values SET 列值
@@ -59,9 +59,13 @@ template <typename T>
 
 }  // namespace
 
-void SetConnection(cpp_utils::database::IConnection* connection) { g_connection = connection; }
+void SetConnection(cpputils::database::IConnection* connection) {
+  g_connection = connection;
+}
 
-cpp_utils::database::IConnection* GetConnection() { return g_connection; }
+cpputils::database::IConnection* GetConnection() {
+  return g_connection;
+}
 
 void AddTextValue(KeyValues& out, const char* column, const std::optional<std::string>& value) {
   if (value.has_value()) {
@@ -81,7 +85,7 @@ void AddUInt64Value(KeyValues& out, const char* column, const std::optional<std:
   }
 }
 
-void AssignTextField(const cpp_utils::database::Row& row, const char* column, std::optional<std::string>& field) {
+void AssignTextField(const cpputils::database::IResultRow& row, const char* column, std::optional<std::string>& field) {
   if (const auto cell = row.get_value(column)) {
     if (const auto v = cell->as_string()) {
       field = v.value();
@@ -89,7 +93,9 @@ void AssignTextField(const cpp_utils::database::Row& row, const char* column, st
   }
 }
 
-void AssignInt64Field(const cpp_utils::database::Row& row, const char* column, std::optional<std::int64_t>& field) {
+void AssignInt64Field(const cpputils::database::IResultRow& row,
+                      const char* column,
+                      std::optional<std::int64_t>& field) {
   if (const auto cell = row.get_value(column)) {
     if (const auto v = cell->as_int64()) {
       field = v.value();
@@ -97,7 +103,9 @@ void AssignInt64Field(const cpp_utils::database::Row& row, const char* column, s
   }
 }
 
-void AssignUInt64Field(const cpp_utils::database::Row& row, const char* column, std::optional<std::uint64_t>& field) {
+void AssignUInt64Field(const cpputils::database::IResultRow& row,
+                       const char* column,
+                       std::optional<std::uint64_t>& field) {
   if (const auto cell = row.get_value(column)) {
     if (const auto v = cell->as_int64()) {
       field = static_cast<std::uint64_t>(v.value());
@@ -181,7 +189,7 @@ Result<std::int64_t> CountRows(const std::string& table, const KeyValues& where_
   if (!row.has_value()) {
     return Result<std::int64_t>{.error_code = ErrorCode::kSystemError};
   }
-  if (const auto cell = row->get_value("cnt")) {
+  if (const auto cell = (*row)->get_value("cnt")) {
     if (const auto v = cell->as_int64()) {
       return Result<std::int64_t>{.data = v.value()};
     }
@@ -189,11 +197,11 @@ Result<std::int64_t> CountRows(const std::string& table, const KeyValues& where_
   return Result<std::int64_t>{.error_code = ErrorCode::kSystemError};
 }
 
-Result<std::unique_ptr<cpp_utils::database::IResultSet>> SelectRows(const std::string& table,
-                                                                    const KeyValues& where_values) {
+Result<std::unique_ptr<cpputils::database::IResultSet>> SelectRows(const std::string& table,
+                                                                   const KeyValues& where_values) {
   auto* connection = GetConnection();
   if (connection == nullptr || !connection->IsConnected()) {
-    return Result<std::unique_ptr<cpp_utils::database::IResultSet>>{.error_code = ErrorCode::kSystemError};
+    return Result<std::unique_ptr<cpputils::database::IResultSet>>{.error_code = ErrorCode::kSystemError};
   }
 
   std::ostringstream sql;
@@ -201,9 +209,9 @@ Result<std::unique_ptr<cpp_utils::database::IResultSet>> SelectRows(const std::s
 
   auto query_result = connection->Query(sql.str());
   if (query_result == nullptr) {
-    return DbFailureResult<std::unique_ptr<cpp_utils::database::IResultSet>>();
+    return DbFailureResult<std::unique_ptr<cpputils::database::IResultSet>>();
   }
-  return Result<std::unique_ptr<cpp_utils::database::IResultSet>>{.data = std::move(query_result)};
+  return Result<std::unique_ptr<cpputils::database::IResultSet>>{.data = std::move(query_result)};
 }
 
 Result<std::int64_t> TruncateRows(const std::string& table) {

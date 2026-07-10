@@ -122,7 +122,7 @@ Result<std::vector<EngineConfigRecord>> EngineConfig::Select(const EngineConfigR
 
   std::vector<EngineConfigRecord> rows;
   while (const auto row = query_result.data.value()->Fetch()) {
-    rows.push_back(BuildEngineConfigRecord(*row));
+    rows.push_back(BuildEngineConfigRecord(**row));
   }
   return Result<std::vector<EngineConfigRecord>>{.data = std::move(rows)};
 }

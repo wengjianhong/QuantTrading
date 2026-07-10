@@ -117,7 +117,7 @@ Result<std::vector<TradingAccountRecord>> TradingAccount::Select(const TradingAc
 
   std::vector<TradingAccountRecord> rows;
   while (const auto row = query_result.data.value()->Fetch()) {
-    rows.push_back(BuildTradingAccountRecord(*row));
+    rows.push_back(BuildTradingAccountRecord(**row));
   }
   return Result<std::vector<TradingAccountRecord>>{.data = std::move(rows)};
 }
