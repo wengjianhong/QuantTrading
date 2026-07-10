@@ -5,6 +5,7 @@
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
 #include "strategy_engine.hpp"
+
 #include <spdlog/spdlog.h>
 
 namespace qtrade::engine::strategy {

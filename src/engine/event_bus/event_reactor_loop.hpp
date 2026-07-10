@@ -7,6 +7,8 @@
 #ifndef QTRADE_TRADING_ENGINE_EVENT_REACTOR_LOOP_HPP_
 #define QTRADE_TRADING_ENGINE_EVENT_REACTOR_LOOP_HPP_
 
+#include <spdlog/spdlog.h>
+
 #include <atomic>
 #include <condition_variable>
 #include <cstddef>
@@ -17,8 +19,6 @@
 #include <string_view>
 #include <thread>
 #include <utility>
-
-#include <spdlog/spdlog.h>
 
 namespace qtrade::engine::event_bus {
 

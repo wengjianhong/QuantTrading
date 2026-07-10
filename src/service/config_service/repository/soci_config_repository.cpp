@@ -5,11 +5,10 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "service/config_service/repository/soci_config_repository.hpp"
 
-#include "service/config_service/repository/engine_config_codec.hpp"
-
 #include "common/dao/ddl_utils.hpp"
 #include "common/dao/dml_utils.hpp"
 #include "dao/engine_config.hpp"
+#include "service/config_service/repository/engine_config_codec.hpp"
 
 #include <cpputils/database/connection.hpp>
 

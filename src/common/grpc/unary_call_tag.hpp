@@ -8,9 +8,9 @@
 
 #include "common/grpc/call_tag_base.hpp"
 
-#include <functional>
-
 #include <grpcpp/grpcpp.h>
+
+#include <functional>
 
 namespace qtrade::common::grpc_async {
 

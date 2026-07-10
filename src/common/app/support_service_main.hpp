@@ -8,10 +8,10 @@
 
 #include "common/app/app_runner.hpp"
 #include "common/logging/logger.hpp"
-#include <qtrade_framework/support/support_service.hpp>
 
 #include <qtrade/error_code/code_message.hpp>
 #include <qtrade/error_code/error_codes.hpp>
+#include <qtrade_framework/support/support_service.hpp>
 
 #include <spdlog/spdlog.h>
 

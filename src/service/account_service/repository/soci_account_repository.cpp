@@ -5,12 +5,11 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "service/account_service/repository/soci_account_repository.hpp"
 
-#include "service/account_service/repository/credential_codec.hpp"
-
 #include "common/dao/ddl_utils.hpp"
 #include "common/dao/dml_utils.hpp"
 #include "dao/account_credential.hpp"
 #include "dao/trading_account.hpp"
+#include "service/account_service/repository/credential_codec.hpp"
 
 #include <cpputils/database/connection.hpp>
 

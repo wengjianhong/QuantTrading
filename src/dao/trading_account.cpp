@@ -5,8 +5,6 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "dao/trading_account.hpp"
 
-#include "common/dao/sql_utils.hpp"
-
 #include <spdlog/spdlog.h>
 
 namespace qtrade::framework::dao {

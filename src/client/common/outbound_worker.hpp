@@ -8,6 +8,7 @@
 #define QTRADE_CLIENT_COMMON_OUTBOUND_WORKER_HPP_
 
 #include "client/common/report_priority.hpp"
+
 #include <qtrade/error_code/error_codes.hpp>
 
 #include <atomic>

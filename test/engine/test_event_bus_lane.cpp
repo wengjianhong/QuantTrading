@@ -4,12 +4,12 @@
 /// @date      2026-06-25
 /// @copyright CC BY-NC-SA 4.0
 
-#include <gtest/gtest.h>
+#include "engine/event_bus/event_lanes.hpp"
 
 #include <qtrade_sdk/quote/quote_struct.hpp>
 #include <qtrade_sdk/trader/trader_struct.hpp>
 
-#include "engine/event_bus/event_lanes.hpp"
+#include <gtest/gtest.h>
 
 #include <atomic>
 #include <chrono>

@@ -5,6 +5,7 @@
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
 #include "common/app/app_runner.hpp"
+
 #include "common/logging/logger.hpp"
 
 #include <spdlog/spdlog.h>

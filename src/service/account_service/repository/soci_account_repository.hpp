@@ -6,9 +6,8 @@
 #ifndef QTRADE_SERVICE_SOCI_ACCOUNT_REPOSITORY_HPP_
 #define QTRADE_SERVICE_SOCI_ACCOUNT_REPOSITORY_HPP_
 
-#include "service/account_service/repository/account_repository.hpp"
-
 #include "common/database/db_connection.hpp"
+#include "service/account_service/repository/account_repository.hpp"
 
 namespace qtrade::service {
 

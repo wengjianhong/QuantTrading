@@ -6,7 +6,6 @@
 #include "service/config_service/repository/engine_config_codec.hpp"
 
 #include <google/protobuf/util/json_util.h>
-
 #include <spdlog/spdlog.h>
 
 namespace qtrade::service {

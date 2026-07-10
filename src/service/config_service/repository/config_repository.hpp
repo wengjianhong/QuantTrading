@@ -6,10 +6,10 @@
 #ifndef QTRADE_SERVICE_CONFIG_REPOSITORY_HPP_
 #define QTRADE_SERVICE_CONFIG_REPOSITORY_HPP_
 
+#include "common/database/database_options.hpp"
+
 #include <qtrade/error_code/error_codes.hpp>
 #include <qtrade/proto/config/v1/config.pb.h>
-
-#include "common/database/database_options.hpp"
 
 #include <cstdint>
 #include <memory>

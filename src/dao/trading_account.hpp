@@ -5,6 +5,7 @@
 /// @copyright CC BY-NC-SA 4.0
 #ifndef QTRADE_DAO_TRADING_ACCOUNT_HPP_
 #define QTRADE_DAO_TRADING_ACCOUNT_HPP_
+#include "common/dao/dml_utils.hpp"
 
 #include <qtrade_framework/dao/ddl.hpp>
 #include <qtrade_framework/dao/dml.hpp>
@@ -12,8 +13,6 @@
 #include <optional>
 #include <string>
 #include <vector>
-
-#include "common/dao/dml_utils.hpp"
 
 namespace qtrade::framework::dao {
 

@@ -6,7 +6,6 @@
 #include "client/monitor_client/monitor_client.hpp"
 
 #include "client/common/outbound_worker.hpp"
-
 #include "client/common/report_priority.hpp"
 
 #include <sstream>

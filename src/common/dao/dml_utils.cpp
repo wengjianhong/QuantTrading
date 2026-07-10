@@ -4,6 +4,7 @@
 /// @date      2026-07-09
 /// @copyright CC BY-NC-SA 4.0
 #include "common/dao/dml_utils.hpp"
+
 #include "common/dao/sql_utils.hpp"
 
 #include <sstream>

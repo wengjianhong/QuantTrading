@@ -3,9 +3,9 @@
 #ifndef QTRADE_ADAPTER_EMT_QUOTE_API_HPP_
 #define QTRADE_ADAPTER_EMT_QUOTE_API_HPP_
 
-#include <qtrade_sdk/quote/quote_api.hpp>
-
 #include "adapter/emt/quote/emt_quote_spi.hpp"
+
+#include <qtrade_sdk/quote/quote_api.hpp>
 
 #include <atomic>
 #include <cstddef>
