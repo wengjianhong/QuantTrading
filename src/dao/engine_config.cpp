@@ -34,9 +34,13 @@ EngineConfig& EngineConfig::Instance() {
   return instance;
 }
 
-void EngineConfig::SetMockInstance(EngineConfig* mock_instance) { g_mock_instance = mock_instance; }
+void EngineConfig::SetMockInstance(EngineConfig* mock_instance) {
+  g_mock_instance = mock_instance;
+}
 
-void EngineConfig::ClearMockInstance() { g_mock_instance = nullptr; }
+void EngineConfig::ClearMockInstance() {
+  g_mock_instance = nullptr;
+}
 
 const std::string& EngineConfig::TableName() const {
   static const std::string kName = "engine_config";
@@ -64,14 +68,14 @@ KeyValues BuildEngineConfigValues(const EngineConfigRecord& record) {
 
 Result<std::int64_t> EngineConfig::Insert(const std::vector<EngineConfigRecord>& records) {
   if (records.empty()) {
-    return Result<std::int64_t>{.error_code = ErrorCode::kSystemError};
+    return Result<std::int64_t>{ErrorCode::kSystemError};
   }
 
   std::int64_t affected = 0;
   for (const auto& record : records) {
     const KeyValues values = BuildEngineConfigValues(record);
     if (values.empty()) {
-      return Result<std::int64_t>{.error_code = ErrorCode::kSystemError};
+      return Result<std::int64_t>{ErrorCode::kSystemError};
     }
     const auto result = InsertRow(TableName(), values);
     if (result.error_code != ErrorCode::kSuccess) {
@@ -80,29 +84,30 @@ Result<std::int64_t> EngineConfig::Insert(const std::vector<EngineConfigRecord>&
     }
     affected += result.data.value_or(0);
   }
-  return Result<std::int64_t>{.data = affected};
+  return Result<std::int64_t>{ErrorCode::kSuccess, "", affected};
 }
 
 Result<std::int64_t> EngineConfig::Delete(const EngineConfigRecord& where_conditions) {
   const KeyValues where_values = BuildEngineConfigValues(where_conditions);
   if (where_values.empty()) {
     spdlog::error("[EngineConfig] delete failed: empty where");
-    return Result<std::int64_t>{.error_code = ErrorCode::kSystemError};
+    return Result<std::int64_t>{ErrorCode::kSystemError};
   }
   return DeleteRows(TableName(), where_values);
 }
 
 Result<std::int64_t> EngineConfig::BatchDelete(const std::vector<std::int64_t>&) {
   spdlog::error("[EngineConfig] batch delete unsupported: composite primary key");
-  return Result<std::int64_t>{.error_code = ErrorCode::kInternal, .error_message = "composite primary key"};
+  return Result<std::int64_t>{ErrorCode::kInternal, "composite primary key"};
 }
 
-Result<std::int64_t> EngineConfig::Update(const EngineConfigRecord& record, const EngineConfigRecord& where_conditions) {
+Result<std::int64_t> EngineConfig::Update(const EngineConfigRecord& record,
+                                          const EngineConfigRecord& where_conditions) {
   const KeyValues values = BuildEngineConfigValues(record);
   const KeyValues where_values = BuildEngineConfigValues(where_conditions);
   if (values.empty() || where_values.empty()) {
     spdlog::error("[EngineConfig] update failed: empty values or where");
-    return Result<std::int64_t>{.error_code = ErrorCode::kSystemError};
+    return Result<std::int64_t>{ErrorCode::kSystemError};
   }
   return UpdateRows(TableName(), values, where_values);
 }
@@ -117,14 +122,14 @@ Result<std::vector<EngineConfigRecord>> EngineConfig::Select(const EngineConfigR
     auto* connection = GetConnection();
     spdlog::error("[EngineConfig] select failed: {}",
                   connection != nullptr ? connection->LastError().message : "no connection");
-    return Result<std::vector<EngineConfigRecord>>{.error_code = query_result.error_code};
+    return Result<std::vector<EngineConfigRecord>>{query_result.error_code};
   }
 
   std::vector<EngineConfigRecord> rows;
   while (const auto row = query_result.data.value()->Fetch()) {
     rows.push_back(BuildEngineConfigRecord(**row));
   }
-  return Result<std::vector<EngineConfigRecord>>{.data = std::move(rows)};
+  return Result<std::vector<EngineConfigRecord>>{ErrorCode::kSuccess, "", std::move(rows)};
 }
 
 Result<std::int64_t> EngineConfig::Truncate() {

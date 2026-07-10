@@ -5,8 +5,6 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "dao/account_credential.hpp"
 
-#include "common/dao/sql_utils.hpp"
-
 #include <spdlog/spdlog.h>
 
 namespace qtrade::framework::dao {
@@ -35,9 +33,13 @@ AccountCredential& AccountCredential::Instance() {
   return instance;
 }
 
-void AccountCredential::SetMockInstance(AccountCredential* mock_instance) { g_mock_instance = mock_instance; }
+void AccountCredential::SetMockInstance(AccountCredential* mock_instance) {
+  g_mock_instance = mock_instance;
+}
 
-void AccountCredential::ClearMockInstance() { g_mock_instance = nullptr; }
+void AccountCredential::ClearMockInstance() {
+  g_mock_instance = nullptr;
+}
 
 const std::string& AccountCredential::TableName() const {
   static const std::string kName = "account_credential";
@@ -66,14 +68,14 @@ KeyValues BuildAccountCredentialValues(const AccountCredentialRecord& record) {
 
 Result<std::int64_t> AccountCredential::Insert(const std::vector<AccountCredentialRecord>& records) {
   if (records.empty()) {
-    return Result<std::int64_t>{.error_code = ErrorCode::kSystemError};
+    return Result<std::int64_t>{ErrorCode::kSystemError};
   }
 
   std::int64_t affected = 0;
   for (const auto& record : records) {
     const KeyValues values = BuildAccountCredentialValues(record);
     if (values.empty()) {
-      return Result<std::int64_t>{.error_code = ErrorCode::kSystemError};
+      return Result<std::int64_t>{ErrorCode::kSystemError};
     }
     const auto result = InsertRow(TableName(), values);
     if (result.error_code != ErrorCode::kSuccess) {
@@ -81,19 +83,19 @@ Result<std::int64_t> AccountCredential::Insert(const std::vector<AccountCredenti
     }
     affected += result.data.value_or(0);
   }
-  return Result<std::int64_t>{.data = affected};
+  return Result<std::int64_t>{ErrorCode::kSuccess, "", affected};
 }
 
 Result<std::int64_t> AccountCredential::Delete(const AccountCredentialRecord& where_conditions) {
   const KeyValues where_values = BuildAccountCredentialValues(where_conditions);
   if (where_values.empty()) {
-    return Result<std::int64_t>{.error_code = ErrorCode::kSystemError};
+    return Result<std::int64_t>{ErrorCode::kSystemError};
   }
   return DeleteRows(TableName(), where_values);
 }
 
 Result<std::int64_t> AccountCredential::BatchDelete(const std::vector<std::int64_t>&) {
-  return Result<std::int64_t>{.error_code = ErrorCode::kInternal, .error_message = "composite primary key"};
+  return Result<std::int64_t>{ErrorCode::kInternal, "composite primary key"};
 }
 
 Result<std::int64_t> AccountCredential::Update(const AccountCredentialRecord& record,
@@ -101,7 +103,7 @@ Result<std::int64_t> AccountCredential::Update(const AccountCredentialRecord& re
   const KeyValues values = BuildAccountCredentialValues(record);
   const KeyValues where_values = BuildAccountCredentialValues(where_conditions);
   if (values.empty() || where_values.empty()) {
-    return Result<std::int64_t>{.error_code = ErrorCode::kSystemError};
+    return Result<std::int64_t>{ErrorCode::kSystemError};
   }
   return UpdateRows(TableName(), values, where_values);
 }
@@ -114,14 +116,14 @@ Result<std::vector<AccountCredentialRecord>> AccountCredential::Select(
   const AccountCredentialRecord& where_conditions) {
   auto query_result = SelectRows(TableName(), BuildAccountCredentialValues(where_conditions));
   if (query_result.error_code != ErrorCode::kSuccess || !query_result.data.has_value()) {
-    return Result<std::vector<AccountCredentialRecord>>{.error_code = query_result.error_code};
+    return Result<std::vector<AccountCredentialRecord>>{query_result.error_code, query_result.error_message};
   }
 
   std::vector<AccountCredentialRecord> rows;
   while (const auto row = query_result.data.value()->Fetch()) {
     rows.push_back(BuildAccountCredentialRecord(**row));
   }
-  return Result<std::vector<AccountCredentialRecord>>{.data = std::move(rows)};
+  return Result<std::vector<AccountCredentialRecord>>{ErrorCode::kSuccess, "", std::move(rows)};
 }
 
 Result<std::int64_t> AccountCredential::Truncate() {

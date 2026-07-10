@@ -35,9 +35,13 @@ TradingAccount& TradingAccount::Instance() {
   return instance;
 }
 
-void TradingAccount::SetMockInstance(TradingAccount* mock_instance) { g_mock_instance = mock_instance; }
+void TradingAccount::SetMockInstance(TradingAccount* mock_instance) {
+  g_mock_instance = mock_instance;
+}
 
-void TradingAccount::ClearMockInstance() { g_mock_instance = nullptr; }
+void TradingAccount::ClearMockInstance() {
+  g_mock_instance = nullptr;
+}
 
 const std::string& TradingAccount::TableName() const {
   static const std::string kName = "trading_account";
@@ -66,14 +70,14 @@ KeyValues BuildTradingAccountValues(const TradingAccountRecord& record) {
 
 Result<std::int64_t> TradingAccount::Insert(const std::vector<TradingAccountRecord>& records) {
   if (records.empty()) {
-    return Result<std::int64_t>{.error_code = ErrorCode::kSystemError};
+    return Result<std::int64_t>{ErrorCode::kSystemError};
   }
 
   std::int64_t affected = 0;
   for (const auto& record : records) {
     const KeyValues values = BuildTradingAccountValues(record);
     if (values.empty()) {
-      return Result<std::int64_t>{.error_code = ErrorCode::kSystemError};
+      return Result<std::int64_t>{ErrorCode::kSystemError};
     }
     const auto result = InsertRow(TableName(), values);
     if (result.error_code != ErrorCode::kSuccess) {
@@ -81,26 +85,27 @@ Result<std::int64_t> TradingAccount::Insert(const std::vector<TradingAccountReco
     }
     affected += result.data.value_or(0);
   }
-  return Result<std::int64_t>{.data = affected};
+  return Result<std::int64_t>{ErrorCode::kSuccess, "", affected};
 }
 
 Result<std::int64_t> TradingAccount::Delete(const TradingAccountRecord& where_conditions) {
   const KeyValues where_values = BuildTradingAccountValues(where_conditions);
   if (where_values.empty()) {
-    return Result<std::int64_t>{.error_code = ErrorCode::kSystemError};
+    return Result<std::int64_t>{ErrorCode::kSystemError};
   }
   return DeleteRows(TableName(), where_values);
 }
 
 Result<std::int64_t> TradingAccount::BatchDelete(const std::vector<std::int64_t>&) {
-  return Result<std::int64_t>{.error_code = ErrorCode::kInternal, .error_message = "composite primary key"};
+  return Result<std::int64_t>{ErrorCode::kInternal, "composite primary key"};
 }
 
-Result<std::int64_t> TradingAccount::Update(const TradingAccountRecord& record, const TradingAccountRecord& where_conditions) {
+Result<std::int64_t> TradingAccount::Update(const TradingAccountRecord& record,
+                                            const TradingAccountRecord& where_conditions) {
   const KeyValues values = BuildTradingAccountValues(record);
   const KeyValues where_values = BuildTradingAccountValues(where_conditions);
   if (values.empty() || where_values.empty()) {
-    return Result<std::int64_t>{.error_code = ErrorCode::kSystemError};
+    return Result<std::int64_t>{ErrorCode::kSystemError};
   }
   return UpdateRows(TableName(), values, where_values);
 }
@@ -112,14 +117,14 @@ Result<std::int64_t> TradingAccount::Count(const TradingAccountRecord& where_con
 Result<std::vector<TradingAccountRecord>> TradingAccount::Select(const TradingAccountRecord& where_conditions) {
   auto query_result = SelectRows(TableName(), BuildTradingAccountValues(where_conditions));
   if (query_result.error_code != ErrorCode::kSuccess || !query_result.data.has_value()) {
-    return Result<std::vector<TradingAccountRecord>>{.error_code = query_result.error_code};
+    return Result<std::vector<TradingAccountRecord>>{query_result.error_code};
   }
 
   std::vector<TradingAccountRecord> rows;
   while (const auto row = query_result.data.value()->Fetch()) {
     rows.push_back(BuildTradingAccountRecord(**row));
   }
-  return Result<std::vector<TradingAccountRecord>>{.data = std::move(rows)};
+  return Result<std::vector<TradingAccountRecord>>{ErrorCode::kSuccess, "", std::move(rows)};
 }
 
 Result<std::int64_t> TradingAccount::Truncate() {

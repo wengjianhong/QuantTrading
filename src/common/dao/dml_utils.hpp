@@ -6,8 +6,6 @@
 #ifndef QTRADE_COMMON_DAO_DML_UTILS_HPP_
 #define QTRADE_COMMON_DAO_DML_UTILS_HPP_
 
-#include "common/dao/sql_utils.hpp"
-
 #include <qtrade/structs/result.hpp>
 
 #include <cpputils/database/connection.hpp>

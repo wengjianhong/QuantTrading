@@ -4,6 +4,7 @@
 /// @date      2026-07-09
 /// @copyright CC BY-NC-SA 4.0
 #include "common/dao/dml_utils.hpp"
+#include "common/dao/sql_utils.hpp"
 
 #include <sstream>
 
@@ -54,7 +55,7 @@ cpputils::database::IConnection* g_connection = nullptr;  ///< 由 SetConnection
 
 template <typename T>
 [[nodiscard]] Result<T> DbFailureResult() {
-  return Result<T>{.error_code = ErrorCode::kSystemError, .error_message = LastDbErrorMessage()};
+  return Result<T>{ErrorCode::kSystemError, LastDbErrorMessage()};
 }
 
 }  // namespace
@@ -129,7 +130,7 @@ std::string BuildWhereSql(const KeyValues& where_values) {
 Result<std::int64_t> InsertRow(const std::string& table, const KeyValues& values) {
   auto* connection = GetConnection();
   if (connection == nullptr || !connection->IsConnected() || values.empty()) {
-    return Result<std::int64_t>{.error_code = ErrorCode::kSystemError};
+    return Result<std::int64_t>{ErrorCode::kSystemError};
   }
 
   std::ostringstream sql;
@@ -137,13 +138,13 @@ Result<std::int64_t> InsertRow(const std::string& table, const KeyValues& values
   if (!connection->Execute(sql.str())) {
     return DbFailureResult<std::int64_t>();
   }
-  return Result<std::int64_t>{.data = 1};
+  return Result<std::int64_t>{ErrorCode::kSuccess, "", 1};
 }
 
 Result<std::int64_t> DeleteRows(const std::string& table, const KeyValues& where_values) {
   auto* connection = GetConnection();
   if (connection == nullptr || !connection->IsConnected() || where_values.empty()) {
-    return Result<std::int64_t>{.error_code = ErrorCode::kSystemError};
+    return Result<std::int64_t>{ErrorCode::kSystemError};
   }
 
   std::ostringstream sql;
@@ -153,13 +154,13 @@ Result<std::int64_t> DeleteRows(const std::string& table, const KeyValues& where
   if (!connection->Execute(sql.str(), &affected_rows)) {
     return DbFailureResult<std::int64_t>();
   }
-  return Result<std::int64_t>{.data = affected_rows};
+  return Result<std::int64_t>{ErrorCode::kSuccess, "", affected_rows};
 }
 
 Result<std::int64_t> UpdateRows(const std::string& table, const KeyValues& values, const KeyValues& where_values) {
   auto* connection = GetConnection();
   if (connection == nullptr || !connection->IsConnected() || values.empty() || where_values.empty()) {
-    return Result<std::int64_t>{.error_code = ErrorCode::kSystemError};
+    return Result<std::int64_t>{ErrorCode::kSystemError};
   }
 
   std::ostringstream sql;
@@ -169,13 +170,13 @@ Result<std::int64_t> UpdateRows(const std::string& table, const KeyValues& value
   if (!connection->Execute(sql.str(), &affected_rows)) {
     return DbFailureResult<std::int64_t>();
   }
-  return Result<std::int64_t>{.data = affected_rows};
+  return Result<std::int64_t>{ErrorCode::kSuccess, "", affected_rows};
 }
 
 Result<std::int64_t> CountRows(const std::string& table, const KeyValues& where_values) {
   auto* connection = GetConnection();
   if (connection == nullptr || !connection->IsConnected()) {
-    return Result<std::int64_t>{.error_code = ErrorCode::kSystemError};
+    return Result<std::int64_t>{ErrorCode::kSystemError};
   }
 
   std::ostringstream sql;
@@ -187,21 +188,21 @@ Result<std::int64_t> CountRows(const std::string& table, const KeyValues& where_
   }
   const auto row = query_result->Fetch();
   if (!row.has_value()) {
-    return Result<std::int64_t>{.error_code = ErrorCode::kSystemError};
+    return Result<std::int64_t>{ErrorCode::kSystemError};
   }
   if (const auto cell = (*row)->get_value("cnt")) {
     if (const auto v = cell->as_int64()) {
-      return Result<std::int64_t>{.data = v.value()};
+      return Result<std::int64_t>{ErrorCode::kSuccess, "", v.value()};
     }
   }
-  return Result<std::int64_t>{.error_code = ErrorCode::kSystemError};
+  return Result<std::int64_t>{ErrorCode::kSystemError};
 }
 
 Result<std::unique_ptr<cpputils::database::IResultSet>> SelectRows(const std::string& table,
                                                                    const KeyValues& where_values) {
   auto* connection = GetConnection();
   if (connection == nullptr || !connection->IsConnected()) {
-    return Result<std::unique_ptr<cpputils::database::IResultSet>>{.error_code = ErrorCode::kSystemError};
+    return Result<std::unique_ptr<cpputils::database::IResultSet>>{ErrorCode::kSystemError};
   }
 
   std::ostringstream sql;
@@ -211,13 +212,13 @@ Result<std::unique_ptr<cpputils::database::IResultSet>> SelectRows(const std::st
   if (query_result == nullptr) {
     return DbFailureResult<std::unique_ptr<cpputils::database::IResultSet>>();
   }
-  return Result<std::unique_ptr<cpputils::database::IResultSet>>{.data = std::move(query_result)};
+  return Result<std::unique_ptr<cpputils::database::IResultSet>>{ErrorCode::kSuccess, "", std::move(query_result)};
 }
 
 Result<std::int64_t> TruncateRows(const std::string& table) {
   auto* connection = GetConnection();
   if (connection == nullptr || !connection->IsConnected()) {
-    return Result<std::int64_t>{.error_code = ErrorCode::kSystemError};
+    return Result<std::int64_t>{ErrorCode::kSystemError};
   }
 
   std::ostringstream sql;
@@ -227,7 +228,7 @@ Result<std::int64_t> TruncateRows(const std::string& table) {
   if (!connection->Execute(sql.str(), &affected_rows)) {
     return DbFailureResult<std::int64_t>();
   }
-  return Result<std::int64_t>{.data = affected_rows};
+  return Result<std::int64_t>{ErrorCode::kSuccess, "", affected_rows};
 }
 
 }  // namespace qtrade::framework::dao
