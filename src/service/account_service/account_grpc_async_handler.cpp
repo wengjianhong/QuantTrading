@@ -33,7 +33,9 @@ using AccountUnaryCallTag = qtrade::common::grpc_async::
 
 AccountGrpcAsyncHandler::AccountGrpcAsyncHandler() = default;
 
-AccountGrpcAsyncHandler::~AccountGrpcAsyncHandler() { Shutdown(); }
+AccountGrpcAsyncHandler::~AccountGrpcAsyncHandler() {
+  Shutdown();
+}
 
 void AccountGrpcAsyncHandler::Init(qtrade::account::v1::AccountService::AsyncService* async_service,
                                    grpc::ServerCompletionQueue* cq,
@@ -57,7 +59,9 @@ void AccountGrpcAsyncHandler::Start() {
   started_ = true;
 }
 
-void AccountGrpcAsyncHandler::Shutdown() { started_ = false; }
+void AccountGrpcAsyncHandler::Shutdown() {
+  started_ = false;
+}
 
 void AccountGrpcAsyncHandler::SpawnAddAccount() {
   if (!async_service_ || !cq_ || !repository_) {

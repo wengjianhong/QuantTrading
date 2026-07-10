@@ -8,7 +8,9 @@ namespace sdk = qtrade_sdk::quote;
 
 EmtQuoteApi::EmtQuoteApi() = default;
 
-EmtQuoteApi::~EmtQuoteApi() { Disconnect(); }
+EmtQuoteApi::~EmtQuoteApi() {
+  Disconnect();
+}
 
 void EmtQuoteApi::RegisterSpi(sdk::QuoteSpi& quote_spi) {
   quote_spi_ = &quote_spi;
@@ -40,7 +42,9 @@ void EmtQuoteApi::Disconnect() {
   // TODO(EMT SDK): emt_api_->Logout(); emt_api_->Release();
 }
 
-bool EmtQuoteApi::IsConnected() const { return connected_; }
+bool EmtQuoteApi::IsConnected() const {
+  return connected_;
+}
 
 std::int32_t EmtQuoteApi::Login(const std::string& ip,
                                 std::uint16_t port,
@@ -53,7 +57,9 @@ std::int32_t EmtQuoteApi::Login(const std::string& ip,
   return -1;
 }
 
-void EmtQuoteApi::Logout() { Disconnect(); }
+void EmtQuoteApi::Logout() {
+  Disconnect();
+}
 
 std::int32_t EmtQuoteApi::RebuildSzData(std::uint32_t channel_no,
                                         std::uint64_t begin_seq,
@@ -166,10 +172,16 @@ qtrade::ErrorCode EmtQuoteApi::QuerySnapshot(const sdk::QuerySnapshotRequest& re
   return qtrade::ErrorCode::kNotSupported;
 }
 
-void EmtQuoteApi::SetTickCallback(TickCallback cb) { on_tick_ = std::move(cb); }
+void EmtQuoteApi::SetTickCallback(TickCallback cb) {
+  on_tick_ = std::move(cb);
+}
 
-void EmtQuoteApi::SetBarCallback(BarCallback cb) { on_bar_ = std::move(cb); }
+void EmtQuoteApi::SetBarCallback(BarCallback cb) {
+  on_bar_ = std::move(cb);
+}
 
-std::vector<std::string> EmtQuoteApi::GetSupportedInstruments() const { return {}; }
+std::vector<std::string> EmtQuoteApi::GetSupportedInstruments() const {
+  return {};
+}
 
 }  // namespace qtrade::adapter::quote

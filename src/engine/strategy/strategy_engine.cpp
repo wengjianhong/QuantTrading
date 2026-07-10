@@ -11,7 +11,9 @@ namespace qtrade::engine::strategy {
 
 StrategyEngine::StrategyEngine(event_bus::EventLanes& event_lanes) : event_lanes_(event_lanes), running_(false) {}
 
-StrategyEngine::~StrategyEngine() { Stop(); }
+StrategyEngine::~StrategyEngine() {
+  Stop();
+}
 
 void StrategyEngine::Start() {
   std::lock_guard<std::mutex> lock(mutex_);

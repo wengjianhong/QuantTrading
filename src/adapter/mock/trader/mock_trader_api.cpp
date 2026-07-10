@@ -8,7 +8,9 @@ namespace sdk = qtrade_sdk::trader;
 
 MockTraderApi::MockTraderApi() = default;
 
-MockTraderApi::~MockTraderApi() { Release(); }
+MockTraderApi::~MockTraderApi() {
+  Release();
+}
 
 void MockTraderApi::SetCpuAffinity(std::int32_t thread1_cpu_core_id, std::int32_t thread2_cpu_core_id) {
   (void)thread1_cpu_core_id;
@@ -21,9 +23,13 @@ std::string MockTraderApi::GetErrMsgByCode(std::int32_t error_code, std::uint64_
   return {};
 }
 
-void MockTraderApi::Release() { Disconnect(); }
+void MockTraderApi::Release() {
+  Disconnect();
+}
 
-std::string MockTraderApi::GetTradingDay() const { return trading_day_; }
+std::string MockTraderApi::GetTradingDay() const {
+  return trading_day_;
+}
 
 void MockTraderApi::RegisterSpi(sdk::TraderSpi& spi) {
   spi_ = &spi;
@@ -35,9 +41,13 @@ void MockTraderApi::UnregisterSpi() {
   mock_spi_.SetTarget(nullptr);
 }
 
-const sdk::RspInfo* MockTraderApi::GetApiLastError() const { return &last_error_; }
+const sdk::RspInfo* MockTraderApi::GetApiLastError() const {
+  return &last_error_;
+}
 
-std::string MockTraderApi::GetApiVersion() const { return api_version_; }
+std::string MockTraderApi::GetApiVersion() const {
+  return api_version_;
+}
 
 std::uint8_t MockTraderApi::GetClientIDByEMTID(std::uint64_t order_emt_id) {
   (void)order_emt_id;
@@ -49,11 +59,17 @@ std::string MockTraderApi::GetAccountByEMTID(std::uint64_t order_emt_id) {
   return account_id_;
 }
 
-void MockTraderApi::SubscribePublicTopic(sdk::ResumeType resume_type) { (void)resume_type; }
+void MockTraderApi::SubscribePublicTopic(sdk::ResumeType resume_type) {
+  (void)resume_type;
+}
 
-void MockTraderApi::SetSoftwareVersion(const std::string& version) { software_version_ = version; }
+void MockTraderApi::SetSoftwareVersion(const std::string& version) {
+  software_version_ = version;
+}
 
-void MockTraderApi::SetHeartBeatInterval(std::uint32_t interval) { (void)interval; }
+void MockTraderApi::SetHeartBeatInterval(std::uint32_t interval) {
+  (void)interval;
+}
 
 qtrade::ErrorCode MockTraderApi::Connect(const sdk::ConnectRequest& request) {
   (void)request;
@@ -62,9 +78,13 @@ qtrade::ErrorCode MockTraderApi::Connect(const sdk::ConnectRequest& request) {
   return qtrade::ErrorCode::kSuccess;
 }
 
-void MockTraderApi::Disconnect() { connected_ = false; }
+void MockTraderApi::Disconnect() {
+  connected_ = false;
+}
 
-bool MockTraderApi::IsConnected() const { return connected_; }
+bool MockTraderApi::IsConnected() const {
+  return connected_;
+}
 
 std::uint64_t MockTraderApi::Login(const std::string& ip,
                                    int port,
@@ -249,14 +269,20 @@ int MockTraderApi::QueryFundTransfer(const sdk::QueryFundTransferLogRequest& que
   return -1;
 }
 
-void MockTraderApi::SetOrderCallback(OrderCallback cb) { on_order_ = std::move(cb); }
+void MockTraderApi::SetOrderCallback(OrderCallback cb) {
+  on_order_ = std::move(cb);
+}
 
-void MockTraderApi::SetTradeCallback(TradeCallback cb) { on_trade_ = std::move(cb); }
+void MockTraderApi::SetTradeCallback(TradeCallback cb) {
+  on_trade_ = std::move(cb);
+}
 
 }  // namespace qtrade::adapter::mock::trader
 
 namespace qtrade::adapter::mock::trader {
 
-std::unique_ptr<qtrade_sdk::trader::TraderApi> CreateMockTraderApi() { return std::make_unique<MockTraderApi>(); }
+std::unique_ptr<qtrade_sdk::trader::TraderApi> CreateMockTraderApi() {
+  return std::make_unique<MockTraderApi>();
+}
 
 }  // namespace qtrade::adapter::mock::trader

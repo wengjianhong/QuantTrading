@@ -58,7 +58,9 @@ SociAccountRepository::SociAccountRepository(const qtrade::common::DatabaseOptio
 
 SociAccountRepository::~SociAccountRepository() = default;
 
-bool SociAccountRepository::IsReady() const { return connection_.IsReady(); }
+bool SociAccountRepository::IsReady() const {
+  return connection_.IsReady();
+}
 
 ErrorCode SociAccountRepository::EnsureSchema() {
   if (!IsReady()) {

@@ -119,6 +119,8 @@ void OutboundWorker::ReplayP0SpoolLocked() {
   }
 }
 
-void OutboundWorker::SpoolP0Locked(std::string payload) { p0_spool_.push_back(std::move(payload)); }
+void OutboundWorker::SpoolP0Locked(std::string payload) {
+  p0_spool_.push_back(std::move(payload));
+}
 
 }  // namespace qtrade::client::detail

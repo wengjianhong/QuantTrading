@@ -14,7 +14,9 @@ ErrorCode RegistryClient::Init(std::string_view etcd_endpoints) {
   return ErrorCode::kSuccess;
 }
 
-void RegistryClient::Shutdown() { initialized_ = false; }
+void RegistryClient::Shutdown() {
+  initialized_ = false;
+}
 
 ErrorCode RegistryClient::Register(std::string_view service_name,
                                    std::string_view instance_id,

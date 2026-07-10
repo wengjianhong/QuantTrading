@@ -6,4 +6,6 @@
 /// @copyright CC BY-NC-SA 4.0
 #include <gtest/gtest.h>
 
-TEST(ServiceSmoke, Placeholder) { SUCCEED(); }
+TEST(ServiceSmoke, Placeholder) {
+  SUCCEED();
+}

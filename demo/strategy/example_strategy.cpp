@@ -15,7 +15,9 @@ namespace trader = qtrade_sdk::trader;
 
 ExampleStrategy::ExampleStrategy() : running_(false), last_price_(0.0), position_(0) {}
 
-ExampleStrategy::~ExampleStrategy() { Stop(); }
+ExampleStrategy::~ExampleStrategy() {
+  Stop();
+}
 
 ErrorCode ExampleStrategy::Init(const strategy::StrategyConfig& config) {
   spdlog::info("[ExampleStrategy] init with config: {}", config.name);
@@ -28,9 +30,13 @@ ErrorCode ExampleStrategy::Start() {
   return ErrorCode::kSuccess;
 }
 
-void ExampleStrategy::Pause() { spdlog::info("[ExampleStrategy] paused"); }
+void ExampleStrategy::Pause() {
+  spdlog::info("[ExampleStrategy] paused");
+}
 
-void ExampleStrategy::Resume() { spdlog::info("[ExampleStrategy] resumed"); }
+void ExampleStrategy::Resume() {
+  spdlog::info("[ExampleStrategy] resumed");
+}
 
 void ExampleStrategy::Stop() {
   running_ = false;
@@ -109,8 +115,12 @@ ErrorCode ExampleStrategy::SetParameter(const std::string& key, const std::strin
   return ErrorCode::kSuccess;
 }
 
-void ExampleStrategy::SetOrderSender(OrderSender sender) { order_sender_ = std::move(sender); }
+void ExampleStrategy::SetOrderSender(OrderSender sender) {
+  order_sender_ = std::move(sender);
+}
 
-std::unique_ptr<strategy::IStrategy> CreateExampleStrategy() { return std::make_unique<ExampleStrategy>(); }
+std::unique_ptr<strategy::IStrategy> CreateExampleStrategy() {
+  return std::make_unique<ExampleStrategy>();
+}
 
 }  // namespace qtrade::demo

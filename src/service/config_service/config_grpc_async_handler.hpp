@@ -59,15 +59,21 @@ class ConfigGrpcAsyncHandler {
 
   /// @brief 获取数据库仓储
   /// @return 仓储共享指针
-  [[nodiscard]] std::shared_ptr<IConfigRepository> Repository() const { return repository_; }
+  [[nodiscard]] std::shared_ptr<IConfigRepository> Repository() const {
+    return repository_;
+  }
 
   /// @brief 获取 CompletionQueue
   /// @return 服务端 CQ 指针
-  [[nodiscard]] grpc::ServerCompletionQueue* CompletionQueue() const { return cq_; }
+  [[nodiscard]] grpc::ServerCompletionQueue* CompletionQueue() const {
+    return cq_;
+  }
 
   /// @brief 获取 gRPC 异步服务
   /// @return AsyncService 指针
-  [[nodiscard]] qtrade::config::v1::ConfigService::AsyncService* AsyncService() const { return async_service_; }
+  [[nodiscard]] qtrade::config::v1::ConfigService::AsyncService* AsyncService() const {
+    return async_service_;
+  }
 
  private:
   qtrade::config::v1::ConfigService::AsyncService* async_service_ = nullptr;  ///< gRPC 异步服务

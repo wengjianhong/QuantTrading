@@ -12,7 +12,9 @@
 
 namespace qtrade::common::grpc_async {
 
-CompletionQueueLoop::~CompletionQueueLoop() { Stop(); }
+CompletionQueueLoop::~CompletionQueueLoop() {
+  Stop();
+}
 
 void CompletionQueueLoop::Start(grpc::ServerCompletionQueue* cq, std::size_t thread_count) {
   if (running_ || cq == nullptr) {

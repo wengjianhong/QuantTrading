@@ -13,7 +13,9 @@ namespace sdk = qtrade_sdk::quote;
 
 MockQuoteApi::MockQuoteApi() = default;
 
-MockQuoteApi::~MockQuoteApi() { Disconnect(); }
+MockQuoteApi::~MockQuoteApi() {
+  Disconnect();
+}
 
 void MockQuoteApi::RegisterSpi(sdk::QuoteSpi& quote_spi) {
   quote_spi_ = &quote_spi;
@@ -49,7 +51,9 @@ void MockQuoteApi::Disconnect() {
   spdlog::info("[MockQuoteApi] disconnected");
 }
 
-bool MockQuoteApi::IsConnected() const { return connected_; }
+bool MockQuoteApi::IsConnected() const {
+  return connected_;
+}
 
 std::int32_t MockQuoteApi::Login(const std::string& ip,
                                  std::uint16_t port,
@@ -62,7 +66,9 @@ std::int32_t MockQuoteApi::Login(const std::string& ip,
   return 0;
 }
 
-void MockQuoteApi::Logout() { Disconnect(); }
+void MockQuoteApi::Logout() {
+  Disconnect();
+}
 
 std::int32_t MockQuoteApi::RebuildSzData(std::uint32_t channel_no,
                                          std::uint64_t begin_seq,
@@ -175,11 +181,17 @@ qtrade::ErrorCode MockQuoteApi::QuerySnapshot(const sdk::QuerySnapshotRequest& r
   return qtrade::ErrorCode::kNotSupported;
 }
 
-void MockQuoteApi::SetTickCallback(TickCallback cb) { on_tick_ = std::move(cb); }
+void MockQuoteApi::SetTickCallback(TickCallback cb) {
+  on_tick_ = std::move(cb);
+}
 
-void MockQuoteApi::SetBarCallback(BarCallback cb) { on_bar_ = std::move(cb); }
+void MockQuoteApi::SetBarCallback(BarCallback cb) {
+  on_bar_ = std::move(cb);
+}
 
-std::vector<std::string> MockQuoteApi::GetSupportedInstruments() const { return {"IF2401", "IC2401", "IH2401"}; }
+std::vector<std::string> MockQuoteApi::GetSupportedInstruments() const {
+  return {"IF2401", "IC2401", "IH2401"};
+}
 
 void MockQuoteApi::GenerateMockTicks() {
   std::random_device rd;
@@ -229,6 +241,8 @@ void MockQuoteApi::GenerateMockTicks() {
 
 namespace qtrade::adapter::mock::quote {
 
-std::unique_ptr<qtrade_sdk::quote::QuoteApi> CreateMockQuoteApi() { return std::make_unique<MockQuoteApi>(); }
+std::unique_ptr<qtrade_sdk::quote::QuoteApi> CreateMockQuoteApi() {
+  return std::make_unique<MockQuoteApi>();
+}
 
 }  // namespace qtrade::adapter::mock::quote

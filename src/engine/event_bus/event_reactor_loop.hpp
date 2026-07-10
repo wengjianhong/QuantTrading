@@ -50,7 +50,9 @@ class EventReactorLoop {
   EventReactorLoop(const EventReactorLoop&) = delete;
   EventReactorLoop& operator=(const EventReactorLoop&) = delete;
 
-  ~EventReactorLoop() { Stop(); }
+  ~EventReactorLoop() {
+    Stop();
+  }
 
   void Start(std::function<void(const Event&)> handle_event) {
     if (running_.exchange(true)) {

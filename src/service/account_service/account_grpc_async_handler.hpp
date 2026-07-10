@@ -41,9 +41,15 @@ class AccountGrpcAsyncHandler {
   void SpawnUpdateAccount();
   void SpawnGetCredential();
 
-  [[nodiscard]] std::shared_ptr<IAccountRepository> Repository() const { return repository_; }
-  [[nodiscard]] grpc::ServerCompletionQueue* CompletionQueue() const { return cq_; }
-  [[nodiscard]] qtrade::account::v1::AccountService::AsyncService* AsyncService() const { return async_service_; }
+  [[nodiscard]] std::shared_ptr<IAccountRepository> Repository() const {
+    return repository_;
+  }
+  [[nodiscard]] grpc::ServerCompletionQueue* CompletionQueue() const {
+    return cq_;
+  }
+  [[nodiscard]] qtrade::account::v1::AccountService::AsyncService* AsyncService() const {
+    return async_service_;
+  }
 
   ErrorCode HandleAddAccount(const qtrade::account::v1::AddAccountRequest& request);
   ErrorCode HandleGetAccount(const qtrade::account::v1::GetAccountRequest& request,

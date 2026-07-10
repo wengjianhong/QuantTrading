@@ -64,7 +64,9 @@ TradingEngine::TradingEngine()
     quote_normalizer_(event_lanes_.Market()),
     trader_normalizer_(event_lanes_.Return()) {}
 
-TradingEngine::~TradingEngine() { Stop(); }
+TradingEngine::~TradingEngine() {
+  Stop();
+}
 
 ErrorCode TradingEngine::ReloadFromJson(const std::string& json_path) {
   EngineOptions loaded;
@@ -76,7 +78,9 @@ ErrorCode TradingEngine::ReloadFromJson(const std::string& json_path) {
   return ErrorCode::kSuccess;
 }
 
-ErrorCode TradingEngine::Init() { return Init(options_); }
+ErrorCode TradingEngine::Init() {
+  return Init(options_);
+}
 
 ErrorCode TradingEngine::Init(const EngineOptions& options) {
   if (initialized_) {
@@ -221,6 +225,8 @@ ErrorCode TradingEngine::Stop() {
   return ErrorCode::kSuccess;
 }
 
-bool TradingEngine::IsRunning() const { return running_; }
+bool TradingEngine::IsRunning() const {
+  return running_;
+}
 
 }  // namespace qtrade::engine

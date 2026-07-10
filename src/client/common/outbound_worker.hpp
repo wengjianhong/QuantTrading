@@ -40,7 +40,9 @@ class OutboundWorker {
   OutboundWorker() = default;
 
   /// @brief 析构并 Stop
-  ~OutboundWorker() { Stop(); }
+  ~OutboundWorker() {
+    Stop();
+  }
 
   OutboundWorker(const OutboundWorker&) = delete;
   OutboundWorker& operator=(const OutboundWorker&) = delete;
@@ -61,7 +63,9 @@ class OutboundWorker {
   bool Enqueue(ReportPriority priority, std::string payload);
 
   /// @brief worker 是否正在运行
-  [[nodiscard]] bool IsRunning() const { return running_.load(std::memory_order_acquire); }
+  [[nodiscard]] bool IsRunning() const {
+    return running_.load(std::memory_order_acquire);
+  }
 
  private:
   /// @brief Outbound 线程主循环

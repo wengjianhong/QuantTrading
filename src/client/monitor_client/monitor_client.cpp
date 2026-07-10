@@ -15,7 +15,9 @@ namespace qtrade::client {
 
 MonitorClient::MonitorClient() = default;
 
-MonitorClient::~MonitorClient() { Shutdown(); }
+MonitorClient::~MonitorClient() {
+  Shutdown();
+}
 
 ErrorCode MonitorClient::Init(std::string_view endpoint) {
   if (initialized_) {

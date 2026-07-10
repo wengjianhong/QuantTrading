@@ -12,7 +12,9 @@ namespace qtrade::engine::event_bus {
 
 ReturnEventReactor::ReturnEventReactor() : loop_("ReturnEventReactor") {}
 
-ReturnEventReactor::~ReturnEventReactor() { Stop(); }
+ReturnEventReactor::~ReturnEventReactor() {
+  Stop();
+}
 
 void ReturnEventReactor::Start() {
   loop_.Start([this](const EventPtr& event) { HandleEvent(*event); });
@@ -43,9 +45,13 @@ void ReturnEventReactor::PublishTrade(const qtrade_sdk::trader::Trade& trade) {
   loop_.Publish(std::make_unique<TradeEvent>(trade));
 }
 
-bool ReturnEventReactor::HasPending() const { return loop_.HasPending(); }
+bool ReturnEventReactor::HasPending() const {
+  return loop_.HasPending();
+}
 
-std::size_t ReturnEventReactor::PendingCount() const { return loop_.PendingCount(); }
+std::size_t ReturnEventReactor::PendingCount() const {
+  return loop_.PendingCount();
+}
 
 void ReturnEventReactor::HandleEvent(const Event& event) {
   std::vector<OrderEventHandler> order_handlers;

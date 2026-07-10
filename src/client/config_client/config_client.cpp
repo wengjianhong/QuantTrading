@@ -30,7 +30,9 @@ struct ConfigClient::Impl {
 
 ConfigClient::ConfigClient() : impl_(std::make_unique<Impl>()) {}
 
-ConfigClient::~ConfigClient() { Shutdown(); }
+ConfigClient::~ConfigClient() {
+  Shutdown();
+}
 
 ErrorCode ConfigClient::Init(const ConfigClientOptions& options) {
   if (impl_->initialized) {
@@ -145,10 +147,16 @@ void ConfigClient::Shutdown() {
   impl_->initialized = false;
 }
 
-void ConfigClient::SetOnSnapshot(SnapshotHandler handler) { impl_->on_snapshot = std::move(handler); }
+void ConfigClient::SetOnSnapshot(SnapshotHandler handler) {
+  impl_->on_snapshot = std::move(handler);
+}
 
-std::uint64_t ConfigClient::Version() const { return impl_->version.load(std::memory_order_acquire); }
+std::uint64_t ConfigClient::Version() const {
+  return impl_->version.load(std::memory_order_acquire);
+}
 
-bool ConfigClient::IsInitialized() const { return impl_->initialized; }
+bool ConfigClient::IsInitialized() const {
+  return impl_->initialized;
+}
 
 }  // namespace qtrade::client

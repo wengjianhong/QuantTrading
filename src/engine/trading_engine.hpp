@@ -53,7 +53,9 @@ class TradingEngine {
   ErrorCode ReloadFromJson(const std::string& json_path);
 
   /// @brief 返回当前引擎配置快照
-  [[nodiscard]] const EngineOptions& GetOptions() const { return options_; }
+  [[nodiscard]] const EngineOptions& GetOptions() const {
+    return options_;
+  }
 
   /// @brief 停止所有子模块与 client
   /// @return ErrorCode::kSuccess 表示成功；未运行返回 ErrorCode::kSystemError
@@ -67,25 +69,39 @@ class TradingEngine {
   [[nodiscard]] bool IsRunning() const;
 
   /// @brief 获取事件通道门面（Lane-M + Lane-R）
-  event_bus::EventLanes& GetEventLanes() { return event_lanes_; }
+  event_bus::EventLanes& GetEventLanes() {
+    return event_lanes_;
+  }
 
   /// @brief 获取行情标准化模块引用
-  normalizer::QuoteNormalizer& GetQuoteNormalizer() { return quote_normalizer_; }
+  normalizer::QuoteNormalizer& GetQuoteNormalizer() {
+    return quote_normalizer_;
+  }
 
   /// @brief 获取交易标准化模块引用
-  normalizer::TraderNormalizer& GetTraderNormalizer() { return trader_normalizer_; }
+  normalizer::TraderNormalizer& GetTraderNormalizer() {
+    return trader_normalizer_;
+  }
 
   /// @brief 获取策略引擎引用
-  strategy::StrategyEngine& GetStrategyEngine() { return strategy_engine_; }
+  strategy::StrategyEngine& GetStrategyEngine() {
+    return strategy_engine_;
+  }
 
   /// @brief 获取日志客户端引用
-  client::LogClient& GetLogClient() { return log_client_; }
+  client::LogClient& GetLogClient() {
+    return log_client_;
+  }
 
   /// @brief 获取监控客户端引用
-  client::MonitorClient& GetMonitorClient() { return monitor_client_; }
+  client::MonitorClient& GetMonitorClient() {
+    return monitor_client_;
+  }
 
   /// @brief 获取配置客户端引用
-  client::ConfigClient& GetConfigClient() { return config_client_; }
+  client::ConfigClient& GetConfigClient() {
+    return config_client_;
+  }
 
  private:
   /// @brief 初始化并连接 config_client（GetConfig + SubscribeConfig）

@@ -8,7 +8,9 @@ namespace sdk = qtrade_sdk::trader;
 
 EmtTraderApi::EmtTraderApi() = default;
 
-EmtTraderApi::~EmtTraderApi() { Release(); }
+EmtTraderApi::~EmtTraderApi() {
+  Release();
+}
 
 void EmtTraderApi::SetCpuAffinity(std::int32_t thread1_cpu_core_id, std::int32_t thread2_cpu_core_id) {
   (void)thread1_cpu_core_id;
@@ -44,7 +46,9 @@ void EmtTraderApi::UnregisterSpi() {
   // TODO(EMT SDK): emt_api_->UnregisterSpi();
 }
 
-const sdk::RspInfo* EmtTraderApi::GetApiLastError() const { return &last_error_; }
+const sdk::RspInfo* EmtTraderApi::GetApiLastError() const {
+  return &last_error_;
+}
 
 std::string EmtTraderApi::GetApiVersion() const {
   // TODO(EMT SDK): return emt_api_->GetApiVersion();
@@ -61,11 +65,17 @@ std::string EmtTraderApi::GetAccountByEMTID(std::uint64_t order_emt_id) {
   return account_id_;
 }
 
-void EmtTraderApi::SubscribePublicTopic(sdk::ResumeType resume_type) { (void)resume_type; }
+void EmtTraderApi::SubscribePublicTopic(sdk::ResumeType resume_type) {
+  (void)resume_type;
+}
 
-void EmtTraderApi::SetSoftwareVersion(const std::string& version) { software_version_ = version; }
+void EmtTraderApi::SetSoftwareVersion(const std::string& version) {
+  software_version_ = version;
+}
 
-void EmtTraderApi::SetHeartBeatInterval(std::uint32_t interval) { (void)interval; }
+void EmtTraderApi::SetHeartBeatInterval(std::uint32_t interval) {
+  (void)interval;
+}
 
 qtrade::ErrorCode EmtTraderApi::Connect(const sdk::ConnectRequest& request) {
   (void)request;
@@ -74,7 +84,9 @@ qtrade::ErrorCode EmtTraderApi::Connect(const sdk::ConnectRequest& request) {
 
 void EmtTraderApi::Disconnect() {}
 
-bool EmtTraderApi::IsConnected() const { return false; }
+bool EmtTraderApi::IsConnected() const {
+  return false;
+}
 
 std::uint64_t EmtTraderApi::Login(const std::string& ip,
                                   int port,
@@ -251,8 +263,12 @@ int EmtTraderApi::QueryFundTransfer(const sdk::QueryFundTransferLogRequest& quer
   return -1;
 }
 
-void EmtTraderApi::SetOrderCallback(OrderCallback cb) { on_order_ = std::move(cb); }
+void EmtTraderApi::SetOrderCallback(OrderCallback cb) {
+  on_order_ = std::move(cb);
+}
 
-void EmtTraderApi::SetTradeCallback(TradeCallback cb) { on_trade_ = std::move(cb); }
+void EmtTraderApi::SetTradeCallback(TradeCallback cb) {
+  on_trade_ = std::move(cb);
+}
 
 }  // namespace qtrade::adapter::trader

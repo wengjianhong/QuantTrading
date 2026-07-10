@@ -15,7 +15,9 @@ namespace qtrade::service {
 
 namespace {
 
-std::string NormalizeScopeField(const std::string& value) { return value.empty() ? "default" : value; }
+std::string NormalizeScopeField(const std::string& value) {
+  return value.empty() ? "default" : value;
+}
 
 }  // namespace
 

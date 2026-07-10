@@ -29,7 +29,9 @@ class SupportServiceImpl : public ISupportService {
   SupportServiceImpl(std::string service_name, int default_port)
     : service_name_(std::move(service_name)), default_port_(default_port) {}
 
-  ~SupportServiceImpl() override { Stop(); }
+  ~SupportServiceImpl() override {
+    Stop();
+  }
 
   SupportServiceImpl(const SupportServiceImpl&) = delete;
   SupportServiceImpl& operator=(const SupportServiceImpl&) = delete;
@@ -74,7 +76,9 @@ class SupportServiceImpl : public ISupportService {
     state_ = SupportServiceState::kTerminated;
   }
 
-  void Wait() override { grpc_host_.Wait(); }
+  void Wait() override {
+    grpc_host_.Wait();
+  }
 
   [[nodiscard]] SupportServiceStatus GetStatus() const override {
     std::lock_guard lock(mutex_);

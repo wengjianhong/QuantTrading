@@ -11,9 +11,13 @@ namespace qtrade::adapter::quote {
 /// TODO(EMT SDK): 改为 `final : public EMT::API::QuoteSpi`，在厂商回调 override 中完成转换。
 class EmtQuoteSpi {
  public:
-  void SetTarget(qtrade_sdk::quote::QuoteSpi* target) { target_ = target; }
+  void SetTarget(qtrade_sdk::quote::QuoteSpi* target) {
+    target_ = target;
+  }
 
-  qtrade_sdk::quote::QuoteSpi* Target() const { return target_; }
+  qtrade_sdk::quote::QuoteSpi* Target() const {
+    return target_;
+  }
 
  private:
   qtrade_sdk::quote::QuoteSpi* target_ = nullptr;

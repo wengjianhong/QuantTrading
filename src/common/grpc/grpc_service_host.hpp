@@ -28,7 +28,9 @@ class GrpcServiceHost {
   GrpcServiceHost() = default;
 
   /// @brief 析构并调用 Shutdown
-  ~GrpcServiceHost() { Shutdown(); }
+  ~GrpcServiceHost() {
+    Shutdown();
+  }
 
   GrpcServiceHost(const GrpcServiceHost&) = delete;
   GrpcServiceHost& operator=(const GrpcServiceHost&) = delete;
@@ -98,7 +100,9 @@ class GrpcServiceHost {
   }
 
   /// @brief gRPC 是否正在运行
-  [[nodiscard]] bool IsRunning() const { return running_; }
+  [[nodiscard]] bool IsRunning() const {
+    return running_;
+  }
 
  private:
   AsyncServiceT async_service_;                   ///< protobuf 异步服务实例

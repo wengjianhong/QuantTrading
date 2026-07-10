@@ -10,9 +10,13 @@ namespace qtrade::adapter::mock::quote {
 /// 模拟厂商 QuoteSpi 回调侧，将合成行情转发至 qtrade_sdk::quote::QuoteSpi。
 class MockQuoteSpi {
  public:
-  void SetTarget(qtrade_sdk::quote::QuoteSpi* target) { target_ = target; }
+  void SetTarget(qtrade_sdk::quote::QuoteSpi* target) {
+    target_ = target;
+  }
 
-  qtrade_sdk::quote::QuoteSpi* Target() const { return target_; }
+  qtrade_sdk::quote::QuoteSpi* Target() const {
+    return target_;
+  }
 
   void PublishDepthMarketData(const qtrade_sdk::quote::MarketTick& market_data);
 

@@ -12,7 +12,9 @@
 
 namespace qtrade::common {
 
-std::string GrpcOptions::ListenAddress() const { return host + ":" + std::to_string(port); }
+std::string GrpcOptions::ListenAddress() const {
+  return host + ":" + std::to_string(port);
+}
 
 GrpcOptions ParseGrpcOptions(const std::string& json_path, const int default_port) {
   GrpcOptions options;

@@ -12,7 +12,9 @@ namespace qtrade::engine::event_bus {
 
 MarketEventReactor::MarketEventReactor() : loop_("MarketEventReactor") {}
 
-MarketEventReactor::~MarketEventReactor() { Stop(); }
+MarketEventReactor::~MarketEventReactor() {
+  Stop();
+}
 
 void MarketEventReactor::Start() {
   loop_.Start([this](const EventPtr& event) { HandleEvent(*event); });
@@ -43,9 +45,13 @@ void MarketEventReactor::PublishBar(const qtrade_sdk::quote::Bar& bar) {
   loop_.Publish(std::make_unique<BarEvent>(bar));
 }
 
-bool MarketEventReactor::HasPending() const { return loop_.HasPending(); }
+bool MarketEventReactor::HasPending() const {
+  return loop_.HasPending();
+}
 
-std::size_t MarketEventReactor::PendingCount() const { return loop_.PendingCount(); }
+std::size_t MarketEventReactor::PendingCount() const {
+  return loop_.PendingCount();
+}
 
 void MarketEventReactor::HandleEvent(const Event& event) {
   std::vector<TickEventHandler> tick_handlers;

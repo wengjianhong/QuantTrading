@@ -47,8 +47,12 @@ class GrpcAsyncServer {
   /// @brief 阻塞直至 Server 完全停止
   void Wait();
 
-  [[nodiscard]] grpc::ServerCompletionQueue* CompletionQueue() const { return cq_.get(); }
-  [[nodiscard]] bool IsRunning() const { return running_; }
+  [[nodiscard]] grpc::ServerCompletionQueue* CompletionQueue() const {
+    return cq_.get();
+  }
+  [[nodiscard]] bool IsRunning() const {
+    return running_;
+  }
 
  private:
   std::unique_ptr<grpc::Server> server_;

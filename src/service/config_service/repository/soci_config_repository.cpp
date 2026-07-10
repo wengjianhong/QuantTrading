@@ -25,7 +25,9 @@ SociConfigRepository::SociConfigRepository(const qtrade::common::DatabaseOptions
 
 SociConfigRepository::~SociConfigRepository() = default;
 
-bool SociConfigRepository::IsReady() const { return connection_.IsReady(); }
+bool SociConfigRepository::IsReady() const {
+  return connection_.IsReady();
+}
 
 ErrorCode SociConfigRepository::EnsureSchema() {
   if (!IsReady()) {

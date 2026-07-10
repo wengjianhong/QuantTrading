@@ -34,7 +34,9 @@ class CompletionQueueLoop {
   /// @brief 停止轮询（不 Shutdown CQ，由 GrpcAsyncServer 负责）
   void Stop();
 
-  [[nodiscard]] bool IsRunning() const { return running_; }
+  [[nodiscard]] bool IsRunning() const {
+    return running_;
+  }
 
  private:
   void Run();

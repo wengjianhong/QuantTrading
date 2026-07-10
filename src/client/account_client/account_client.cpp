@@ -23,7 +23,9 @@ struct AccountClient::Impl {
 
 AccountClient::AccountClient() : impl_(std::make_unique<Impl>()) {}
 
-AccountClient::~AccountClient() { Shutdown(); }
+AccountClient::~AccountClient() {
+  Shutdown();
+}
 
 ErrorCode AccountClient::Init(const AccountClientOptions& options) {
   if (impl_->initialized) {
@@ -73,6 +75,8 @@ ErrorCode AccountClient::GetCredential(const std::string& account_id,
   return ErrorCode::kSuccess;
 }
 
-bool AccountClient::IsInitialized() const { return impl_->initialized; }
+bool AccountClient::IsInitialized() const {
+  return impl_->initialized;
+}
 
 }  // namespace qtrade::client

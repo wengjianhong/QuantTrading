@@ -136,7 +136,9 @@ class SubscribeConfigCallTag final : public qtrade::common::grpc_async::CallTagB
 
 ConfigGrpcAsyncHandler::ConfigGrpcAsyncHandler() = default;
 
-ConfigGrpcAsyncHandler::~ConfigGrpcAsyncHandler() { Shutdown(); }
+ConfigGrpcAsyncHandler::~ConfigGrpcAsyncHandler() {
+  Shutdown();
+}
 
 void ConfigGrpcAsyncHandler::Init(qtrade::config::v1::ConfigService::AsyncService* async_service,
                                   grpc::ServerCompletionQueue* cq,
@@ -157,7 +159,9 @@ void ConfigGrpcAsyncHandler::Start() {
   started_ = true;
 }
 
-void ConfigGrpcAsyncHandler::Shutdown() { started_ = false; }
+void ConfigGrpcAsyncHandler::Shutdown() {
+  started_ = false;
+}
 
 void ConfigGrpcAsyncHandler::SpawnGetConfig() {
   if (async_service_ == nullptr || cq_ == nullptr || !repository_) {

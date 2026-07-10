@@ -65,9 +65,13 @@ void InstallShutdownHandler(std::atomic<bool>& stop_flag) {
   }
 }
 
-void BlockShutdownSignals() { ApplySignalMask(SIG_BLOCK); }
+void BlockShutdownSignals() {
+  ApplySignalMask(SIG_BLOCK);
+}
 
-void UnblockShutdownSignals() { ApplySignalMask(SIG_UNBLOCK); }
+void UnblockShutdownSignals() {
+  ApplySignalMask(SIG_UNBLOCK);
+}
 
 void RunUntilStop(std::atomic<bool>& stop_flag) {
   while (!g_stop_requested.load(std::memory_order_acquire)) {
