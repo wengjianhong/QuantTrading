@@ -3,9 +3,9 @@
 #ifndef QTRADE_ADAPTER_MOCK_TRADER_API_HPP_
 #define QTRADE_ADAPTER_MOCK_TRADER_API_HPP_
 
-#include <qtrade_sdk/trader/trader_api.hpp>
-
 #include "adapter/mock/trader/mock_trader_spi.hpp"
+
+#include <qtrade_sdk/trader/trader_api.hpp>
 
 #include <cstdint>
 #include <functional>

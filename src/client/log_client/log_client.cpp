@@ -15,7 +15,9 @@ namespace qtrade::client {
 
 LogClient::LogClient() = default;
 
-LogClient::~LogClient() { Shutdown(); }
+LogClient::~LogClient() {
+  Shutdown();
+}
 
 ErrorCode LogClient::Init(std::string_view topic) {
   if (initialized_) {

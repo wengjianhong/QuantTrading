@@ -15,7 +15,9 @@ TraderNormalizer::TraderNormalizer(event_bus::ReturnEventReactor& return_event_r
   (void)return_event_reactor_;
 }
 
-TraderNormalizer::~TraderNormalizer() { Stop(); }
+TraderNormalizer::~TraderNormalizer() {
+  Stop();
+}
 
 void TraderNormalizer::Start() {
   if (running_) {

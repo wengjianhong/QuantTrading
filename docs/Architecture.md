@@ -54,7 +54,7 @@
 | 平面 | 驱动来源 | 允许操作 | 禁止操作 |
 |---|---|---|---|
 | **数据面** | Tick/Bar/订单回报事件 | 策略逻辑、发单/撤单信号、风控拦截 | 外部 HTTP/TCP 直连触发交易 |
-| **控制面** | 配置中心 ← gRPC Watch ← 引擎控制线程（出站订阅） | 策略启停/暂停、参数热更新、**实例品种归属**（维护窗口）、行情源地址 | 绕过配置中心直接改引擎内存；同步阻塞热路径 |
+| **控制面** | 配置中心 ← gRPC Watch ← 引擎控制线程（出站 Watch） | 策略启停/暂停、参数热更新、**实例品种归属**（维护窗口）、行情源地址 | 绕过配置中心直接改引擎内存；同步阻塞热路径 |
 
 控制面变更**不产生订单**，仅改变策略生命周期或配置快照；生效后由下一 Tick 事件自然驱动数据面。
 
@@ -112,7 +112,7 @@ A 段至 EMS 入队后**紧接** C 段出站（EMS → 适配器 → 交易所�
 
 - **非热路径（D 段旁路）**：日志、监控、历史、审计等；A 段仅写入内存队列，由 **Outbound 线程**调用 `log_client`/`monitor_client` 等**异步上报接口**（Protobuf 载荷），**不等待响应**；client 内部实现（gRPC/HTTP/本地 Spool/stub）**架构不约束**，MVP 允许仅 stub 或本地落盘；支撑服务之间使用 **gRPC** 同步/异步调用。
 
-- **控制面**：配置与风控阈值采用**本地快照缓存 + gRPC 增量订阅**；引擎以 **gRPC Client 出站**连接 config-service：`GetConfig` 冷启动拉全量，`WatchConfig`（Server Streaming）运行时收增量（见 §8.1）；**引擎不对外暴露 gRPC Server**。
+- **控制面**：配置与风控阈值采用**本地快照缓存 + gRPC Watch**；引擎以 **gRPC Client 出站**连接 config-service：`GetConfig` 冷启动拉全量，`SubscribeConfig`（Server Streaming）运行时收变更推送（见 §8.1）；**引擎不对外暴露 gRPC Server**。
 
 - **协议适配器（§7.0，可插拔）**：厂商 API/结构体 → `qtrade_sdk` 字段映射。
 - **标准化模块（引擎固定）**：`QuoteNormalizer`/`TraderNormalizer` 做跨柜台语义统一；**不做排队**，队列由 Lane-M/Lane-R 承担。
@@ -123,7 +123,7 @@ A 段至 EMS 入队后**紧接** C 段出站（EMS → 适配器 → 交易所�
 控制开局复杂度，按阶段扩展微服务边界：
 
 - **一期（MVP，合并部署）**：
-  - **config-service**：引擎业务配置（`EngineConfig`：策略、品种绑定、行情源、`account_id` 引用）+ gRPC（`GetConfig`/`WatchConfig`）+ 变更审计；**不存储**交易登录密码
+  - **config-service**：引擎业务配置（`EngineConfig`：策略、品种绑定、行情源、`account_id` 引用）+ gRPC（`GetConfig`/`SubscribeConfig`）+ 变更审计；**不存储**交易登录密码
   - **account-service（交易账户服务）**：资金账户主数据、登录凭证加密托管、`engine_id` ↔ `account_id` 授权、按需凭证解析（见 §2.5）
   - **observability-service**：日志采集 + 业务监控 + 基础告警（日志/监控原独立服务逻辑保留，可同进程多模块）
   - **history-service（可选）**：历史行情/成交简化存储；回测可暂用本地脚本
@@ -142,10 +142,10 @@ A 段至 EMS 入队后**紧接** C 段出站（EMS → 适配器 → 交易所�
 
 | 类型 | 方向 | 机制 | 说明 |
 |---|---|---|---|
-| **控制面** | config-service / account-service → engine（逻辑推送或按需拉取） | gRPC（引擎出站 Client） | 引擎**主动出站**订阅 `WatchConfig`；凭证经 `ResolveCredential` **按需**拉取；禁止支撑服务回调引擎 RPC |
+| **控制面** | config-service / account-service → engine（逻辑推送或按需拉取） | gRPC（引擎出站 Client） | 引擎**主动出站 Watch** `SubscribeConfig`；凭证经 `ResolveCredential` **按需**拉取；禁止支撑服务回调引擎 RPC |
 | **D 段旁路** | engine → 支撑服务 | `src/client/` 异步上报接口 | Outbound 线程 fire-and-forget；各 client 内部实现可插拔，MVP 可为 stub |
 | **冷启动配置** | engine → config-service | gRPC `GetConfig` | 一次性全量拉取 `EngineConfig` + 本地兜底快照 |
-| **冷启动凭证** | engine → account-service | gRPC `ResolveCredential` | 启动阶段或换密时按 `account_id` 解析登录材料；**不进** `WatchConfig` 流 |
+| **冷启动凭证** | engine → account-service | gRPC `ResolveCredential` | 启动阶段或换密时按 `account_id` 解析登录材料；**不进** `SubscribeConfig` 流 |
 | **服务间查询** | 支撑服务 ↔ 支撑服务 | gRPC | config 写入前校验账户授权；回测拉历史、审计查询等，不经引擎 |
 
 ### 2.4 引擎实例与分片模型（配置驱动，MVP 默认）
@@ -227,7 +227,7 @@ A 段至 EMS 入队后**紧接** C 段出站（EMS → 适配器 → 交易所�
 
 上例合法原因：`IF2506` 在 **engine-03 与 engine-04 各出现一次**（跨实例），在**每个实例内**仍满足「一品种一策略」。`QuoteNormalizer` 对各实例分别 Subscribe 并集；`IF2506` Tick 在 engine-03 仅驱动 `mean_reversion_01`，在 engine-04 仅驱动 `spread_ic_if_01`。两实例若同 Tick 均发单，**不在引擎间协调**，由 **CMS/RiskManager** 按 `acc_001` 的限仓、限购、PnL、熔断等规则分别校验并决定是否下单。
 
-config-service 通过 `GetConfig(engine_id)` 返回该实例专属 `EngineConfig`；`WatchConfig` 变更策略启停、参数或品种绑定时，在**维护窗口**重启或 controlled reload；MVP 不做运行时跨实例迁移。交易登录凭证由 **account-service** 单独管理（§2.5），**不**经 `WatchConfig` 下发。
+config-service 通过 `GetConfig(engine_id)` 返回该实例专属 `EngineConfig`；`SubscribeConfig` 变更策略启停、参数或品种绑定时，在**维护窗口**重启或 controlled reload；MVP 不做运行时跨实例迁移。交易登录凭证由 **account-service** 单独管理（§2.5），**不**经 `SubscribeConfig` 下发。
 
 ### 2.5 配置与交易账户（account-service）
 
@@ -239,11 +239,11 @@ config-service 通过 `GetConfig(engine_id)` 返回该实例专属 `EngineConfig
 | **业务配置** | config-service → `EngineConfig`（见 §2.4、`config.proto`） | 策略、品种、`account_id` 引用、行情源；**不含**登录密码 |
 | **运行时账簿** | 引擎内 `AccountManager` | 可用资金、冻结；**不含**开户与凭证 |
 
-**account-service**（`qtrade_account_service`）单独管理资金账户主数据、加密凭证及 `engine_id` ↔ `account_id` 授权。引擎冷启动或换密时通过 `ResolveCredential` **按需**拉取登录材料；**不进** `WatchConfig` 流，**禁止**写入 `EngineConfig`。
+**account-service**（`qtrade_account_service`）单独管理资金账户主数据、加密凭证及 `engine_id` ↔ `account_id` 授权。引擎冷启动或换密时通过 `ResolveCredential` **按需**拉取登录材料；**不进** `SubscribeConfig` 流，**禁止**写入 `EngineConfig`。
 
 与 config-service 的分工：**config** 管「跑什么策略」；**account** 管「用哪个账户登录」。策略插件只使用 `account_id` 发单，不接触密码。
 
-启动顺序：`qtrade_engine.json` → `GetConfig` → `ResolveCredential` → EMS 登录 → `WatchConfig` 持续收业务配置变更。
+启动顺序：`qtrade_engine.json` → `GetConfig` → `ResolveCredential` → EMS 登录 → `SubscribeConfig` 持续收业务配置变更。
 
 ---
 
@@ -251,7 +251,7 @@ config-service 通过 `GetConfig(engine_id)` 返回该实例专属 `EngineConfig
 
 所有模块运行在同一进程内，通过内存级**双通道事件分发**（Lane-M/Lane-R，§3.1）及 OMS 同步调用通信，避免跨进程延迟。
 
-**数据面**封闭：无对外 TCP/HTTP/gRPC 控制服务端，仅通过适配器对接外部行情与交易所。**控制面**经出站 gRPC 订阅 config-service（§1.3.3、§8.1），不直接触发发单。
+**数据面**封闭：无对外 TCP/HTTP/gRPC 控制服务端，仅通过适配器对接外部行情与交易所。**控制面**经出站 gRPC Watch config-service（§1.3.3、§8.1），不直接触发发单。
 
 |模块名称（Google C\+\+ 规范）|核心功能|可插拔设计|企业级优化点|
 |---|---|---|---|
@@ -297,7 +297,7 @@ config-service 通过 `GetConfig(engine_id)` 返回该实例专属 `EngineConfig
 
 1. 所有模块运行在**同一个交易引擎进程**内，不拆分、不独立部署
 
-2. 交易引擎**不对外开放任何 TCP/HTTP/gRPC 控制服务端**；控制面变更由**独立控制线程**经出站 gRPC `WatchConfig` 应用至本地快照
+2. 交易引擎**不对外开放任何 TCP/HTTP/gRPC 控制服务端**；控制面变更由**独立控制线程**经出站 gRPC `SubscribeConfig` 应用至本地快照
 
 3. **数据面**策略**仅由**内部 Tick/Bar/回报事件驱动，不接受外部触发发单信号
 
@@ -331,13 +331,13 @@ config-service 通过 `GetConfig(engine_id)` 返回该实例专属 `EngineConfig
 
 1. 所有支撑服务**不得与交易引擎部署在同一物理机/虚拟机**
 
-2. 支撑服务**禁止主动调用交易引擎**（不向引擎发起 gRPC/HTTP）；配置增量由引擎 **config_client 出站订阅** `WatchConfig` 接收
+2. 支撑服务**禁止主动调用交易引擎**（不向引擎发起 gRPC/HTTP）；配置变更由引擎 **config_client 出站 Watch** `SubscribeConfig` 接收
 
 3. 交易引擎向支撑服务的旁路上报**经 `client/` 异步接口单向投递**，不等待响应；各服务接收端内部实现架构不约束
 
-4. **引擎业务配置**与**实例品种归属**变更**仅经 config-service 校验后**由 `WatchConfig` 流推送；**交易凭证**变更经 account-service，**禁止**写入 `EngineConfig` 或随 Watch 推送
+4. **引擎业务配置**与**实例品种归属**变更**仅经 config-service 校验后**由 `SubscribeConfig` 流推送；**交易凭证**变更经 account-service，**禁止**写入 `EngineConfig` 或随 Watch 推送
 
-5. **配置拉取**：冷启动 `GetConfig` 拉全量 `EngineConfig`（gRPC，超时独立、失败则使用本地兜底快照）；运行时 `WatchConfig` 收增量；凭证 `ResolveCredential` 单独按需拉取；均不在 A 段同步执行
+5. **配置拉取**：冷启动 `GetConfig` 拉全量 `EngineConfig`（gRPC，超时独立、失败则使用本地兜底快照）；运行时 `SubscribeConfig` 收变更推送；凭证 `ResolveCredential` 单独按需拉取；均不在 A 段同步执行
 
 ---
 
@@ -362,7 +362,7 @@ config-service 通过 `GetConfig(engine_id)` 返回该实例专属 `EngineConfig
 |---|---|---|
 | 外部 → 接入层 | HTTP/HTTPS + REST | OpenAPI 由**接入层项目**维护，非本仓库 |
 | 接入层 → QTrade 支撑服务 | gRPC + Protobuf | 调用 `config-service`、`account-service`、`history-service`、`observability-service` 等（本仓库 `src/service/`） |
-| 接入层 → 交易引擎 | **禁止** | 配置变更仅 **config-service → 引擎出站 `WatchConfig`** |
+| 接入层 → 交易引擎 | **禁止** | 配置变更仅 **config-service → 引擎出站 `SubscribeConfig`** |
 | QTrade 支撑服务 → 引擎 | **禁止主动 RPC 引擎** | 与 §4、§8.1 一致 |
 
 北向网关可选用 **grpc-gateway/自研 BFF/Kong+transcoding** 等实现，属于接入层项目选型；本仓库仅需保证 **支撑服务 gRPC 接口稳定、可版本化**。
@@ -371,7 +371,7 @@ config-service 通过 `GetConfig(engine_id)` 返回该实例专属 `EngineConfig
 
 1. 接入层**不提供任何直连交易引擎的 API**
 
-2. 所有配置与策略生命周期变更必须经 **config-service → gRPC WatchConfig** 异步下发（引擎出站订阅）
+2. 所有配置与策略生命周期变更必须经 **config-service → gRPC SubscribeConfig** 异步下发（引擎出站 Watch）
 
 3. 前端**禁止**下单、撤单、手动改单等交易操作入口；策略启停/参数变更属于**控制面配置提交**，非数据面干预
 
@@ -606,12 +606,12 @@ MVP 也**不单独引入 `QuoteSourceManager` 类**（代码中不存在该模�
 
 - **引擎 ↔ config-service（控制面，全程 gRPC）**：
   - 冷启动：`GetConfig` 一次性拉全量 `EngineConfig`（独立超时）；失败则读本地兜底快照
-  - 运行时：引擎以 **gRPC Client 出站**调用 `WatchConfig`（Server Streaming），推送 `ConfigSnapshot`（`version` + `engine`）；**独立控制线程**消费并更新本地快照，**不阻塞 A 段**
+  - 运行时：引擎以 **gRPC Client 出站**调用 `SubscribeConfig`（Server Streaming），推送 `ConfigSnapshot`（`version` + `engine`）；**独立控制线程**消费并更新本地快照，**不阻塞 A 段**
   - **禁止**：引擎对外提供 gRPC Server；禁止 config-service 主动 RPC 调用引擎
 
 - **引擎 ↔ account-service（凭证面，启动/换密阶段 gRPC）**：
   - 冷启动 / 换密：`ResolveCredential(engine_id, account_id)` 按需拉取登录材料；结果**仅驻留进程内存**，供 EMS `Connect`/`Login`
-  - **禁止**：密码/token 进入 `EngineConfig` 或 `WatchConfig` 流；禁止策略插件直接调用 account-service
+  - **禁止**：密码/token 进入 `EngineConfig` 或 `SubscribeConfig` 流；禁止策略插件直接调用 account-service
 
 - **支撑服务之间**：**gRPC + Protobuf**（如 config 写入前向 account-service 校验账户授权）
 
@@ -622,7 +622,7 @@ MVP 也**不单独引入 `QuoteSourceManager` 类**（代码中不存在该模�
 | RPC | 类型 | 调用方 | 用途 |
 |---|---|---|---|
 | `GetConfig` | Unary | engine → config-service | 冷启动全量 `EngineConfig` |
-| `WatchConfig` | Server Streaming | engine → config-service | 运行时配置变更（`ConfigSnapshot`） |
+| `SubscribeConfig` | Server Streaming | engine → config-service | 运行时配置变更（`ConfigSnapshot`） |
 | `ResolveCredential` | Unary | engine → account-service | 冷启动/换密时解析登录凭证 |
 | `RegisterAccount` / `RotateCredential` | Unary | 接入层 → account-service | 账户与凭证管理（运维） |
 
@@ -671,7 +671,7 @@ MVP 也**不单独引入 `QuoteSourceManager` 类**（代码中不存在该模�
 用户 → API 网关 → config-service / account-service
   ├─ 冷启动: engine ──GetConfig(engine_id)──► EngineConfig（策略、account_id 引用）
   ├─ 冷启动: engine ──ResolveCredential──► 登录材料（不进 Watch 流）
-  └─ 运行时: engine ──WatchConfig（出站）──► 控制线程 → 本地 EngineConfig 快照
+  └─ 运行时: engine ──SubscribeConfig（出站）──► 控制线程 → 本地 EngineConfig 快照
 ```
 
 **4. D 段旁路 / 外部 API**
@@ -688,7 +688,7 @@ A 段 enqueue → Outbound → log_client / monitor_client / …（fire-and-forg
 |交易引擎内部|内存结构体 + Lane-M/Lane-R 无锁队列|A 段微秒级；回报优先于行情（§3.1）|
 |交易引擎 ↔ 适配器|函数调用 + 回调|同进程插件，无网络|
 |交易引擎 → 支撑服务（D 段旁路）|`client/` 异步接口 + Protobuf|A 段仅入队；Outbound 线程 fire-and-forget；内部传输可插拔|
-|引擎 ↔ config-service（控制面）|gRPC + Protobuf|`GetConfig` / `WatchConfig` 下发 `EngineConfig`；引擎仅作 Client|
+|引擎 ↔ config-service（控制面）|gRPC + Protobuf|`GetConfig` / `SubscribeConfig` 下发 `EngineConfig`；引擎仅作 Client|
 |引擎 ↔ account-service（凭证面）|gRPC + Protobuf|`ResolveCredential` 按需拉取；不进 Watch 流；启动/控制线程执行|
 |支撑服务之间|gRPC + Protobuf|强类型 RPC，适合查询与批量数据（如回测拉历史）|
 |接入层 ↔ 外部|HTTP/HTTPS + REST|**外部接入层项目**维护 OpenAPI；REST ↔ gRPC 转换在接入层完成|
@@ -798,11 +798,11 @@ A 段 enqueue → Outbound → log_client / monitor_client / …（fire-and-forg
 | CMS/OMS/EMS/风控/持仓 | MVP | 🟡 模块骨架，WAL/幂等待完善 |
 | 配置驱动分片（`EngineConfig` + engine_id + 一品种一策略） | MVP | 🟡 proto/DB 已对齐 `EngineConfig`；config 校验与 StrategyEngine 1:1 分发待实现 |
 | 交易账户服务（account-service） | MVP | ❌ 文档已定义（§2.5）；代码待落地 |
-| 凭证与配置分离（密码不进 WatchConfig） | MVP | 🟡 架构约束已写入；account-service 待实现 |
+| 凭证与配置分离（密码不进 SubscribeConfig） | MVP | 🟡 架构约束已写入；account-service 待实现 |
 | QuoteNormalizer + QuoteApi | MVP | ✅ 已有（`SetQuoteApi`、Subscribe、PublishTick）；failover 未实现 |
 | TraderNormalizer + TraderApi 回报 | MVP | 🟡 骨架已有；语义标准化与 OMS/适配器串联待完善 |
 | 旁路 client（log/monitor） | MVP | 🟡 接口已有，远程上报未实现，引擎未集成 |
-| config_client gRPC（GetConfig + WatchConfig） | MVP | 🟡 config_client 待接入引擎 |
+| config_client gRPC（GetConfig + SubscribeConfig） | MVP | 🟡 config_client 待接入引擎 |
 | 支撑微服务 | MVP | 🟡 多为 stub |
 | 接入层（外部独立项目） | 二期（非本仓库） | — 网关/控制台由外部项目实现；本仓库提供稳定 gRPC 供其调用 |
 | 分片 Active-Passive | 二期 | ❌ |

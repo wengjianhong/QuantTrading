@@ -12,9 +12,13 @@ namespace qtrade::adapter::mock::trader {
 /// 模拟厂商 TraderSpi 回调侧，将合成回报转发至 qtrade_sdk::trader::TraderSpi。
 class MockTraderSpi {
  public:
-  void SetTarget(qtrade_sdk::trader::TraderSpi* target) { target_ = target; }
+  void SetTarget(qtrade_sdk::trader::TraderSpi* target) {
+    target_ = target;
+  }
 
-  qtrade_sdk::trader::TraderSpi* Target() const { return target_; }
+  qtrade_sdk::trader::TraderSpi* Target() const {
+    return target_;
+  }
 
   void PublishConnected();
 

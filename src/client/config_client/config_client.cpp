@@ -22,7 +22,7 @@ struct ConfigClient::Impl {
   SnapshotHandler on_snapshot;                                    ///< 全量快照回调
   std::shared_ptr<grpc::Channel> channel;                         ///< gRPC 通道
   std::unique_ptr<qtrade::config::v1::ConfigService::Stub> stub;  ///< gRPC 存根
-  std::thread watch_thread;                                       ///< WatchConfig 控制线程
+  std::thread watch_thread;                                       ///< SubscribeConfig 控制线程
   std::atomic<bool> watch_running{false};                         ///< Watch 线程运行标志
   std::atomic<std::uint64_t> version{0};                          ///< 已应用配置版本
   bool initialized = false;                                       ///< 是否已完成 Init
@@ -30,7 +30,9 @@ struct ConfigClient::Impl {
 
 ConfigClient::ConfigClient() : impl_(std::make_unique<Impl>()) {}
 
-ConfigClient::~ConfigClient() { Shutdown(); }
+ConfigClient::~ConfigClient() {
+  Shutdown();
+}
 
 ErrorCode ConfigClient::Init(const ConfigClientOptions& options) {
   if (impl_->initialized) {
@@ -60,7 +62,6 @@ ErrorCode ConfigClient::FetchSnapshot() {
   }
 
   qtrade::config::v1::GetConfigRequest request;
-  request.set_tenant_id(impl_->options.tenant_id);
   request.set_engine_id(impl_->options.engine_id);
 
   qtrade::config::v1::ConfigSnapshot response;
@@ -99,15 +100,14 @@ ErrorCode ConfigClient::StartWatch() {
         continue;
       }
 
-      qtrade::config::v1::WatchConfigRequest request;
-      request.set_tenant_id(impl_->options.tenant_id);
+      qtrade::config::v1::SubscribeConfigRequest request;
       request.set_engine_id(impl_->options.engine_id);
       request.set_since_version(impl_->version.load(std::memory_order_acquire));
 
       grpc::ClientContext context;
       qtrade::config::v1::ConfigSnapshot snapshot;
       std::unique_ptr<grpc::ClientReader<qtrade::config::v1::ConfigSnapshot>> reader(
-        impl_->stub->WatchConfig(&context, request));
+        impl_->stub->SubscribeConfig(&context, request));
 
       while (impl_->watch_running.load(std::memory_order_acquire) && reader->Read(&snapshot)) {
         backoff_ms = 500;
@@ -123,7 +123,7 @@ ErrorCode ConfigClient::StartWatch() {
       }
 
       if (!status.ok() && status.error_code() != grpc::StatusCode::CANCELLED) {
-        spdlog::warn("[ConfigClient] WatchConfig disconnected: {}", status.error_message());
+        spdlog::warn("[ConfigClient] SubscribeConfig disconnected: {}", status.error_message());
       }
 
       if (!status.ok() && impl_->watch_running.load(std::memory_order_acquire)) {
@@ -147,10 +147,16 @@ void ConfigClient::Shutdown() {
   impl_->initialized = false;
 }
 
-void ConfigClient::SetOnSnapshot(SnapshotHandler handler) { impl_->on_snapshot = std::move(handler); }
+void ConfigClient::SetOnSnapshot(SnapshotHandler handler) {
+  impl_->on_snapshot = std::move(handler);
+}
 
-std::uint64_t ConfigClient::Version() const { return impl_->version.load(std::memory_order_acquire); }
+std::uint64_t ConfigClient::Version() const {
+  return impl_->version.load(std::memory_order_acquire);
+}
 
-bool ConfigClient::IsInitialized() const { return impl_->initialized; }
+bool ConfigClient::IsInitialized() const {
+  return impl_->initialized;
+}
 
 }  // namespace qtrade::client

@@ -7,6 +7,8 @@
 #ifndef QTRADE_TRADING_ENGINE_EVENT_REACTOR_LOOP_HPP_
 #define QTRADE_TRADING_ENGINE_EVENT_REACTOR_LOOP_HPP_
 
+#include <spdlog/spdlog.h>
+
 #include <atomic>
 #include <condition_variable>
 #include <cstddef>
@@ -17,8 +19,6 @@
 #include <string_view>
 #include <thread>
 #include <utility>
-
-#include <spdlog/spdlog.h>
 
 namespace qtrade::engine::event_bus {
 
@@ -50,7 +50,9 @@ class EventReactorLoop {
   EventReactorLoop(const EventReactorLoop&) = delete;
   EventReactorLoop& operator=(const EventReactorLoop&) = delete;
 
-  ~EventReactorLoop() { Stop(); }
+  ~EventReactorLoop() {
+    Stop();
+  }
 
   void Start(std::function<void(const Event&)> handle_event) {
     if (running_.exchange(true)) {

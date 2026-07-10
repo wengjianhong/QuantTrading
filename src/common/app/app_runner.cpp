@@ -5,6 +5,7 @@
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
 #include "common/app/app_runner.hpp"
+
 #include "common/logging/logger.hpp"
 
 #include <spdlog/spdlog.h>
@@ -65,9 +66,13 @@ void InstallShutdownHandler(std::atomic<bool>& stop_flag) {
   }
 }
 
-void BlockShutdownSignals() { ApplySignalMask(SIG_BLOCK); }
+void BlockShutdownSignals() {
+  ApplySignalMask(SIG_BLOCK);
+}
 
-void UnblockShutdownSignals() { ApplySignalMask(SIG_UNBLOCK); }
+void UnblockShutdownSignals() {
+  ApplySignalMask(SIG_UNBLOCK);
+}
 
 void RunUntilStop(std::atomic<bool>& stop_flag) {
   while (!g_stop_requested.load(std::memory_order_acquire)) {

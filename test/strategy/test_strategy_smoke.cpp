@@ -4,8 +4,10 @@
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
-#include <gtest/gtest.h>
-
 #include <qtrade/strategy/strategy.hpp>
 
-TEST(StrategySmoke, InterfaceVisible) { SUCCEED(); }
+#include <gtest/gtest.h>
+
+TEST(StrategySmoke, InterfaceVisible) {
+  SUCCEED();
+}

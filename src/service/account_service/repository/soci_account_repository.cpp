@@ -1,237 +1,166 @@
 /// @file      soci_account_repository.cpp
 /// @brief     SociAccountRepository 实现
 /// @author    wengjianhong
-/// @date      2026-07-03
+/// @date      2026-07-09
 /// @copyright CC BY-NC-SA 4.0
 #include "service/account_service/repository/soci_account_repository.hpp"
 
+#include "common/dao/ddl_utils.hpp"
+#include "common/dao/dml_utils.hpp"
+#include "dao/account_credential.hpp"
+#include "dao/trading_account.hpp"
 #include "service/account_service/repository/credential_codec.hpp"
 
-#include <cpputils/database/database.hpp>
+#include <cpputils/database/connection.hpp>
 
 #include <spdlog/spdlog.h>
 
-#include <sstream>
 #include <utility>
 
 namespace qtrade::service {
 namespace {
 
-constexpr const char* kEnsureSchemaSql = R"(
-CREATE TABLE IF NOT EXISTS trading_account (
-  account_id TEXT NOT NULL,
-  tenant_id TEXT NOT NULL,
-  broker_id TEXT NOT NULL,
-  connection_string TEXT NOT NULL,
-  status TEXT NOT NULL,
-  PRIMARY KEY (account_id)
-);
+using qtrade::framework::dao::AccountCredentialRecord;
+using qtrade::framework::dao::TradingAccountRecord;
 
-CREATE TABLE IF NOT EXISTS account_credential (
-  account_id TEXT NOT NULL,
-  key_id TEXT NOT NULL,
-  ciphertext TEXT NOT NULL,
-  version INTEGER NOT NULL,
-  PRIMARY KEY (account_id)
-);
-
-CREATE TABLE IF NOT EXISTS account_engine_binding (
-  account_id TEXT NOT NULL,
-  engine_id TEXT NOT NULL,
-  PRIMARY KEY (account_id, engine_id)
-);
-)";
-
-std::string EscapeSqlLiteral(const std::string& value) {
-  std::string escaped;
-  escaped.reserve(value.size());
-  for (const char ch : value) {
-    if (ch == '\'') {
-      escaped += "''";
-    } else {
-      escaped += ch;
-    }
-  }
-  return escaped;
+/// @brief 将 proto 账户转为 DAO 记录
+/// @param account proto 账户
+/// @return TradingAccountRecord
+TradingAccountRecord ToRecord(const qtrade::account::v1::TradingAccount& account) {
+  TradingAccountRecord record;
+  record.tenant_id = account.tenant_id();
+  record.account_id = account.account_id();
+  record.broker_id = account.broker_id();
+  record.connection_string = account.connection_string();
+  record.status = account.status().empty() ? "active" : account.status();
+  return record;
 }
 
-ErrorCode MapDbError(cpp_utils::database::Error error) {
-  switch (error) {
-    case cpp_utils::database::Error::kSuccess:
-      return ErrorCode::kSuccess;
-    case cpp_utils::database::Error::kNotFound:
-      return ErrorCode::kNotFound;
-    case cpp_utils::database::Error::kInvalidArgument:
-      return ErrorCode::kInternal;
-    default:
-      return ErrorCode::kSystemError;
-  }
+/// @brief 将 DAO 记录转为 proto 账户
+/// @param record DAO 记录
+/// @param account 输出 proto 账户
+void ToProto(const TradingAccountRecord& record, qtrade::account::v1::TradingAccount& account) {
+  account.set_tenant_id(record.tenant_id.value_or(""));
+  account.set_account_id(record.account_id.value_or(""));
+  account.set_broker_id(record.broker_id.value_or(""));
+  account.set_connection_string(record.connection_string.value_or(""));
+  account.set_status(record.status.value_or(""));
 }
 
 }  // namespace
 
-SociAccountRepository::SociAccountRepository(const qtrade::common::DatabaseOptions& options) {
-  if (options.pool.has_value()) {
-    pool_ = cpp_utils::database::CreateConnectionPool();
-    if (const auto rc = pool_->Open(*options.pool); rc != cpp_utils::database::Error::kSuccess) {
-      spdlog::error("[SociAccountRepository] open pool failed");
-      pool_.reset();
-      return;
-    }
-    connection_ = pool_->Acquire();
-    if (!connection_) {
-      spdlog::error("[SociAccountRepository] acquire connection failed");
-    }
-    return;
-  }
-
-  auto owned = std::make_unique<cpp_utils::database::Connection>(options.connection);
-  if (const auto rc = owned->Connect(); rc != cpp_utils::database::Error::kSuccess) {
-    spdlog::error("[SociAccountRepository] connect failed: {}", owned->LastError());
-  }
-  connection_ = std::move(owned);
-}
-
-SociAccountRepository::~SociAccountRepository() {
-  connection_.reset();
-  if (pool_) {
-    pool_->Close();
-    pool_.reset();
+SociAccountRepository::SociAccountRepository(const qtrade::common::DatabaseOptions& options) : connection_(options) {
+  if (IsReady()) {
+    qtrade::framework::dao::SetConnection(connection_.Connection());
   }
 }
 
-bool SociAccountRepository::IsReady() const { return connection_ != nullptr && connection_->IsConnected(); }
+SociAccountRepository::~SociAccountRepository() = default;
+
+bool SociAccountRepository::IsReady() const {
+  return connection_.IsReady();
+}
 
 ErrorCode SociAccountRepository::EnsureSchema() {
   if (!IsReady()) {
     return ErrorCode::kSystemError;
   }
-  const auto rc = connection_->Execute(kEnsureSchemaSql);
-  if (rc != cpp_utils::database::Error::kSuccess) {
-    spdlog::error("[SociAccountRepository] ensure schema failed: {}", connection_->LastError());
+
+  const auto& trading_schema = qtrade::framework::dao::TradingAccount::Instance();
+  const auto& credential_schema = qtrade::framework::dao::AccountCredential::Instance();
+  if (const auto rc = qtrade::framework::dao::EnsureTableSchema(connection_.Connection(), trading_schema);
+      rc != ErrorCode::kSuccess) {
+    spdlog::error("[SociAccountRepository] ensure trading_account schema failed");
+    return rc;
   }
-  return MapDbError(rc);
-}
-
-ErrorCode SociAccountRepository::RegisterAccount(const qtrade::account::v1::TradingAccount& account,
-                                               const std::string& password) {
-  if (!IsReady()) {
-    return ErrorCode::kSystemError;
-  }
-  if (account.account_id().empty() || password.empty()) {
-    return ErrorCode::kInternal;
-  }
-
-  std::string key_id;
-  std::string ciphertext;
-  if (!EncryptCredential(password, key_id, ciphertext)) {
-    return ErrorCode::kInternal;
-  }
-
-  auto [begin_rc, tx] = connection_->BeginTransaction();
-  if (begin_rc != cpp_utils::database::Error::kSuccess) {
-    return MapDbError(begin_rc);
-  }
-
-  const std::string status = account.status().empty() ? "active" : account.status();
-
-  std::ostringstream upsert_account;
-  upsert_account << "UPDATE trading_account SET tenant_id = '" << EscapeSqlLiteral(account.tenant_id())
-                 << "', broker_id = '" << EscapeSqlLiteral(account.broker_id()) << "', connection_string = '"
-                 << EscapeSqlLiteral(account.connection_string()) << "', status = '" << EscapeSqlLiteral(status)
-                 << "' WHERE account_id = '" << EscapeSqlLiteral(account.account_id()) << "'";
-
-  cpp_utils::database::ExecuteResult update_result;
-  if (const auto rc = connection_->Execute(upsert_account.str(), &update_result);
-      rc != cpp_utils::database::Error::kSuccess) {
-    (void)tx.Rollback();
-    return MapDbError(rc);
-  }
-
-  if (update_result.affected_rows == 0) {
-    std::ostringstream insert_account;
-    insert_account << "INSERT INTO trading_account(account_id, tenant_id, broker_id, connection_string, status) VALUES('"
-                   << EscapeSqlLiteral(account.account_id()) << "', '" << EscapeSqlLiteral(account.tenant_id())
-                   << "', '" << EscapeSqlLiteral(account.broker_id()) << "', '"
-                   << EscapeSqlLiteral(account.connection_string()) << "', '" << EscapeSqlLiteral(status) << "')";
-    if (const auto rc = connection_->Execute(insert_account.str()); rc != cpp_utils::database::Error::kSuccess) {
-      (void)tx.Rollback();
-      return MapDbError(rc);
-    }
-  }
-
-  std::ostringstream upsert_credential;
-  upsert_credential << "UPDATE account_credential SET key_id = '" << EscapeSqlLiteral(key_id) << "', ciphertext = '"
-                    << EscapeSqlLiteral(ciphertext) << "', version = version + 1 WHERE account_id = '"
-                    << EscapeSqlLiteral(account.account_id()) << "'";
-
-  if (const auto rc = connection_->Execute(upsert_credential.str(), &update_result);
-      rc != cpp_utils::database::Error::kSuccess) {
-    (void)tx.Rollback();
-    return MapDbError(rc);
-  }
-
-  if (update_result.affected_rows == 0) {
-    std::ostringstream insert_credential;
-    insert_credential << "INSERT INTO account_credential(account_id, key_id, ciphertext, version) VALUES('"
-                      << EscapeSqlLiteral(account.account_id()) << "', '" << EscapeSqlLiteral(key_id) << "', '"
-                      << EscapeSqlLiteral(ciphertext) << "', 1)";
-    if (const auto rc = connection_->Execute(insert_credential.str()); rc != cpp_utils::database::Error::kSuccess) {
-      (void)tx.Rollback();
-      return MapDbError(rc);
-    }
-  }
-
-  if (const auto rc = tx.Commit(); rc != cpp_utils::database::Error::kSuccess) {
-    return MapDbError(rc);
+  if (const auto rc = qtrade::framework::dao::EnsureTableSchema(connection_.Connection(), credential_schema);
+      rc != ErrorCode::kSuccess) {
+    spdlog::error("[SociAccountRepository] ensure account_credential schema failed");
+    return rc;
   }
   return ErrorCode::kSuccess;
 }
 
-ErrorCode SociAccountRepository::RotateCredential(const std::string& account_id, const std::string& password) {
+ErrorCode SociAccountRepository::AddAccount(const qtrade::account::v1::TradingAccount& account) {
   if (!IsReady()) {
     return ErrorCode::kSystemError;
   }
-  if (account_id.empty() || password.empty()) {
+  if (account.tenant_id().empty() || account.account_id().empty() || account.password().empty()) {
     return ErrorCode::kInternal;
+  }
+
+  auto& trading_dao = qtrade::framework::dao::TradingAccount::Instance();
+  auto& credential_dao = qtrade::framework::dao::AccountCredential::Instance();
+
+  TradingAccountRecord key;
+  key.tenant_id = account.tenant_id();
+  key.account_id = account.account_id();
+  const auto exists = trading_dao.Count(key);
+  if (exists.error_code != ErrorCode::kSuccess) {
+    return exists.error_code;
+  }
+  if (exists.data.has_value() && exists.data.value() > 0) {
+    return ErrorCode::kSystemError;
   }
 
   std::string key_id;
   std::string ciphertext;
-  if (!EncryptCredential(password, key_id, ciphertext)) {
+  if (!EncryptCredential(account.password(), key_id, ciphertext)) {
     return ErrorCode::kInternal;
   }
 
-  std::ostringstream sql;
-  sql << "UPDATE account_credential SET key_id = '" << EscapeSqlLiteral(key_id) << "', ciphertext = '"
-      << EscapeSqlLiteral(ciphertext) << "', version = version + 1 WHERE account_id = '"
-      << EscapeSqlLiteral(account_id) << "'";
-
-  cpp_utils::database::ExecuteResult result;
-  if (const auto rc = connection_->Execute(sql.str(), &result); rc != cpp_utils::database::Error::kSuccess) {
-    return MapDbError(rc);
+  auto* connection = connection_.Connection();
+  if (!connection->BeginTransaction()) {
+    return ErrorCode::kSystemError;
   }
-  if (result.affected_rows == 0) {
+
+  // 1. 插入 trading_account 与 account_credential
+  if (const auto insert_account = trading_dao.Insert({ToRecord(account)});
+      insert_account.error_code != ErrorCode::kSuccess) {
+    (void)connection->RollbackTransaction();
+    return insert_account.error_code;
+  }
+
+  AccountCredentialRecord credential_row;
+  credential_row.tenant_id = account.tenant_id();
+  credential_row.account_id = account.account_id();
+  credential_row.key_id = key_id;
+  credential_row.ciphertext = ciphertext;
+  credential_row.version = 1;
+  if (const auto insert_credential = credential_dao.Insert({credential_row});
+      insert_credential.error_code != ErrorCode::kSuccess) {
+    (void)connection->RollbackTransaction();
+    return insert_credential.error_code;
+  }
+
+  if (!connection->CommitTransaction()) {
+    return ErrorCode::kSystemError;
+  }
+  return ErrorCode::kSuccess;
+}
+
+ErrorCode SociAccountRepository::GetAccount(const std::string& tenant_id,
+                                            const std::string& account_id,
+                                            qtrade::account::v1::TradingAccount& account) {
+  if (!IsReady()) {
+    return ErrorCode::kSystemError;
+  }
+  if (tenant_id.empty() || account_id.empty()) {
+    return ErrorCode::kInternal;
+  }
+
+  TradingAccountRecord where;
+  where.tenant_id = tenant_id;
+  where.account_id = account_id;
+  const auto result = qtrade::framework::dao::TradingAccount::Instance().Select(where);
+  if (result.error_code != ErrorCode::kSuccess) {
+    return result.error_code;
+  }
+  if (!result.data.has_value() || result.data->empty()) {
     return ErrorCode::kNotFound;
   }
-  return ErrorCode::kSuccess;
-}
 
-ErrorCode SociAccountRepository::BindAccountToEngine(const std::string& account_id, const std::string& engine_id) {
-  if (!IsReady()) {
-    return ErrorCode::kSystemError;
-  }
-  if (account_id.empty() || engine_id.empty()) {
-    return ErrorCode::kInternal;
-  }
-
-  std::ostringstream sql;
-  sql << "INSERT INTO account_engine_binding(account_id, engine_id) VALUES('" << EscapeSqlLiteral(account_id)
-      << "', '" << EscapeSqlLiteral(engine_id) << "')";
-
-  if (const auto rc = connection_->Execute(sql.str()); rc != cpp_utils::database::Error::kSuccess) {
-    return MapDbError(rc);
-  }
+  ToProto(result.data->front(), account);
   return ErrorCode::kSuccess;
 }
 
@@ -243,138 +172,142 @@ ErrorCode SociAccountRepository::ListAccounts(const std::string& tenant_id,
 
   accounts.clear();
 
-  std::ostringstream sql;
-  sql << "SELECT account_id, tenant_id, broker_id, connection_string, status FROM trading_account";
+  TradingAccountRecord where;
   if (!tenant_id.empty()) {
-    sql << " WHERE tenant_id = '" << EscapeSqlLiteral(tenant_id) << "'";
+    where.tenant_id = tenant_id;
   }
 
-  auto [query_err, result] = connection_->Query(sql.str());
-  if (query_err != cpp_utils::database::Error::kSuccess || result == nullptr) {
-    return MapDbError(query_err);
+  const auto result = qtrade::framework::dao::TradingAccount::Instance().Select(where);
+  if (result.error_code != ErrorCode::kSuccess || !result.data.has_value()) {
+    return result.error_code;
   }
 
-  while (const auto row = result->Fetch()) {
+  accounts.reserve(result.data->size());
+  for (const auto& row : *result.data) {
     qtrade::account::v1::TradingAccount account;
-    if (const auto cell = row->get_value("account_id")) {
-      if (const auto v = cell->as_string()) {
-        account.set_account_id(v.value());
-      }
-    }
-    if (const auto cell = row->get_value("tenant_id")) {
-      if (const auto v = cell->as_string()) {
-        account.set_tenant_id(v.value());
-      }
-    }
-    if (const auto cell = row->get_value("broker_id")) {
-      if (const auto v = cell->as_string()) {
-        account.set_broker_id(v.value());
-      }
-    }
-    if (const auto cell = row->get_value("connection_string")) {
-      if (const auto v = cell->as_string()) {
-        account.set_connection_string(v.value());
-      }
-    }
-    if (const auto cell = row->get_value("status")) {
-      if (const auto v = cell->as_string()) {
-        account.set_status(v.value());
-      }
-    }
+    ToProto(row, account);
     accounts.push_back(std::move(account));
   }
   return ErrorCode::kSuccess;
 }
 
-ErrorCode SociAccountRepository::ResolveCredential(const std::string& engine_id,
-                                                 const std::string& account_id,
-                                                 qtrade::account::v1::ResolveCredentialResponse& response) {
+ErrorCode SociAccountRepository::UpdateAccount(const qtrade::account::v1::TradingAccount& account) {
   if (!IsReady()) {
     return ErrorCode::kSystemError;
   }
-  if (engine_id.empty() || account_id.empty()) {
+  if (account.tenant_id().empty() || account.account_id().empty()) {
     return ErrorCode::kInternal;
   }
 
-  std::ostringstream binding_sql;
-  binding_sql << "SELECT 1 FROM account_engine_binding WHERE account_id = '" << EscapeSqlLiteral(account_id)
-              << "' AND engine_id = '" << EscapeSqlLiteral(engine_id) << "'";
+  const bool update_password = !account.password().empty();
 
-  auto [binding_err, binding_result] = connection_->Query(binding_sql.str());
-  if (binding_err != cpp_utils::database::Error::kSuccess || binding_result == nullptr) {
-    return MapDbError(binding_err);
-  }
-  if (!binding_result->Fetch().has_value()) {
-    spdlog::warn("[SociAccountRepository] engine {} not authorized for account {}", engine_id, account_id);
-    return ErrorCode::kNotFound;
-  }
+  auto& trading_dao = qtrade::framework::dao::TradingAccount::Instance();
+  auto& credential_dao = qtrade::framework::dao::AccountCredential::Instance();
 
-  std::ostringstream account_sql;
-  account_sql << "SELECT broker_id, connection_string, status FROM trading_account WHERE account_id = '"
-              << EscapeSqlLiteral(account_id) << "'";
-
-  auto [account_err, account_result] = connection_->Query(account_sql.str());
-  if (account_err != cpp_utils::database::Error::kSuccess || account_result == nullptr) {
-    return MapDbError(account_err);
-  }
-  const auto account_row = account_result->Fetch();
-  if (!account_row.has_value()) {
-    return ErrorCode::kNotFound;
-  }
-
-  std::optional<std::string> broker_id;
-  std::optional<std::string> connection_string;
-  std::optional<std::string> status;
-  if (const auto cell = account_row->get_value("broker_id")) {
-    broker_id = cell->as_string();
-  }
-  if (const auto cell = account_row->get_value("connection_string")) {
-    connection_string = cell->as_string();
-  }
-  if (const auto cell = account_row->get_value("status")) {
-    status = cell->as_string();
-  }
-  if (!broker_id.has_value() || !connection_string.has_value()) {
-    return ErrorCode::kSystemError;
-  }
-  if (status.has_value() && status.value() == "disabled") {
-    return ErrorCode::kInternal;
-  }
-
-  std::ostringstream credential_sql;
-  credential_sql << "SELECT key_id, ciphertext FROM account_credential WHERE account_id = '"
-                 << EscapeSqlLiteral(account_id) << "'";
-
-  auto [cred_err, cred_result] = connection_->Query(credential_sql.str());
-  if (cred_err != cpp_utils::database::Error::kSuccess || cred_result == nullptr) {
-    return MapDbError(cred_err);
-  }
-  const auto cred_row = cred_result->Fetch();
-  if (!cred_row.has_value()) {
-    return ErrorCode::kNotFound;
-  }
-
-  std::optional<std::string> key_id;
-  std::optional<std::string> ciphertext;
-  if (const auto cell = cred_row->get_value("key_id")) {
-    key_id = cell->as_string();
-  }
-  if (const auto cell = cred_row->get_value("ciphertext")) {
-    ciphertext = cell->as_string();
-  }
-  if (!key_id.has_value() || !ciphertext.has_value()) {
+  auto* connection = connection_.Connection();
+  if (!connection->BeginTransaction()) {
     return ErrorCode::kSystemError;
   }
 
-  std::string password;
-  if (!DecryptCredential(key_id.value(), ciphertext.value(), password)) {
+  TradingAccountRecord where;
+  where.tenant_id = account.tenant_id();
+  where.account_id = account.account_id();
+  const auto update_result = trading_dao.Update(ToRecord(account), where);
+  if (update_result.error_code != ErrorCode::kSuccess) {
+    (void)connection->RollbackTransaction();
+    return update_result.error_code;
+  }
+  if (!update_result.data.has_value() || update_result.data.value() == 0) {
+    (void)connection->RollbackTransaction();
+    return ErrorCode::kNotFound;
+  }
+
+  if (update_password) {
+    // 2. 密码变更时更新凭证并递增 version
+    std::string key_id;
+    std::string ciphertext;
+    if (!EncryptCredential(account.password(), key_id, ciphertext)) {
+      (void)connection->RollbackTransaction();
+      return ErrorCode::kInternal;
+    }
+
+    AccountCredentialRecord credential_key;
+    credential_key.tenant_id = account.tenant_id();
+    credential_key.account_id = account.account_id();
+    const auto existing = credential_dao.Select(credential_key);
+    if (existing.error_code != ErrorCode::kSuccess || !existing.data.has_value() || existing.data->empty()) {
+      (void)connection->RollbackTransaction();
+      return ErrorCode::kNotFound;
+    }
+
+    AccountCredentialRecord credential_row;
+    credential_row.tenant_id = account.tenant_id();
+    credential_row.account_id = account.account_id();
+    credential_row.key_id = key_id;
+    credential_row.ciphertext = ciphertext;
+    credential_row.version = existing.data->front().version.value_or(0) + 1;
+    const auto update_credential = credential_dao.Update(credential_row, credential_key);
+    if (update_credential.error_code != ErrorCode::kSuccess) {
+      (void)connection->RollbackTransaction();
+      return update_credential.error_code;
+    }
+    if (!update_credential.data.has_value() || update_credential.data.value() == 0) {
+      (void)connection->RollbackTransaction();
+      return ErrorCode::kNotFound;
+    }
+  }
+
+  if (!connection->CommitTransaction()) {
+    return ErrorCode::kSystemError;
+  }
+  return ErrorCode::kSuccess;
+}
+
+ErrorCode SociAccountRepository::GetCredential(const std::string& tenant_id,
+                                               const std::string& engine_id,
+                                               const std::string& account_id,
+                                               qtrade::account::v1::GetCredentialResponse& response) {
+  if (!IsReady()) {
+    return ErrorCode::kSystemError;
+  }
+  if (tenant_id.empty() || engine_id.empty() || account_id.empty()) {
     return ErrorCode::kInternal;
   }
 
-  response.set_account_id(account_id);
-  response.set_broker_id(broker_id.value());
-  response.set_connection_string(connection_string.value());
-  response.set_password(password);
+  qtrade::account::v1::TradingAccount account;
+  const auto account_rc = GetAccount(tenant_id, account_id, account);
+  if (account_rc != ErrorCode::kSuccess) {
+    return account_rc;
+  }
+  if (account.status() == "disabled") {
+    return ErrorCode::kInternal;
+  }
+
+  AccountCredentialRecord where;
+  where.tenant_id = tenant_id;
+  where.account_id = account_id;
+  const auto cred_result = qtrade::framework::dao::AccountCredential::Instance().Select(where);
+  if (cred_result.error_code != ErrorCode::kSuccess) {
+    return cred_result.error_code;
+  }
+  if (!cred_result.data.has_value() || cred_result.data->empty()) {
+    return ErrorCode::kNotFound;
+  }
+
+  const auto& cred_row = cred_result.data->front();
+  if (!cred_row.key_id.has_value() || !cred_row.ciphertext.has_value()) {
+    return ErrorCode::kInternal;
+  }
+
+  std::string plain_password;
+  if (!DecryptCredential(cred_row.key_id.value(), cred_row.ciphertext.value(), plain_password)) {
+    return ErrorCode::kInternal;
+  }
+
+  spdlog::info(
+    "[SociAccountRepository] credential fetched for tenant={} engine={} account={}", tenant_id, engine_id, account_id);
+  account.set_password(plain_password);
+  *response.mutable_account() = std::move(account);
   return ErrorCode::kSuccess;
 }
 

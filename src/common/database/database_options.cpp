@@ -5,7 +5,7 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "common/database/database_options.hpp"
 
-#include <cpputils/database/database.hpp>
+#include <cpputils/database/config.hpp>
 
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
@@ -17,20 +17,20 @@
 namespace qtrade::common {
 namespace {
 
-cpp_utils::database::DatabaseType ParseDatabaseType(const std::string& name) {
+cpputils::database::DatabaseType ParseDatabaseType(const std::string& name) {
   if (name == "mysql") {
-    return cpp_utils::database::DatabaseType::kMySql;
+    return cpputils::database::DatabaseType::kMySql;
   }
   if (name == "postgresql" || name == "postgres") {
-    return cpp_utils::database::DatabaseType::kPostgreSql;
+    return cpputils::database::DatabaseType::kPostgreSql;
   }
   if (name == "oracle") {
-    return cpp_utils::database::DatabaseType::kOracle;
+    return cpputils::database::DatabaseType::kOracle;
   }
   if (name == "odbc") {
-    return cpp_utils::database::DatabaseType::kOdbc;
+    return cpputils::database::DatabaseType::kOdbc;
   }
-  return cpp_utils::database::DatabaseType::kSqlite3;
+  return cpputils::database::DatabaseType::kSqlite3;
 }
 
 void ParseSociOptions(const nlohmann::json& node, std::map<std::string, std::string>& out) {
@@ -49,27 +49,27 @@ time_t ParseSeconds(const nlohmann::json& node, const char* key) {
   return static_cast<time_t>(node[key].get<std::int64_t>());
 }
 
-cpp_utils::database::ConnectionOptions BuildLegacyConnectionOptions(const nlohmann::json& database,
-                                                                    cpp_utils::database::DatabaseType type) {
-  cpp_utils::database::ConnectionOptions options;
+cpputils::database::ConnectionConfig BuildLegacyConnectionConfig(const nlohmann::json& database,
+                                                                 cpputils::database::DatabaseType type) {
+  cpputils::database::ConnectionConfig options;
   options.database_type = type;
   options.conn_string = database["conn_string"].get<std::string>();
   ParseSociOptions(database, options.soci_options);
   return options;
 }
 
-cpp_utils::database::ConnectionOptions BuildSqliteConnectionOptions(const nlohmann::json& db_config) {
-  cpp_utils::database::SqliteConfig config;
+cpputils::database::ConnectionConfig BuildSqliteConnectionConfig(const nlohmann::json& db_config) {
+  cpputils::database::SqliteConfig config;
   if (db_config.contains("database_path")) {
     config.database_path = db_config["database_path"].get<std::string>();
   }
   config.busy_timeout = ParseSeconds(db_config, "busy_timeout");
   ParseSociOptions(db_config, config.soci_options);
-  return cpp_utils::database::ConnectionOptions{config};
+  return cpputils::database::ConnectionConfig{config};
 }
 
-cpp_utils::database::ConnectionOptions BuildMySqlConnectionOptions(const nlohmann::json& db_config) {
-  cpp_utils::database::MySqlConfig config;
+cpputils::database::ConnectionConfig BuildMySqlConnectionConfig(const nlohmann::json& db_config) {
+  cpputils::database::MySqlConfig config;
   if (db_config.contains("host")) {
     config.host = db_config["host"].get<std::string>();
   }
@@ -87,18 +87,18 @@ cpp_utils::database::ConnectionOptions BuildMySqlConnectionOptions(const nlohman
   }
   config.connect_timeout = ParseSeconds(db_config, "connect_timeout");
   ParseSociOptions(db_config, config.soci_options);
-  return cpp_utils::database::ConnectionOptions{config};
+  return cpputils::database::ConnectionConfig{config};
 }
 
-cpp_utils::database::PostgreSqlConnectionType ParsePostgreSqlConnectionType(const std::string& name) {
+cpputils::database::ConnectionType ParsePostgreSqlConnectionType(const std::string& name) {
   if (name == "unix") {
-    return cpp_utils::database::PostgreSqlConnectionType::kUnix;
+    return cpputils::database::ConnectionType::kUnix;
   }
-  return cpp_utils::database::PostgreSqlConnectionType::kTcp;
+  return cpputils::database::ConnectionType::kTcp;
 }
 
-cpp_utils::database::ConnectionOptions BuildPostgreSqlConnectionOptions(const nlohmann::json& db_config) {
-  cpp_utils::database::PostgreSqlConfig config;
+cpputils::database::ConnectionConfig BuildPostgreSqlConnectionConfig(const nlohmann::json& db_config) {
+  cpputils::database::PostgreSqlConfig config;
   if (db_config.contains("host")) {
     config.host = db_config["host"].get<std::string>();
   }
@@ -125,11 +125,11 @@ cpp_utils::database::ConnectionOptions BuildPostgreSqlConnectionOptions(const nl
   }
   config.connect_timeout = ParseSeconds(db_config, "connect_timeout");
   ParseSociOptions(db_config, config.soci_options);
-  return cpp_utils::database::ConnectionOptions{config};
+  return cpputils::database::ConnectionConfig{config};
 }
 
-cpp_utils::database::ConnectionOptions BuildOracleConnectionOptions(const nlohmann::json& db_config) {
-  cpp_utils::database::OracleConfig config;
+cpputils::database::ConnectionConfig BuildOracleConnectionConfig(const nlohmann::json& db_config) {
+  cpputils::database::OracleConfig config;
   if (db_config.contains("host")) {
     config.host = db_config["host"].get<std::string>();
   }
@@ -147,7 +147,7 @@ cpp_utils::database::ConnectionOptions BuildOracleConnectionOptions(const nlohma
   }
   config.connect_timeout = ParseSeconds(db_config, "connect_timeout");
   ParseSociOptions(db_config, config.soci_options);
-  return cpp_utils::database::ConnectionOptions{config};
+  return cpputils::database::ConnectionConfig{config};
 }
 
 const nlohmann::json& DbConfigNode(const nlohmann::json& database) {
@@ -158,25 +158,25 @@ const nlohmann::json& DbConfigNode(const nlohmann::json& database) {
   return kEmpty;
 }
 
-cpp_utils::database::ConnectionOptions BuildConnectionOptions(const nlohmann::json& database) {
+cpputils::database::ConnectionConfig BuildConnectionConfig(const nlohmann::json& database) {
   const auto type = ParseDatabaseType(database.value("type", "sqlite3"));
 
   if (database.contains("conn_string")) {
-    return BuildLegacyConnectionOptions(database, type);
+    return BuildLegacyConnectionConfig(database, type);
   }
 
   const auto& db_config = DbConfigNode(database);
 
   switch (type) {
-    case cpp_utils::database::DatabaseType::kMySql:
-      return BuildMySqlConnectionOptions(db_config);
-    case cpp_utils::database::DatabaseType::kPostgreSql:
-      return BuildPostgreSqlConnectionOptions(db_config);
-    case cpp_utils::database::DatabaseType::kOracle:
-      return BuildOracleConnectionOptions(db_config);
-    case cpp_utils::database::DatabaseType::kSqlite3:
+    case cpputils::database::DatabaseType::kMySql:
+      return BuildMySqlConnectionConfig(db_config);
+    case cpputils::database::DatabaseType::kPostgreSql:
+      return BuildPostgreSqlConnectionConfig(db_config);
+    case cpputils::database::DatabaseType::kOracle:
+      return BuildOracleConnectionConfig(db_config);
+    case cpputils::database::DatabaseType::kSqlite3:
     default:
-      return BuildSqliteConnectionOptions(db_config);
+      return BuildSqliteConnectionConfig(db_config);
   }
 }
 
@@ -191,7 +191,7 @@ void ParsePoolOptions(const nlohmann::json& database, DatabaseOptions& options) 
   }
 
   const std::size_t pool_size = pool.contains("size") ? pool["size"].get<std::size_t>() : 4;
-  cpp_utils::database::ConnectionPoolOptions pool_opts{options.connection, pool_size};
+  cpputils::database::ConnectionPoolConfig pool_opts{options.connection, pool_size};
   pool_opts.lease_timeout = ParseSeconds(pool, "lease_timeout");
   options.pool = std::move(pool_opts);
 }
@@ -224,7 +224,7 @@ DatabaseOptions ParseDatabaseOptions(const std::string& json_path) {
     return options;
   }
 
-  options.connection = BuildConnectionOptions(database);
+  options.connection = BuildConnectionConfig(database);
   ParsePoolOptions(database, options);
   return options;
 }

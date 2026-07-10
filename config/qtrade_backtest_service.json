@@ -1,6 +1,7 @@
 {
   "grpc": {
-    "listen": "0.0.0.0:50057"
+    "host": "0.0.0.0",
+    "port": 50057
   },
   "history_order_service": "127.0.0.1:50055",
   "worker": {

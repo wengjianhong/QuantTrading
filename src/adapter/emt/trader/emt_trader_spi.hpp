@@ -11,9 +11,13 @@ namespace qtrade::adapter::trader {
 /// TODO(EMT SDK): 改为 `final : public EMT::API::TraderSpi`，在厂商回调 override 中完成转换。
 class EmtTraderSpi {
  public:
-  void SetTarget(qtrade_sdk::trader::TraderSpi* target) { target_ = target; }
+  void SetTarget(qtrade_sdk::trader::TraderSpi* target) {
+    target_ = target;
+  }
 
-  qtrade_sdk::trader::TraderSpi* Target() const { return target_; }
+  qtrade_sdk::trader::TraderSpi* Target() const {
+    return target_;
+  }
 
  private:
   qtrade_sdk::trader::TraderSpi* target_ = nullptr;

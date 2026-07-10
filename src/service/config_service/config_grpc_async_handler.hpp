@@ -18,9 +18,11 @@ class ServerCompletionQueue;
 
 namespace qtrade::service {
 
-/// @brief 管理 GetConfig / WatchConfig 的 Async CallData 生命周期
+/// @brief 管理 GetConfig / SubscribeConfig 的 Async CallTag 生命周期
 class ConfigGrpcAsyncHandler {
  public:
+  using RepositoryT = IConfigRepository;
+
   /// @brief 构造 RPC 处理器
   ConfigGrpcAsyncHandler();
 
@@ -47,8 +49,8 @@ class ConfigGrpcAsyncHandler {
   /// @brief 预投递下一个 GetConfig 异步接收
   void SpawnGetConfig();
 
-  /// @brief 预投递下一个 WatchConfig 异步接收
-  void SpawnWatchConfig();
+  /// @brief 预投递下一个 SubscribeConfig 异步接收
+  void SpawnSubscribeConfig();
 
   /// @brief 从数据库查询指定作用域配置快照
   /// @param scope 租户与引擎实例
@@ -57,21 +59,27 @@ class ConfigGrpcAsyncHandler {
 
   /// @brief 获取数据库仓储
   /// @return 仓储共享指针
-  [[nodiscard]] std::shared_ptr<IConfigRepository> Repository() const { return repository_; }
+  [[nodiscard]] std::shared_ptr<IConfigRepository> Repository() const {
+    return repository_;
+  }
 
   /// @brief 获取 CompletionQueue
   /// @return 服务端 CQ 指针
-  [[nodiscard]] grpc::ServerCompletionQueue* CompletionQueue() const { return cq_; }
+  [[nodiscard]] grpc::ServerCompletionQueue* CompletionQueue() const {
+    return cq_;
+  }
 
   /// @brief 获取 gRPC 异步服务
   /// @return AsyncService 指针
-  [[nodiscard]] qtrade::config::v1::ConfigService::AsyncService* AsyncService() const { return async_service_; }
+  [[nodiscard]] qtrade::config::v1::ConfigService::AsyncService* AsyncService() const {
+    return async_service_;
+  }
 
  private:
   qtrade::config::v1::ConfigService::AsyncService* async_service_ = nullptr;  ///< gRPC 异步服务
-  grpc::ServerCompletionQueue* cq_ = nullptr;                                  ///< 服务端 CQ
-  std::shared_ptr<IConfigRepository> repository_;                              ///< 数据库仓储
-  bool started_ = false;                                                       ///< 是否已启动
+  grpc::ServerCompletionQueue* cq_ = nullptr;                                 ///< 服务端 CQ
+  std::shared_ptr<IConfigRepository> repository_;                             ///< 数据库仓储
+  bool started_ = false;                                                      ///< 是否已启动
 };
 
 }  // namespace qtrade::service

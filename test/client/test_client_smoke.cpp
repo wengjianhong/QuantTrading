@@ -4,10 +4,10 @@
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
-#include <gtest/gtest.h>
-
 #include "client/log_client/log_client.hpp"
 #include "client/monitor_client/monitor_client.hpp"
+
+#include <gtest/gtest.h>
 
 #include <chrono>
 #include <thread>

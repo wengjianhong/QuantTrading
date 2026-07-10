@@ -5,13 +5,16 @@
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
 #include "strategy_engine.hpp"
+
 #include <spdlog/spdlog.h>
 
 namespace qtrade::engine::strategy {
 
 StrategyEngine::StrategyEngine(event_bus::EventLanes& event_lanes) : event_lanes_(event_lanes), running_(false) {}
 
-StrategyEngine::~StrategyEngine() { Stop(); }
+StrategyEngine::~StrategyEngine() {
+  Stop();
+}
 
 void StrategyEngine::Start() {
   std::lock_guard<std::mutex> lock(mutex_);

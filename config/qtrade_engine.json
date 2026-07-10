@@ -3,6 +3,7 @@
   "account_service": "127.0.0.1:50052",
   "tenant_id": "default",
   "engine_id": "engine-1",
+  "account_id": "acc_001",
   "log_topic": "qtrade_engine",
   "monitor_endpoint": "stub://local"
 }

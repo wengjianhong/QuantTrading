@@ -8,9 +8,9 @@
 #ifndef QTRADE_TRADING_ENGINE_NORMALIZER_QUOTE_NORMALIZER_HPP_
 #define QTRADE_TRADING_ENGINE_NORMALIZER_QUOTE_NORMALIZER_HPP_
 
-#include <qtrade_sdk/quote/quote_api.hpp>
-
 #include "engine/event_bus/event_lanes.hpp"
+
+#include <qtrade_sdk/quote/quote_api.hpp>
 
 #include <memory>
 #include <mutex>

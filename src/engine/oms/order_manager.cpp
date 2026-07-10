@@ -16,7 +16,9 @@ namespace trader = qtrade_sdk::trader;
 
 OrderManager::OrderManager() : running_(false), order_id_counter_(0) {}
 
-OrderManager::~OrderManager() { Stop(); }
+OrderManager::~OrderManager() {
+  Stop();
+}
 
 void OrderManager::Start() {
   std::lock_guard<std::mutex> lock(mutex_);

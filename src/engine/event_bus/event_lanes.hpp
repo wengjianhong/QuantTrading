@@ -20,14 +20,26 @@ class EventLanes {
   void Start();
   void Stop();
 
-  [[nodiscard]] MarketEventReactor& Market() { return market_event_reactor_; }
-  [[nodiscard]] ReturnEventReactor& Return() { return return_event_reactor_; }
+  [[nodiscard]] MarketEventReactor& Market() {
+    return market_event_reactor_;
+  }
+  [[nodiscard]] ReturnEventReactor& Return() {
+    return return_event_reactor_;
+  }
 
-  [[nodiscard]] const MarketEventReactor& Market() const { return market_event_reactor_; }
-  [[nodiscard]] const ReturnEventReactor& Return() const { return return_event_reactor_; }
+  [[nodiscard]] const MarketEventReactor& Market() const {
+    return market_event_reactor_;
+  }
+  [[nodiscard]] const ReturnEventReactor& Return() const {
+    return return_event_reactor_;
+  }
 
-  [[nodiscard]] std::size_t MarketQueueSize() const { return market_event_reactor_.PendingCount(); }
-  [[nodiscard]] std::size_t ReturnQueueSize() const { return return_event_reactor_.PendingCount(); }
+  [[nodiscard]] std::size_t MarketQueueSize() const {
+    return market_event_reactor_.PendingCount();
+  }
+  [[nodiscard]] std::size_t ReturnQueueSize() const {
+    return return_event_reactor_.PendingCount();
+  }
 
  private:
   MarketEventReactor market_event_reactor_;

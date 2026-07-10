@@ -17,7 +17,7 @@ class ServerCompletionQueue;
 
 namespace qtrade::common::grpc_async {
 
-/// @brief 在独立线程中 AsyncNext/Next 分发 CallDataBase::Proceed
+/// @brief 在独立线程中 AsyncNext/Next 分发 CallTagBase::Proceed
 class CompletionQueueLoop {
  public:
   CompletionQueueLoop() = default;
@@ -34,7 +34,9 @@ class CompletionQueueLoop {
   /// @brief 停止轮询（不 Shutdown CQ，由 GrpcAsyncServer 负责）
   void Stop();
 
-  [[nodiscard]] bool IsRunning() const { return running_; }
+  [[nodiscard]] bool IsRunning() const {
+    return running_;
+  }
 
  private:
   void Run();

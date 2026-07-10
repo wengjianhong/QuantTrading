@@ -16,8 +16,8 @@ namespace qtrade::common {
 /// @brief Database connection options (maps to the "database" section in JSON config)
 struct DatabaseOptions {
   bool enabled = false;
-  cpp_utils::database::ConnectionOptions connection;
-  std::optional<cpp_utils::database::ConnectionPoolOptions> pool;
+  cpputils::database::ConnectionConfig connection;
+  std::optional<cpputils::database::ConnectionPoolConfig> pool;
 };
 
 /// @brief Parse the "database" section from a JSON config file

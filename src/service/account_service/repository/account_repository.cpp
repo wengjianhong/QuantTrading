@@ -9,6 +9,10 @@
 
 namespace qtrade::service {
 
+void StripAccountPassword(qtrade::account::v1::TradingAccount& account) {
+  account.set_password("");
+}
+
 std::shared_ptr<IAccountRepository> CreateAccountRepository(const qtrade::common::DatabaseOptions& options) {
   if (!options.enabled) {
     return nullptr;

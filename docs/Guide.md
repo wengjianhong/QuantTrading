@@ -37,18 +37,25 @@ qtrade/
 │   ├── architecture.md             # 系统架构权威文档：架构总览、模块设计、交互方式、容灾方案、安全合规
 │   ├── guide.md                    # 开发指南：编码规范、插件开发流程、部署步骤、调试方法、协作规则
 │   └── deploy.md                   # 部署文档：各模块部署要求、机器配置、网络拓扑、监控告警、容灾切换
-├── include/qtrade/                 # 【对外公共头文件】插件接口、共享数据结构、错误码
-│   ├── structs/                    # 框架通用结构（如 result.hpp）
-│   ├── error_code/                 # 错误码：error_codes.hpp、code_segment.hpp、code_message.hpp
-│   ├── qtrade_sdk/                 # 插件 Target 接口：quote/、trader/（Api + Spi）
-│   └── strategy/                   # 策略基类接口：IStrategy
+├── include/
+│   ├── qtrade/                 # 【对外公共头文件】插件接口、共享数据结构、错误码
+│   │   ├── structs/            # 框架通用结构（如 result.hpp）
+│   │   ├── error_code/         # 错误码：error_codes.hpp、code_segment.hpp、code_message.hpp
+│   │   └── strategy/           # 策略基类接口：IStrategy
+│   ├── qtrade_sdk/             # 插件 Target 接口：quote/、trader/（Api + Spi）
+│   └── qtrade_framework/       # 【内部框架头文件】不 install；#include <qtrade_framework/...>
+│       ├── dao/                # dml.hpp / ddl.hpp 等接口声明
+│       └── support/            # 支撑服务生命周期接口（ISupportService）
 ├── src/
+│   ├── dao/                    # 表级 DAO（.hpp + .cpp，参考 ug_user 模式）
 │   ├── apps/                       # 【可部署二进制入口】仅含 main，目录名 = 产物名
 │   │   ├── qtrade_engine/main.cpp  # → build/bin/qtrade_engine
 │   │   ├── qtrade_config_service/main.cpp
 │   │   └── ...
 │   ├── common/                     # 公共基础（按功能分子目录）
 │   │   ├── app/                    # 进程 bootstrap：参数解析、信号处理、服务入口
+│   │   ├── database/               # 连接选项、DbConnectionHolder
+│   │   ├── dao/                    # dml_utils、ddl_utils、sql_utils
 │   │   └── logging/                # 日志初始化
 │   ├── public/                     # include/qtrade 公共 API 的实现（目录镜像）
 │   │   └── error_code/             # 错误码等非 header-only 实现
@@ -72,7 +79,7 @@ qtrade/
 │   ├── client/                     # 【引擎内部】支撑服务出站客户端（头文件与 .cpp 同目录，不对外暴露）
 │   │   ├── common/                 # OutboundWorker、ReportPriority
 │   │   ├── log_client/             # 日志客户端：A 段仅内存队列；Outbound 线程异步上报
-│   │   ├── config_client/          # 配置客户端：GetConfig / WatchConfig（EngineConfig）
+│   │   ├── config_client/          # 配置客户端：GetConfig / SubscribeConfig（EngineConfig）
 │   │   ├── account_client/         # 【规划】账户凭证客户端：ResolveCredential（启动阶段）
 │   │   ├── monitor_client/         # 监控客户端：异步上报业务指标
 │   │   └── registry_client/        # 服务发现客户端：仅用于支撑服务间
@@ -137,7 +144,7 @@ qtrade/
 
 - **B 段（异步）**：OMS WAL、合规日志、快照；自 OMS 变更**并行**触发，专用 I/O 线程，**不得阻塞 A 段**；不在 A→C 主链中间
 
-- **控制面**：本地快照 + gRPC `WatchConfig` 增量；冷启动 `GetConfig` 拉全量（独立控制线程/启动阶段，不在策略回调内）
+- **控制面**：本地快照 + gRPC `SubscribeConfig` 变更推送；冷启动 `GetConfig` 拉全量（独立控制线程/启动阶段，不在策略回调内）
 
 ### 3.2 C 段出站与 D 段旁路
 
@@ -156,19 +163,19 @@ qtrade/
 |交易引擎内部|内存结构体 + 无锁队列|无网络、无序列化|
 |交易引擎 ↔ 适配器|函数调用 + 回调接口|同进程内|
 |交易引擎 → 支撑服务（D 段）|`client/` 异步接口 + Protobuf|Outbound 线程 fire-and-forget；内部传输可插拔，MVP 可 stub|
-|引擎 ↔ config-service|gRPC + Protobuf|引擎仅作 Client：`GetConfig` + `WatchConfig`（`EngineConfig`）|
+|引擎 ↔ config-service|gRPC + Protobuf|引擎仅作 Client：`GetConfig` + `SubscribeConfig`（`EngineConfig`）|
 |引擎 ↔ account-service|gRPC + Protobuf|【规划】引擎 Client：`ResolveCredential`（启动/换密，不进 A 段）|
 |支撑服务之间|gRPC + Protobuf|同步 / 异步均可（如 config 写入前校验 account 授权）|
 |接入层 ↔ 外部系统|HTTP(S)/WebSocket|**外部独立项目**；RESTful 北向，网关转 gRPC 调本仓库支撑服务|
 |外部接入层 → QTrade 支撑服务|gRPC + Protobuf|config / **account** / history / observability 等（`src/service/`）|
 
-### 4.2 旁路上报与配置订阅规范
+### 4.2 旁路上报与配置 Watch 规范
 
 - **D 段**：`log_client`、`monitor_client` 等仅定义引擎侧异步接口；是否实现远程 gRPC/HTTP、是否 no-op 由里程碑决定
 
-- **控制面（config）**：配置变更经 config-service 审计后，由 `WatchConfig` 流推送 `ConfigSnapshot`（`version` + `EngineConfig`）；引擎按 `version` 幂等应用
+- **控制面（config）**：配置变更经 config-service 审计后，由 `SubscribeConfig` 流推送 `ConfigSnapshot`（`version` + `EngineConfig`）；引擎按 `version` 幂等应用
 
-- **凭证面（account）**：登录凭证经 account-service 按需拉取，不进 `WatchConfig`（详见《架构》§2.5）
+- **凭证面（account）**：登录凭证经 account-service 按需拉取，不进 `SubscribeConfig`（详见《架构》§2.5）
 
 - **优先级**：P0 审计须经本地 Spool 保底，不得仅依赖远程上报
 
@@ -238,7 +245,7 @@ Spi 适配器**不**继承 `qtrade_sdk::*Spi`；`#include` 该头文件仅为使
 
 - 策略**仅由内部行情 Tick/Bar 事件驱动**，不接受任何外部触发信号
 
-- 所有**引擎业务配置**更新经 config-service 的 gRPC `WatchConfig` 推送；**交易凭证**经 account-service 单独管理（《架构》§2.5）；禁止外部直接修改交易引擎内存
+- 所有**引擎业务配置**更新经 config-service 的 gRPC `SubscribeConfig` 推送；**交易凭证**经 account-service 单独管理（《架构》§2.5）；禁止外部直接修改交易引擎内存
 
 ### 6.3 可观测性
 

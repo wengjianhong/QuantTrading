@@ -7,6 +7,7 @@
 #ifndef QTRADE_TRADING_ENGINE_STRATEGY_ENGINE_HPP_
 #define QTRADE_TRADING_ENGINE_STRATEGY_ENGINE_HPP_
 #include "engine/event_bus/event_lanes.hpp"
+
 #include <qtrade/error_code/error_codes.hpp>
 #include <qtrade/strategy/strategy.hpp>
 

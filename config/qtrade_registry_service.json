@@ -1,6 +1,7 @@
 {
   "grpc": {
-    "listen": "0.0.0.0:50054"
+    "host": "0.0.0.0",
+    "port": 50054
   },
   "backend": {
     "type": "static",

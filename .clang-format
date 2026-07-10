@@ -15,19 +15,33 @@ IndentCaseLabels:                   true
 AlignTrailingComments:              true
 BinPackParameters:                  false
 BinPackArguments:                   false
+AllowShortFunctionsOnASingleLine:   Empty
+AllowShortBlocksOnASingleLine:      false
 Cpp11BracedListStyle:               true
 SpacesBeforeTrailingComments:       2
 
 # 头文件分组排序规则
+# 1. 项目内 "..."
+# 2. 本项目公共头 <qtrade/...>
+# 3. 本项目公共头 <cpputils/...>
+# 4. 三方库（<> 且含 /，如 <soci/...>）
+# 5. 标准库（<> 且不含 /，如 <utility>）
+# 6. 兜底
 SortIncludes:                       true
-IncludeBlocks:                      Preserve
+IncludeBlocks:                      Regroup
 IncludeCategories:
   - Regex:           "^\""
     Priority:        1
-  - Regex:           "^<qtrade/"
+  - Regex:           "^<qtrade"
     Priority:        2
-  - Regex:           ".*"
+  - Regex:           "^<cpputils"
     Priority:        3
+  - Regex:           "^<[^/]+/.+>"
+    Priority:        4
+  - Regex:           "^<[^/]+>$"
+    Priority:        5
+  - Regex:           ".*"
+    Priority:        99
 
 # ----------------------------------------------
 # Protobuf (proto): 直接复用 Google，仅改语言

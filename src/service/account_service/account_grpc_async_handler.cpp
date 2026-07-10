@@ -5,78 +5,12 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "service/account_service/account_grpc_async_handler.hpp"
 
-#include "common/grpc/call_data_base.hpp"
-
-#include <functional>
+#include "common/grpc/unary_call_tag.hpp"
 
 #include <grpcpp/grpcpp.h>
 
 namespace qtrade::service {
 namespace detail {
-
-template <typename Request, typename Response>
-class UnaryCallData final : public qtrade::common::grpc_async::CallDataBase {
- public:
-  using RequestMethod = void (qtrade::account::v1::AccountService::AsyncService::*)(
-    grpc::ServerContext*, Request*, grpc::ServerAsyncResponseWriter<Response>*, grpc::CompletionQueue*,
-    grpc::ServerCompletionQueue*, void*);
-  using HandlerFn = std::function<grpc::Status(AccountGrpcAsyncHandler*, const Request&, Response*)>;
-  using RespawnFn = std::function<void(AccountGrpcAsyncHandler*)>;
-
-  UnaryCallData(AccountGrpcAsyncHandler* handler,
-                qtrade::account::v1::AccountService::AsyncService* service,
-                grpc::ServerCompletionQueue* cq,
-                RequestMethod request_method,
-                HandlerFn handler_fn,
-                RespawnFn respawn_fn)
-    : handler_(handler),
-      service_(service),
-      cq_(cq),
-      request_method_(request_method),
-      handler_fn_(std::move(handler_fn)),
-      respawn_fn_(std::move(respawn_fn)),
-      responder_(&ctx_) {
-    Proceed(true);
-  }
-
-  void Proceed(bool ok) override {
-    if (!ok) {
-      delete this;
-      return;
-    }
-
-    if (status_ == CallStatus::kCreate) {
-      status_ = CallStatus::kProcess;
-      (service_->*request_method_)(&ctx_, &request_, &responder_, cq_, cq_, this);
-      return;
-    }
-
-    if (status_ == CallStatus::kProcess) {
-      status_ = CallStatus::kFinish;
-      const grpc::Status status = handler_fn_(handler_, request_, &response_);
-      responder_.Finish(response_, status, this);
-      return;
-    }
-
-    respawn_fn_(handler_);
-    delete this;
-  }
-
- private:
-  enum class CallStatus { kCreate, kProcess, kFinish };
-
-  AccountGrpcAsyncHandler* handler_;
-  qtrade::account::v1::AccountService::AsyncService* service_;
-  grpc::ServerCompletionQueue* cq_;
-  RequestMethod request_method_;
-  HandlerFn handler_fn_;
-  RespawnFn respawn_fn_;
-  grpc::ServerContext ctx_;
-  Request request_;
-  Response response_;
-  grpc::ServerAsyncResponseWriter<Response> responder_;
-  CallStatus status_ = CallStatus::kCreate;
-};
 
 grpc::Status ToGrpcStatus(ErrorCode code) {
   switch (code) {
@@ -91,11 +25,17 @@ grpc::Status ToGrpcStatus(ErrorCode code) {
   }
 }
 
+template <typename Request, typename Response>
+using AccountUnaryCallTag = qtrade::common::grpc_async::
+  UnaryCallTag<qtrade::account::v1::AccountService::AsyncService, AccountGrpcAsyncHandler, Request, Response>;
+
 }  // namespace detail
 
 AccountGrpcAsyncHandler::AccountGrpcAsyncHandler() = default;
 
-AccountGrpcAsyncHandler::~AccountGrpcAsyncHandler() { Shutdown(); }
+AccountGrpcAsyncHandler::~AccountGrpcAsyncHandler() {
+  Shutdown();
+}
 
 void AccountGrpcAsyncHandler::Init(qtrade::account::v1::AccountService::AsyncService* async_service,
                                    grpc::ServerCompletionQueue* cq,
@@ -110,66 +50,51 @@ void AccountGrpcAsyncHandler::Start() {
     return;
   }
 
-  SpawnRegisterAccount();
-  SpawnRotateCredential();
-  SpawnBindAccountToEngine();
+  SpawnAddAccount();
+  SpawnGetAccount();
   SpawnListAccounts();
-  SpawnResolveCredential();
+  SpawnUpdateAccount();
+  SpawnGetCredential();
 
   started_ = true;
 }
 
-void AccountGrpcAsyncHandler::Shutdown() { started_ = false; }
-
-void AccountGrpcAsyncHandler::SpawnRegisterAccount() {
-  if (!async_service_ || !cq_ || !repository_) {
-    return;
-  }
-  using Request = qtrade::account::v1::RegisterAccountRequest;
-  using Response = qtrade::account::v1::RegisterAccountResponse;
-  new detail::UnaryCallData<Request, Response>(
-    this,
-    async_service_,
-    cq_,
-    &qtrade::account::v1::AccountService::AsyncService::RequestRegisterAccount,
-    [](AccountGrpcAsyncHandler* handler, const Request& request, Response*) {
-      return detail::ToGrpcStatus(handler->HandleRegisterAccount(request));
-    },
-    [](AccountGrpcAsyncHandler* handler) { handler->SpawnRegisterAccount(); });
+void AccountGrpcAsyncHandler::Shutdown() {
+  started_ = false;
 }
 
-void AccountGrpcAsyncHandler::SpawnRotateCredential() {
+void AccountGrpcAsyncHandler::SpawnAddAccount() {
   if (!async_service_ || !cq_ || !repository_) {
     return;
   }
-  using Request = qtrade::account::v1::RotateCredentialRequest;
-  using Response = qtrade::account::v1::RotateCredentialResponse;
-  new detail::UnaryCallData<Request, Response>(
+  using Request = qtrade::account::v1::AddAccountRequest;
+  using Response = qtrade::account::v1::AddAccountResponse;
+  new detail::AccountUnaryCallTag<Request, Response>(
     this,
     async_service_,
     cq_,
-    &qtrade::account::v1::AccountService::AsyncService::RequestRotateCredential,
+    &qtrade::account::v1::AccountService::AsyncService::RequestAddAccount,
     [](AccountGrpcAsyncHandler* handler, const Request& request, Response*) {
-      return detail::ToGrpcStatus(handler->HandleRotateCredential(request));
+      return detail::ToGrpcStatus(handler->HandleAddAccount(request));
     },
-    [](AccountGrpcAsyncHandler* handler) { handler->SpawnRotateCredential(); });
+    [](AccountGrpcAsyncHandler* handler) { handler->SpawnAddAccount(); });
 }
 
-void AccountGrpcAsyncHandler::SpawnBindAccountToEngine() {
+void AccountGrpcAsyncHandler::SpawnGetAccount() {
   if (!async_service_ || !cq_ || !repository_) {
     return;
   }
-  using Request = qtrade::account::v1::BindAccountToEngineRequest;
-  using Response = qtrade::account::v1::BindAccountToEngineResponse;
-  new detail::UnaryCallData<Request, Response>(
+  using Request = qtrade::account::v1::GetAccountRequest;
+  using Response = qtrade::account::v1::GetAccountResponse;
+  new detail::AccountUnaryCallTag<Request, Response>(
     this,
     async_service_,
     cq_,
-    &qtrade::account::v1::AccountService::AsyncService::RequestBindAccountToEngine,
-    [](AccountGrpcAsyncHandler* handler, const Request& request, Response*) {
-      return detail::ToGrpcStatus(handler->HandleBindAccountToEngine(request));
+    &qtrade::account::v1::AccountService::AsyncService::RequestGetAccount,
+    [](AccountGrpcAsyncHandler* handler, const Request& request, Response* response) {
+      return detail::ToGrpcStatus(handler->HandleGetAccount(request, *response));
     },
-    [](AccountGrpcAsyncHandler* handler) { handler->SpawnBindAccountToEngine(); });
+    [](AccountGrpcAsyncHandler* handler) { handler->SpawnGetAccount(); });
 }
 
 void AccountGrpcAsyncHandler::SpawnListAccounts() {
@@ -178,7 +103,7 @@ void AccountGrpcAsyncHandler::SpawnListAccounts() {
   }
   using Request = qtrade::account::v1::ListAccountsRequest;
   using Response = qtrade::account::v1::ListAccountsResponse;
-  new detail::UnaryCallData<Request, Response>(
+  new detail::AccountUnaryCallTag<Request, Response>(
     this,
     async_service_,
     cq_,
@@ -189,47 +114,65 @@ void AccountGrpcAsyncHandler::SpawnListAccounts() {
     [](AccountGrpcAsyncHandler* handler) { handler->SpawnListAccounts(); });
 }
 
-void AccountGrpcAsyncHandler::SpawnResolveCredential() {
+void AccountGrpcAsyncHandler::SpawnUpdateAccount() {
   if (!async_service_ || !cq_ || !repository_) {
     return;
   }
-  using Request = qtrade::account::v1::ResolveCredentialRequest;
-  using Response = qtrade::account::v1::ResolveCredentialResponse;
-  new detail::UnaryCallData<Request, Response>(
+  using Request = qtrade::account::v1::UpdateAccountRequest;
+  using Response = qtrade::account::v1::UpdateAccountResponse;
+  new detail::AccountUnaryCallTag<Request, Response>(
     this,
     async_service_,
     cq_,
-    &qtrade::account::v1::AccountService::AsyncService::RequestResolveCredential,
-    [](AccountGrpcAsyncHandler* handler, const Request& request, Response* response) {
-      return detail::ToGrpcStatus(handler->HandleResolveCredential(request, *response));
+    &qtrade::account::v1::AccountService::AsyncService::RequestUpdateAccount,
+    [](AccountGrpcAsyncHandler* handler, const Request& request, Response*) {
+      return detail::ToGrpcStatus(handler->HandleUpdateAccount(request));
     },
-    [](AccountGrpcAsyncHandler* handler) { handler->SpawnResolveCredential(); });
+    [](AccountGrpcAsyncHandler* handler) { handler->SpawnUpdateAccount(); });
 }
 
-ErrorCode AccountGrpcAsyncHandler::HandleRegisterAccount(const qtrade::account::v1::RegisterAccountRequest& request) {
+void AccountGrpcAsyncHandler::SpawnGetCredential() {
+  if (!async_service_ || !cq_ || !repository_) {
+    return;
+  }
+  using Request = qtrade::account::v1::GetCredentialRequest;
+  using Response = qtrade::account::v1::GetCredentialResponse;
+  new detail::AccountUnaryCallTag<Request, Response>(
+    this,
+    async_service_,
+    cq_,
+    &qtrade::account::v1::AccountService::AsyncService::RequestGetCredential,
+    [](AccountGrpcAsyncHandler* handler, const Request& request, Response* response) {
+      return detail::ToGrpcStatus(handler->HandleGetCredential(request, *response));
+    },
+    [](AccountGrpcAsyncHandler* handler) { handler->SpawnGetCredential(); });
+}
+
+ErrorCode AccountGrpcAsyncHandler::HandleAddAccount(const qtrade::account::v1::AddAccountRequest& request) {
   if (!repository_) {
     return ErrorCode::kSystemError;
   }
   if (!request.has_account()) {
     return ErrorCode::kInternal;
   }
-  return repository_->RegisterAccount(request.account(), request.password());
+  return repository_->AddAccount(request.account());
 }
 
-ErrorCode AccountGrpcAsyncHandler::HandleRotateCredential(
-  const qtrade::account::v1::RotateCredentialRequest& request) {
+ErrorCode AccountGrpcAsyncHandler::HandleGetAccount(const qtrade::account::v1::GetAccountRequest& request,
+                                                    qtrade::account::v1::GetAccountResponse& response) {
   if (!repository_) {
     return ErrorCode::kSystemError;
   }
-  return repository_->RotateCredential(request.account_id(), request.password());
-}
 
-ErrorCode AccountGrpcAsyncHandler::HandleBindAccountToEngine(
-  const qtrade::account::v1::BindAccountToEngineRequest& request) {
-  if (!repository_) {
-    return ErrorCode::kSystemError;
+  qtrade::account::v1::TradingAccount account;
+  const auto rc = repository_->GetAccount(request.tenant_id(), request.account_id(), account);
+  if (rc != ErrorCode::kSuccess) {
+    return rc;
   }
-  return repository_->BindAccountToEngine(request.account_id(), request.engine_id());
+
+  StripAccountPassword(account);
+  *response.mutable_account() = std::move(account);
+  return ErrorCode::kSuccess;
 }
 
 ErrorCode AccountGrpcAsyncHandler::HandleListAccounts(const qtrade::account::v1::ListAccountsRequest& request,
@@ -237,24 +180,36 @@ ErrorCode AccountGrpcAsyncHandler::HandleListAccounts(const qtrade::account::v1:
   if (!repository_) {
     return ErrorCode::kSystemError;
   }
+
   std::vector<qtrade::account::v1::TradingAccount> accounts;
   const auto rc = repository_->ListAccounts(request.tenant_id(), accounts);
   if (rc != ErrorCode::kSuccess) {
     return rc;
   }
+
   for (auto& account : accounts) {
+    StripAccountPassword(account);
     *response.add_accounts() = std::move(account);
   }
   return ErrorCode::kSuccess;
 }
 
-ErrorCode AccountGrpcAsyncHandler::HandleResolveCredential(
-  const qtrade::account::v1::ResolveCredentialRequest& request,
-  qtrade::account::v1::ResolveCredentialResponse& response) {
+ErrorCode AccountGrpcAsyncHandler::HandleUpdateAccount(const qtrade::account::v1::UpdateAccountRequest& request) {
   if (!repository_) {
     return ErrorCode::kSystemError;
   }
-  return repository_->ResolveCredential(request.engine_id(), request.account_id(), response);
+  if (!request.has_account()) {
+    return ErrorCode::kInternal;
+  }
+  return repository_->UpdateAccount(request.account());
+}
+
+ErrorCode AccountGrpcAsyncHandler::HandleGetCredential(const qtrade::account::v1::GetCredentialRequest& request,
+                                                       qtrade::account::v1::GetCredentialResponse& response) {
+  if (!repository_) {
+    return ErrorCode::kSystemError;
+  }
+  return repository_->GetCredential(request.tenant_id(), request.engine_id(), request.account_id(), response);
 }
 
 }  // namespace qtrade::service
