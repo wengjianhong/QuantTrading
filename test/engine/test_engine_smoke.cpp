@@ -4,8 +4,8 @@
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
-#include "engine/engine_options.hpp"
-#include "engine/trading_engine.hpp"
+#include "qtrade/engine/engine_options.hpp"
+#include "qtrade/engine/trading_engine.hpp"
 
 #include <qtrade_sdk/quote/quote_struct.hpp>
 
