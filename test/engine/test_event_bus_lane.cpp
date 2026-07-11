@@ -4,7 +4,7 @@
 /// @date      2026-06-25
 /// @copyright CC BY-NC-SA 4.0
 
-#include "engine/event_bus/event_lanes.hpp"
+#include "qtrade/engine/event_bus/event_lanes.hpp"
 
 #include <qtrade_sdk/quote/quote_struct.hpp>
 #include <qtrade_sdk/trader/trader_struct.hpp>

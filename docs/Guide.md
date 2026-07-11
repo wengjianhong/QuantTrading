@@ -8,10 +8,11 @@
 
 |《[Architecture.md](Architecture.md)》层次|代码侧落到何处|
 |---|---|
-|适配层|`src/adapter/`（可插拔动态库：行情源、交易通道协议转换）|
-|交易引擎层|`src/engine/`（单进程封闭运行：事件总线、行情/交易标准化、策略引擎、OMS、EMS、账户、持仓、实时风控、合规）|
-|支撑服务客户端|`src/client/`（轻量级异步客户端：日志、配置、**账户凭证**、监控、服务发现）|
-|支撑服务层|`src/service/<名称>/`（独立进程 / 镜像部署；与引擎经 gRPC 控制面与 `client/` 旁路接口交互）|
+|适配层|`src/qtrade_sdk/`（可插拔动态库：行情源、交易通道协议转换；按厂商分子目录 mock/、emt/）|
+|交易引擎层|`src/qtrade/engine/`（单进程封闭运行：事件总线、行情/交易标准化、策略引擎、OMS、EMS、账户、持仓、实时风控、合规）|
+|支撑服务客户端|`src/qtrade/client/`（轻量级异步客户端：日志、配置、**账户凭证**、监控、服务发现）|
+|支撑服务层|`src/qtrade/service/<名称>/`（独立进程 / 镜像部署；与引擎经 gRPC 控制面与 `client/` 旁路接口交互）|
+|内部框架基建|`src/qtrade_framework/`（DAO、gRPC、数据库、进程 bootstrap 等共享实现）|
 |接入层（外部独立项目）|不在本仓库；北向 HTTP REST，南向调 QTrade 支撑服务 gRPC|见《架构》§五|
 |企业级治理|多与**外部接入层**、运维流水线耦合：`release/deploy/`、`release/ci/`；Keycloak 等 IdP 可外置|
 
@@ -47,47 +48,47 @@ qtrade/
 │       ├── dao/                # dml.hpp / ddl.hpp 等接口声明
 │       └── support/            # 支撑服务生命周期接口（ISupportService）
 ├── src/
-│   ├── dao/                    # 表级 DAO（.hpp + .cpp，参考 ug_user 模式）
-│   ├── apps/                       # 【可部署二进制入口】仅含 main，目录名 = 产物名
-│   │   ├── qtrade_engine/main.cpp  # → build/bin/qtrade_engine
-│   │   ├── qtrade_config_service/main.cpp
-│   │   └── ...
-│   ├── common/                     # 公共基础（按功能分子目录）
-│   │   ├── app/                    # 进程 bootstrap：参数解析、信号处理、服务入口
-│   │   ├── database/               # 连接选项、DbConnectionHolder
-│   │   ├── dao/                    # dml_utils、ddl_utils、sql_utils
-│   │   └── logging/                # 日志初始化
-│   ├── public/                     # include/qtrade 公共 API 的实现（目录镜像）
-│   │   └── error_code/             # 错误码等非 header-only 实现
-│   ├── adapter/                    # 【可插拔适配器层】
-│   │   ├── mock/                   # Mock 开发/测试适配
-│   │   │   ├── quote/
-│   │   │   └── trader/
-│   │   └── emt/                    # EMT 厂商适配
-│   │       ├── quote/
-│   │       └── trader/
-│   ├── engine/                     # 【核心交易引擎层】库代码，无 main
-│   │   ├── event_bus/              # 事件总线
-│   │   ├── normalizer/             # 标准化：QuoteNormalizer（行情）、TraderNormalizer（回报）
-│   │   ├── strategy/               # 策略引擎：加载、运行、管理策略插件，沙箱隔离，资源限制
-│   │   ├── cms/                    # 合规管理：实时交易合规校验（限仓、限购、日内频次）
-│   │   ├── ems/                    # 执行管理：订单路由、拆单、算法执行、通道管理、故障切换
-│   │   ├── oms/                    # 订单管理：订单全生命周期、状态机、幂等性、WAL持久化
-│   │   ├── account/                # AccountManager：运行时资金账簿（≠ account-service，见《架构》§2.5）
-│   │   ├── position/               # 持仓管理：持仓、开平、冻结、盈亏实时核算，异常校验
-│   │   └── risk/                   # 风控管理
-│   ├── client/                     # 【引擎内部】支撑服务出站客户端（头文件与 .cpp 同目录，不对外暴露）
-│   │   ├── common/                 # OutboundWorker、ReportPriority
-│   │   ├── log_client/             # 日志客户端：A 段仅内存队列；Outbound 线程异步上报
-│   │   ├── config_client/          # 配置客户端：GetConfig / SubscribeConfig（EngineConfig）
-│   │   ├── account_client/         # 【规划】账户凭证客户端：ResolveCredential（启动阶段）
-│   │   ├── monitor_client/         # 监控客户端：异步上报业务指标
-│   │   └── registry_client/        # 服务发现客户端：仅用于支撑服务间
-│   └── service/                    # 【支撑服务层】业务实现（无 main；入口在 src/apps/）
-│       ├── config_service/         # 配置管理：EngineConfig 下发（不含密码）
-│       ├── account_service/        # 【规划】交易账户：主数据 + 凭证托管 + 授权绑定
-│       ├── log_service/
-│       └── ...
+│   ├── qtrade/                     # 【交易平台产品实现】对应 include/qtrade/ + 引擎/服务/客户端
+│   │   ├── apps/                   # 【可部署二进制入口】仅含 main，目录名 = 产物名
+│   │   │   ├── qtrade_engine/main.cpp
+│   │   │   ├── qtrade_config_service/main.cpp
+│   │   │   └── ...
+│   │   ├── engine/                 # 【核心交易引擎层】库代码，无 main
+│   │   │   ├── event_bus/
+│   │   │   ├── normalizer/
+│   │   │   ├── strategy/
+│   │   │   ├── cms/
+│   │   │   ├── ems/
+│   │   │   ├── oms/
+│   │   │   ├── account/
+│   │   │   ├── position/
+│   │   │   └── risk/
+│   │   ├── client/                 # 【引擎内部】支撑服务出站客户端
+│   │   │   ├── common/
+│   │   │   ├── log_client/
+│   │   │   ├── config_client/
+│   │   │   ├── account_client/
+│   │   │   ├── monitor_client/
+│   │   │   └── registry_client/
+│   │   ├── service/                # 【支撑服务层】业务实现（无 main；入口在 apps/）
+│   │   │   ├── config_service/
+│   │   │   ├── account_service/
+│   │   │   ├── log_service/
+│   │   │   └── ...
+│   │   ├── common/                 # 【产品进程公共能力】引擎与各微服务入口共用
+│   │   │   ├── app/                # 进程 bootstrap：参数解析、信号处理、服务入口
+│   │   │   └── logging/            # 日志初始化
+│   │   └── error_code/             # include/qtrade/error_code/ 的实现（目录镜像）
+│   ├── qtrade_sdk/                 # 【SDK 接口实现】对应 include/qtrade_sdk/
+│   │   ├── mock/quote|trader/      # Mock 开发/测试适配
+│   │   └── emt/quote|trader/       # EMT 厂商适配
+│   └── qtrade_framework/           # 【内部框架实现】对应 include/qtrade_framework/
+│       ├── dao/                    # 表级 DAO（.hpp + .cpp）
+│       └── common/                 # 【框架基建】DAO/数据库/gRPC/支撑服务生命周期
+│           ├── database/           # 连接选项、DbConnectionHolder
+│           ├── dao/                # dml_utils、ddl_utils、sql_utils
+│           ├── grpc/               # gRPC 异步服务基础设施
+│           └── support/            # SupportServiceImpl 等
 ├── config/                         # 【示例配置】与 build/bin 二进制同名（--config 传入）
 │   ├── qtrade_engine.json          # 引擎引导：config/account 地址、engine_id、log/monitor
 │   ├── qtrade_config_service.json
@@ -110,7 +111,7 @@ qtrade/
 
 **说明**：
 
-1. **进程模型**：可执行入口在 **`src/apps/`**（仅 `main.cpp`）；服务实现编译为静态库（如 `qtrade_config_service_static`、`qtrade_account_service_static`），供可执行文件与单元测试链接。**构建定义在 `cmake/`**。可执行目标名与安装二进制同名（如 `qtrade_account_service`），与 `_static` 静态库目标区分。
+1. **进程模型**：可执行入口在 **`src/qtrade/apps/`**（仅 `main.cpp`）；服务实现编译为静态库（如 `qtrade_config_service_static`、`qtrade_account_service_static`），供可执行文件与单元测试链接。**构建定义在 `cmake/`**。可执行目标名与安装二进制同名（如 `qtrade_account_service`），与 `_static` 静态库目标区分。
 
 2. **本地运行示例**（`build/bin/`，在项目根目录执行；配置文件与二进制同名）：
    ```shell
@@ -167,7 +168,7 @@ qtrade/
 |引擎 ↔ account-service|gRPC + Protobuf|【规划】引擎 Client：`ResolveCredential`（启动/换密，不进 A 段）|
 |支撑服务之间|gRPC + Protobuf|同步 / 异步均可（如 config 写入前校验 account 授权）|
 |接入层 ↔ 外部系统|HTTP(S)/WebSocket|**外部独立项目**；RESTful 北向，网关转 gRPC 调本仓库支撑服务|
-|外部接入层 → QTrade 支撑服务|gRPC + Protobuf|config / **account** / history / observability 等（`src/service/`）|
+|外部接入层 → QTrade 支撑服务|gRPC + Protobuf|config / **account** / history / observability 等（`src/qtrade/service/`）|
 
 ### 4.2 旁路上报与配置 Watch 规范
 
@@ -189,12 +190,12 @@ qtrade/
 系统包含三类可插拔组件，均编译为独立动态库（`.so`/`.dll`）：
 
 1. **行情适配器**（Target = `qtrade_sdk::quote::QuoteApi` / `QuoteSpi`）
-   - `src/adapter/mock/quote/`：`mock_quote_api`、`mock_quote_spi`
-   - `src/adapter/emt/quote/`：`emt_quote_api`、`emt_quote_spi`
+   - `src/qtrade_sdk/mock/quote/`：`mock_quote_api`、`mock_quote_spi`
+   - `src/qtrade_sdk/emt/quote/`：`emt_quote_api`、`emt_quote_spi`
 
 2. **交易适配器**（Target = `qtrade_sdk::trader::TraderApi` / `TraderSpi`）
-   - `src/adapter/mock/trader/`：`mock_trader_api`、`mock_trader_spi`
-   - `src/adapter/emt/trader/`：`emt_trader_api`、`emt_trader_spi`
+   - `src/qtrade_sdk/mock/trader/`：`mock_trader_api`、`mock_trader_spi`
+   - `src/qtrade_sdk/emt/trader/`：`emt_trader_api`、`emt_trader_spi`
 
 **双向适配约定**（详见 `docs/Architecture.md` §7.0）：
 
@@ -232,8 +233,8 @@ Spi 适配器**不**继承 `qtrade_sdk::*Spi`；`#include` 该头文件仅为使
 
 - 跨模块共享的数据结构定义在 `qtrade_sdk/quote/`、`qtrade_sdk/trader/`；按需 `#include` 对应头文件，使用 `qtrade_sdk::quote::`、`qtrade_sdk::trader::` 命名空间
 - 错误码枚举见 `include/qtrade/error_code/error_codes.hpp`，分段规则见 `code_segment.hpp`
-- `include/qtrade/` 下需 `.cpp` 的公共 API 实现，目录镜像放在 `src/public/`（如 `error_code/code_message.cpp`）；adapter 实现在 `src/adapter/`；引擎内部 client 头文件与实现均在 `src/client/`
-- 模块内部头文件与 `.cpp` 同目录放在 `src/` 下，不放入 `include/`
+- `include/qtrade/` 下需 `.cpp` 的公共 API 实现，目录镜像放在 `src/qtrade/error_code/`（如 `code_message.cpp`）；SDK 适配器实现在 `src/qtrade_sdk/<vendor>/`；引擎内部 client 头文件与实现均在 `src/qtrade/client/`
+- 模块内部头文件与 `.cpp` 同目录放在 `src/` 下，不放入 `include/`；**`src/` 内部引用**统一以 `src/` 为 include 根，路径带层前缀，例如 `#include "qtrade/service/account_service/account_service.hpp"`、`#include "qtrade_framework/common/support/support_service_impl.hpp"`、`#include "qtrade_sdk/mock/quote/mock_quote_api.hpp"`（CMake 仅 `target_include_directories(... PRIVATE ${QTRADE_SRC_DIR})`）
 
 - 通用工具函数（时间、字符串、加密等）统一放在 `include/common/utils/`
 

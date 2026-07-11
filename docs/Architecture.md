@@ -143,7 +143,7 @@ A 段至 EMS 入队后**紧接** C 段出站（EMS → 适配器 → 交易所�
 | 类型 | 方向 | 机制 | 说明 |
 |---|---|---|---|
 | **控制面** | config-service / account-service → engine（逻辑推送或按需拉取） | gRPC（引擎出站 Client） | 引擎**主动出站 Watch** `SubscribeConfig`；凭证经 `ResolveCredential` **按需**拉取；禁止支撑服务回调引擎 RPC |
-| **D 段旁路** | engine → 支撑服务 | `src/client/` 异步上报接口 | Outbound 线程 fire-and-forget；各 client 内部实现可插拔，MVP 可为 stub |
+| **D 段旁路** | engine → 支撑服务 | `src/qtrade/client/` 异步上报接口 | Outbound 线程 fire-and-forget；各 client 内部实现可插拔，MVP 可为 stub |
 | **冷启动配置** | engine → config-service | gRPC `GetConfig` | 一次性全量拉取 `EngineConfig` + 本地兜底快照 |
 | **冷启动凭证** | engine → account-service | gRPC `ResolveCredential` | 启动阶段或换密时按 `account_id` 解析登录材料；**不进** `SubscribeConfig` 流 |
 | **服务间查询** | 支撑服务 ↔ 支撑服务 | gRPC | config 写入前校验账户授权；回测拉历史、审计查询等，不经引擎 |
@@ -361,7 +361,7 @@ config-service 通过 `GetConfig(engine_id)` 返回该实例专属 `EngineConfig
 | 方向 | 协议 | 说明 |
 |---|---|---|
 | 外部 → 接入层 | HTTP/HTTPS + REST | OpenAPI 由**接入层项目**维护，非本仓库 |
-| 接入层 → QTrade 支撑服务 | gRPC + Protobuf | 调用 `config-service`、`account-service`、`history-service`、`observability-service` 等（本仓库 `src/service/`） |
+| 接入层 → QTrade 支撑服务 | gRPC + Protobuf | 调用 `config-service`、`account-service`、`history-service`、`observability-service` 等（本仓库 `src/qtrade/service/`） |
 | 接入层 → 交易引擎 | **禁止** | 配置变更仅 **config-service → 引擎出站 `SubscribeConfig`** |
 | QTrade 支撑服务 → 引擎 | **禁止主动 RPC 引擎** | 与 §4、§8.1 一致 |
 
@@ -447,7 +447,7 @@ class EmtQuoteSpi final : public EMT::API::QuoteSpi {
 #### 7.0.4 代码目录约定
 
 ```text
-src/adapter/
+src/qtrade_sdk/
 ├── mock/quote|trader/     # 无厂商依赖：MockXxxApi : Target Api；MockXxxSpi 模拟厂商回调
 └── emt/quote|trader/      # EMT 生产：EmtXxxApi + EmtXxxSpi 成对出现
 ```
@@ -507,7 +507,7 @@ MVP 也**不单独引入 `QuoteSourceManager` 类**（代码中不存在该模�
 
 #### 7.1.4 插件实现层
 
-- 每种数据源（如 EMT、CTP、Wind）在 `src/adapter/<vendor>/quote/` 提供 **Api + Spi 成对实现**（§7.0），`MockQuoteApi`/`MockQuoteSpi` 用于开发测试
+- 每种数据源（如 EMT、CTP、Wind）在 `src/qtrade_sdk/<vendor>/quote/` 提供 **Api + Spi 成对实现**（§7.0），`MockQuoteApi`/`MockQuoteSpi` 用于开发测试
 - 编译为独立动态库（.so/.dll），包含插件元数据（支持的品种、数据类型、版本、兼容系统版本）
 - Spi 适配器负责厂商结构体 → `qtrade_sdk` 类型的转换；Api 适配器负责引擎请求 → 厂商 API 的转发
 - 企业级扩展：
@@ -516,9 +516,9 @@ MVP 也**不单独引入 `QuoteSourceManager` 类**（代码中不存在该模�
   - 插件运行状态监控，上报资源占用/错误率
 
 
-#### 7.1.5 引擎侧组件（与 `src/engine/normalizer/` 一致）
+#### 7.1.5 引擎侧组件（与 `src/qtrade/engine/normalizer/` 一致）
 
-- **适配器工厂**：如 `CreateMockQuoteApi()`（`src/adapter/mock/quote/`），返回 `std::unique_ptr<QuoteApi>`
+- **适配器工厂**：如 `CreateMockQuoteApi()`（`src/qtrade_sdk/mock/quote/`），返回 `std::unique_ptr<QuoteApi>`
 - **QuoteNormalizer**：`SetQuoteApi(std::move(api))` 注入适配器；`Subscribe`/`Unsubscribe` 转发至 `QuoteApi`；语义标准化后 `OnTick`/`OnBar` → Lane-M
 - **failover（二期）**：断线检测后按配置切换 `quote_failover` 对应适配器或重连；切换事件 P0 审计
 - **负载监控（二期+）**：实例级指标旁路上报 observability-service
@@ -541,7 +541,7 @@ MVP 也**不单独引入 `QuoteSourceManager` 类**（代码中不存在该模�
 
 - **适配器实现层**（§7.0 双向适配）：
 
-    - 每个经纪商在 `src/adapter/<vendor>/trader/` 提供 `XxxTraderApi` + `XxxTraderSpi`
+    - 每个经纪商在 `src/qtrade_sdk/<vendor>/trader/` 提供 `XxxTraderApi` + `XxxTraderSpi`
     - **Api 适配器**继承 `TraderApi`，将发单/撤单/查询转发至厂商 API
     - **Spi 适配器**继承厂商 `TraderSpi`，将回报解析为 `qtrade_sdk` 类型后调用引擎注册的 `TraderSpi`
     - **引擎侧**：回报 `TraderNormalizer` → Lane-R → `ReturnHandler` → OMS；出站 EMS → `TraderApi`
@@ -692,7 +692,7 @@ A 段 enqueue → Outbound → log_client / monitor_client / …（fire-and-forg
 |引擎 ↔ account-service（凭证面）|gRPC + Protobuf|`ResolveCredential` 按需拉取；不进 Watch 流；启动/控制线程执行|
 |支撑服务之间|gRPC + Protobuf|强类型 RPC，适合查询与批量数据（如回测拉历史）|
 |接入层 ↔ 外部|HTTP/HTTPS + REST|**外部接入层项目**维护 OpenAPI；REST ↔ gRPC 转换在接入层完成|
-|外部接入层 → QTrade 支撑服务|gRPC + Protobuf|本仓库 `src/service/` 暴露 gRPC；不对外 HTTP|
+|外部接入层 → QTrade 支撑服务|gRPC + Protobuf|本仓库 `src/qtrade/service/` 暴露 gRPC；不对外 HTTP|
 
 ---
 
