@@ -7,7 +7,7 @@
 #define QTRADE_SERVICE_ACCOUNT_SERVICE_HPP_
 
 #include "qtrade/service/account_service/account_grpc_async_handler.hpp"
-#include "qtrade_framework/common/support/support_service_impl.hpp"
+#include "qtrade_framework/support/support_service_impl.hpp"
 
 #include <qtrade/error_code/error_codes.hpp>
 #include <qtrade/proto/account/v1/account.grpc.pb.h>

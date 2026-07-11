@@ -6,7 +6,7 @@
 #ifndef QTRADE_SERVICE_CONFIG_SERVICE_HPP_
 #define QTRADE_SERVICE_CONFIG_SERVICE_HPP_
 
-#include "qtrade_framework/common/support/support_service_impl.hpp"
+#include "qtrade_framework/support/support_service_impl.hpp"
 #include "qtrade/service/config_service/config_grpc_async_handler.hpp"
 #include "qtrade/service/config_service/repository/config_repository.hpp"
 
