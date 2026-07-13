@@ -3,9 +3,9 @@
 /// @author    wengjianhong
 /// @date      2026-06-28
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade_framework/common/grpc/grpc_async_server.hpp"
+#include "qtrade/framework/grpc/grpc_async_server.hpp"
 
-#include "qtrade_framework/common/grpc/completion_queue_loop.hpp"
+#include "qtrade/framework/grpc/completion_queue_loop.hpp"
 
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/health_check_service_interface.h>

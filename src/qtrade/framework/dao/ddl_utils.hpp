@@ -7,7 +7,7 @@
 #define QTRADE_COMMON_DAO_DDL_UTILS_HPP_
 
 #include <qtrade/structs/result.hpp>
-#include <qtrade_framework/dao/ddl.hpp>
+#include <qtrade/dao/ddl.hpp>
 
 #include <cpputils/database/connection.hpp>
 

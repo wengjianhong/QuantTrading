@@ -5,10 +5,10 @@
 /// @copyright CC BY-NC-SA 4.0
 #ifndef QTRADE_DAO_TRADING_ACCOUNT_HPP_
 #define QTRADE_DAO_TRADING_ACCOUNT_HPP_
-#include "qtrade_framework/common/dao/dml_utils.hpp"
+#include "qtrade/framework/dao/dml_utils.hpp"
 
-#include <qtrade_framework/dao/ddl.hpp>
-#include <qtrade_framework/dao/dml.hpp>
+#include <qtrade/dao/ddl.hpp>
+#include <qtrade/dao/dml.hpp>
 
 #include <optional>
 #include <string>

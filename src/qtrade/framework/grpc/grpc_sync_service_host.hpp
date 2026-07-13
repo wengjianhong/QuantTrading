@@ -6,7 +6,7 @@
 #ifndef QTRADE_COMMON_GRPC_GRPC_SYNC_SERVICE_HOST_HPP_
 #define QTRADE_COMMON_GRPC_GRPC_SYNC_SERVICE_HOST_HPP_
 
-#include "qtrade_framework/common/grpc/grpc_sync_server.hpp"
+#include "qtrade/framework/grpc/grpc_sync_server.hpp"
 
 #include <qtrade/error_code/error_codes.hpp>
 

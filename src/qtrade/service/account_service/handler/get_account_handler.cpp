@@ -6,7 +6,7 @@
 #include "qtrade/service/account_service/handler/get_account_handler.hpp"
 
 #include "qtrade/service/account_service/logic/trading_account_converter.hpp"
-#include "qtrade_framework/dao/trading_account.hpp"
+#include "qtrade/dao/trading_account.hpp"
 
 namespace qtrade::service {
 

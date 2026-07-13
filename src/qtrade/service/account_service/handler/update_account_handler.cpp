@@ -7,8 +7,8 @@
 
 #include "qtrade/service/account_service/logic/credential_codec.hpp"
 #include "qtrade/service/account_service/logic/trading_account_converter.hpp"
-#include "qtrade_framework/dao/account_credential.hpp"
-#include "qtrade_framework/dao/trading_account.hpp"
+#include "qtrade/dao/account_credential.hpp"
+#include "qtrade/dao/trading_account.hpp"
 
 namespace qtrade::service {
 

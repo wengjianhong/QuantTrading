@@ -3,7 +3,7 @@
 /// @author    wengjianhong
 /// @date      2026-07-13
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade_framework/common/grpc/grpc_sync_server.hpp"
+#include "qtrade/framework/grpc/grpc_sync_server.hpp"
 
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/health_check_service_interface.h>

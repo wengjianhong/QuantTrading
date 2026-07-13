@@ -1,20 +1,18 @@
 # ---------------------------------------------------------------------------
-# qtrade_common: product common (app/logging), framework common (dao/database/grpc), error codes
+# qtrade_common: product common, framework infra (database/dao utils/grpc), table DAO, error codes
 # ---------------------------------------------------------------------------
 
+file(GLOB QTRADE_FRAMEWORK_SRC CONFIGURE_DEPENDS ${QTRADE_SRC_QTRADE_FRAMEWORK_DIR}/*/*.cpp)
 file(GLOB_RECURSE QTRADE_PRODUCT_COMMON_SRC CONFIGURE_DEPENDS ${QTRADE_SRC_QTRADE_DIR}/common/*/*.cpp)
-file(GLOB_RECURSE QTRADE_FRAMEWORK_COMMON_SRC CONFIGURE_DEPENDS ${QTRADE_SRC_QTRADE_FRAMEWORK_DIR}/common/*/*.cpp)
-file(GLOB_RECURSE DAO_SRC CONFIGURE_DEPENDS ${QTRADE_SRC_QTRADE_FRAMEWORK_DIR}/dao/*.cpp)
 file(GLOB_RECURSE PUBLIC_SRC CONFIGURE_DEPENDS ${QTRADE_SRC_QTRADE_DIR}/error_code/*.cpp)
-file(GLOB_RECURSE COMMON_GRPC_SRC CONFIGURE_DEPENDS ${QTRADE_SRC_QTRADE_FRAMEWORK_DIR}/common/grpc/*.cpp)
+file(GLOB_RECURSE DAO_SRC CONFIGURE_DEPENDS ${QTRADE_SRC_QTRADE_DIR}/dao/*.cpp)
 
 # Build Common Library
 add_library(qtrade_common STATIC
+    ${QTRADE_FRAMEWORK_SRC}
     ${QTRADE_PRODUCT_COMMON_SRC}
-    ${QTRADE_FRAMEWORK_COMMON_SRC}
-    ${DAO_SRC}
     ${PUBLIC_SRC}
-    ${COMMON_GRPC_SRC}
+    ${DAO_SRC}
 )
 ## Include Public Directories
 target_include_directories(qtrade_common PUBLIC

@@ -3,7 +3,7 @@
 /// @author    wengjianhong
 /// @date      2026-07-09
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade_framework/dao/engine_config.hpp"
+#include "qtrade/dao/engine_config.hpp"
 
 #include <spdlog/spdlog.h>
 

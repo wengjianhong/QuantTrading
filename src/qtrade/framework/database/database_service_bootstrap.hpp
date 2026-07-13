@@ -6,9 +6,9 @@
 #ifndef QTRADE_COMMON_DATABASE_DATABASE_SERVICE_BOOTSTRAP_HPP_
 #define QTRADE_COMMON_DATABASE_DATABASE_SERVICE_BOOTSTRAP_HPP_
 
-#include "qtrade_framework/common/database/database_options.hpp"
-#include "qtrade_framework/common/database/db_connection.hpp"
-#include "qtrade_framework/common/dao/dml_utils.hpp"
+#include "qtrade/framework/database/database_options.hpp"
+#include "qtrade/framework/database/db_connection.hpp"
+#include "qtrade/framework/dao/dml_utils.hpp"
 
 #include <cpputils/database/connection.hpp>
 #include <qtrade/error_code/error_codes.hpp>

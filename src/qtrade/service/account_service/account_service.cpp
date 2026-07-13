@@ -5,11 +5,11 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/service/account_service/account_service.hpp"
 
-#include "qtrade_framework/common/database/database_service_bootstrap.hpp"
-#include "qtrade_framework/common/dao/ddl_utils.hpp"
-#include "qtrade_framework/common/grpc/grpc_options.hpp"
-#include "qtrade_framework/dao/account_credential.hpp"
-#include "qtrade_framework/dao/trading_account.hpp"
+#include "qtrade/framework/database/database_service_bootstrap.hpp"
+#include "qtrade/framework/dao/ddl_utils.hpp"
+#include "qtrade/framework/grpc/grpc_options.hpp"
+#include "qtrade/dao/account_credential.hpp"
+#include "qtrade/dao/trading_account.hpp"
 
 namespace qtrade::service {
 

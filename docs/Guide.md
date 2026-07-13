@@ -12,7 +12,8 @@
 |交易引擎层|`src/qtrade/engine/`（单进程封闭运行：事件总线、行情/交易标准化、策略引擎、OMS、EMS、账户、持仓、实时风控、合规）|
 |支撑服务客户端|`src/qtrade/client/`（轻量级异步客户端：日志、配置、**账户凭证**、监控、服务发现）|
 |支撑服务层|`src/qtrade/service/<名称>/`（独立进程 / 镜像部署；与引擎经 gRPC 控制面与 `client/` 旁路接口交互）|
-|内部框架基建|`src/qtrade_framework/`（DAO、gRPC、数据库、进程 bootstrap 等共享实现）|
+|内部框架基建|`src/qtrade/framework/`（gRPC、数据库 bootstrap、支撑服务生命周期等共享实现；**不 install**）|
+|表级 DAO|`src/qtrade/dao/`（`trading_account`、`account_credential`、`engine_config` 等；接口见 `include/qtrade/dao/`）|
 |接入层（外部独立项目）|不在本仓库；北向 HTTP REST，南向调 QTrade 支撑服务 gRPC|见《架构》§五|
 |企业级治理|多与**外部接入层**、运维流水线耦合：`release/deploy/`、`release/ci/`；Keycloak 等 IdP 可外置|
 
@@ -39,16 +40,17 @@ qtrade/
 │   ├── guide.md                    # 开发指南：编码规范、插件开发流程、部署步骤、调试方法、协作规则
 │   └── deploy.md                   # 部署文档：各模块部署要求、机器配置、网络拓扑、监控告警、容灾切换
 ├── include/
-│   ├── qtrade/                 # 【对外公共头文件】插件接口、共享数据结构、错误码
+│   ├── qtrade/                 # 【对外 + 内部头文件】插件接口、共享数据结构、错误码
 │   │   ├── structs/            # 框架通用结构（如 result.hpp）
 │   │   ├── error_code/         # 错误码：error_codes.hpp、code_segment.hpp、code_message.hpp
-│   │   └── strategy/           # 策略基类接口：IStrategy
-│   ├── qtrade_sdk/             # 插件 Target 接口：quote/、trader/（Api + Spi）
-│   └── qtrade_framework/       # 【内部框架头文件】不 install；#include <qtrade_framework/...>
-│       ├── dao/                # dml.hpp / ddl.hpp 等接口声明
-│       └── support/            # 支撑服务生命周期接口（ISupportService）
+│   │   ├── strategy/           # 策略基类接口：IStrategy
+│   │   ├── dao/                # DAO 接口声明（ddl.hpp / dml.hpp）；表实现头在 src/qtrade/dao/
+│   │   └── framework/          # 【内部框架头文件】不 install；#include <qtrade/framework/...>
+│   │       ├── grpc/           # GrpcHandlerInterface、grpc_status_utils 等
+│   │       └── support/        # 支撑服务生命周期接口（ISupportService）
+│   └── qtrade_sdk/             # 插件 Target 接口：quote/、trader/（Api + Spi）
 ├── src/
-│   ├── qtrade/                     # 【交易平台产品实现】对应 include/qtrade/ + 引擎/服务/客户端
+│   ├── qtrade/                     # 【交易平台产品实现】
 │   │   ├── apps/                   # 【可部署二进制入口】仅含 main，目录名 = 产物名
 │   │   │   ├── qtrade_engine/main.cpp
 │   │   │   ├── qtrade_config_service/main.cpp
@@ -71,24 +73,29 @@ qtrade/
 │   │   │   ├── monitor_client/
 │   │   │   └── registry_client/
 │   │   ├── service/                # 【支撑服务层】业务实现（无 main；入口在 apps/）
-│   │   │   ├── config_service/
-│   │   │   ├── account_service/
+│   │   │   ├── config_service/     # 异步 gRPC（含 SubscribeConfig Streaming）
+│   │   │   │   ├── grpc/           # Async + CQ 接入、CallTag 调度
+│   │   │   │   └── ...
+│   │   │   ├── account_service/    # 同步 gRPC（Unary RPC）
+│   │   │   │   ├── grpc/           # 薄路由层：DatabaseReady → handler.Run()
+│   │   │   │   ├── handler/        # 每 RPC 一个 Handler（继承 GrpcHandlerInterface）
+│   │   │   │   └── logic/          # 可复用业务工具（converter、codec）
 │   │   │   ├── log_service/
 │   │   │   └── ...
+│   │   ├── dao/                    # 【表级 DAO 实现】.hpp + .cpp（命名空间 qtrade::framework::dao）
+│   │   ├── framework/              # 【内部框架实现】对应 include/qtrade/framework/
+│   │   │   ├── support/            # SupportSyncServiceImpl / SupportAsyncServiceImpl
+│   │   │   ├── database/           # 连接选项、DbConnectionHolder、bootstrap
+│   │   │   ├── dao/                # dml_utils、ddl_utils、sql_utils（DAO 基建，非表级 DAO）
+│   │   │   └── grpc/               # 同步/异步 gRPC Server、CallTag、CQ 循环
 │   │   ├── common/                 # 【产品进程公共能力】引擎与各微服务入口共用
 │   │   │   ├── app/                # 进程 bootstrap：参数解析、信号处理、服务入口
-│   │   │   └── logging/            # 日志初始化
+│   │   │   ├── logging/            # 日志初始化
+│   │   │   └── proto/              # proto ↔ JSON 等通用转换
 │   │   └── error_code/             # include/qtrade/error_code/ 的实现（目录镜像）
-│   ├── qtrade_sdk/                 # 【SDK 接口实现】对应 include/qtrade_sdk/
-│   │   ├── mock/quote|trader/      # Mock 开发/测试适配
-│   │   └── emt/quote|trader/       # EMT 厂商适配
-│   └── qtrade_framework/           # 【内部框架实现】对应 include/qtrade_framework/
-│       ├── dao/                    # 表级 DAO（.hpp + .cpp）
-│       ├── support/                # SupportServiceImpl 等（对应 include/qtrade_framework/support/）
-│       └── common/                 # 【框架基建】DAO/数据库/gRPC
-│           ├── database/           # 连接选项、DbConnectionHolder
-│           ├── dao/                # dml_utils、ddl_utils、sql_utils
-│           └── grpc/               # gRPC 异步服务基础设施
+│   └── qtrade_sdk/                 # 【SDK 接口实现】对应 include/qtrade_sdk/
+│       ├── mock/quote|trader/      # Mock 开发/测试适配
+│       └── emt/quote|trader/       # EMT 厂商适配
 ├── config/                         # 【示例配置】与 build/bin 二进制同名（--config 传入）
 │   ├── qtrade_engine.json          # 引擎引导：config/account 地址、engine_id、log/monitor
 │   ├── qtrade_config_service.json
@@ -129,7 +136,11 @@ qtrade/
 
 4. 策略代码**由独立仓库维护**，本仓库仅保留 `demo/strategy/` 作为开发示例；策略独立仓库规范见 **§7.2**。
 
-5. 若日后将通用基础组件（线程池、无锁结构、工具函数等）从 `include/` + `src/` 中独立为 `base/` 目录，保持与《架构》「共享基础代码」职责一致即可。
+5. **gRPC 接入模式**（支撑服务）：
+   - **Unary-only**（如 `account_service`）：同步 `Service::Service` + `SupportSyncServiceImpl`；`grpc/` 薄路由，`handler/` 按 RPC 继承 `GrpcHandlerInterface`
+   - **含 Streaming**（如 `config_service`）：异步 `AsyncService` + CQ + `SupportAsyncServiceImpl`；`grpc/` 负责 CallTag 生命周期，业务逐步下沉到 `handler/`
+
+6. 若日后将通用基础组件（线程池、无锁结构、工具函数等）从 `include/` + `src/` 中独立为 `base/` 目录，保持与《架构》「共享基础代码」职责一致即可。
 
 ---
 
@@ -234,7 +245,13 @@ Spi 适配器**不**继承 `qtrade_sdk::*Spi`；`#include` 该头文件仅为使
 - 跨模块共享的数据结构定义在 `qtrade_sdk/quote/`、`qtrade_sdk/trader/`；按需 `#include` 对应头文件，使用 `qtrade_sdk::quote::`、`qtrade_sdk::trader::` 命名空间
 - 错误码枚举见 `include/qtrade/error_code/error_codes.hpp`，分段规则见 `code_segment.hpp`
 - `include/qtrade/` 下需 `.cpp` 的公共 API 实现，目录镜像放在 `src/qtrade/error_code/`（如 `code_message.cpp`）；SDK 适配器实现在 `src/qtrade_sdk/<vendor>/`；引擎内部 client 头文件与实现均在 `src/qtrade/client/`
-- 模块内部头文件与 `.cpp` 同目录放在 `src/` 下，不放入 `include/`；**`src/` 内部引用**统一以 `src/` 为 include 根，路径带层前缀，例如 `#include "qtrade/service/account_service/account_service.hpp"`、`#include "qtrade_framework/support/support_service_impl.hpp"`、`#include "qtrade_sdk/mock/quote/mock_quote_api.hpp"`（CMake 仅 `target_include_directories(... PRIVATE ${QTRADE_SRC_DIR})`）
+- 模块内部头文件与 `.cpp` 同目录放在 `src/` 下，不放入 `include/`；**`src/` 内部引用**统一以 `src/` 为 include 根，路径带层前缀，例如：
+  - `#include "qtrade/service/account_service/account_service.hpp"`
+  - `#include "qtrade/framework/support/support_sync_service_impl.hpp"`
+  - `#include "qtrade/dao/trading_account.hpp"`
+  - `#include "qtrade_sdk/mock/quote/mock_quote_api.hpp"`
+  （CMake 对实现库使用 `target_include_directories(... PRIVATE ${QTRADE_SRC_DIR})`；公共头使用 `${QTRADE_INCLUDE_DIR}`）
+- **Handler 管道内业务数据（ServerData）**使用 DAO 记录或内部 struct，**不直接持有 proto**；proto ↔ 内部结构在 `ConvertToServerData` / `BuildResponse` 边界转换（参考 `account_service/handler/`）
 
 - 通用工具函数（时间、字符串、加密等）统一放在 `include/common/utils/`
 

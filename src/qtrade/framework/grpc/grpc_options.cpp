@@ -3,7 +3,7 @@
 /// @author    wengjianhong
 /// @date      2026-07-08
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade_framework/common/grpc/grpc_options.hpp"
+#include "qtrade/framework/grpc/grpc_options.hpp"
 
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>

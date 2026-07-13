@@ -3,7 +3,7 @@
 /// @author    wengjianhong
 /// @date      2026-07-09
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade_framework/dao/account_credential.hpp"
+#include "qtrade/dao/account_credential.hpp"
 
 #include <spdlog/spdlog.h>
 

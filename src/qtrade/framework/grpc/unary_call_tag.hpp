@@ -6,7 +6,7 @@
 #ifndef QTRADE_COMMON_GRPC_UNARY_CALL_TAG_HPP_
 #define QTRADE_COMMON_GRPC_UNARY_CALL_TAG_HPP_
 
-#include "qtrade_framework/common/grpc/call_tag_base.hpp"
+#include "qtrade/framework/grpc/call_tag_base.hpp"
 
 #include <grpcpp/grpcpp.h>
 

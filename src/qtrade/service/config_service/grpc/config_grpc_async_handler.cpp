@@ -5,8 +5,8 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/service/config_service/grpc/config_grpc_async_handler.hpp"
 
-#include "qtrade_framework/common/grpc/call_tag_base.hpp"
-#include "qtrade_framework/common/grpc/unary_call_tag.hpp"
+#include "qtrade/framework/grpc/call_tag_base.hpp"
+#include "qtrade/framework/grpc/unary_call_tag.hpp"
 
 #include <grpcpp/alarm.h>
 #include <grpcpp/grpcpp.h>

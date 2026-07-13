@@ -7,8 +7,8 @@
 #define QTRADE_SERVICE_ACCOUNT_HANDLER_GET_ACCOUNT_HANDLER_HPP_
 
 #include <qtrade/proto/account/v1/account.pb.h>
-#include <qtrade_framework/dao/trading_account.hpp>
-#include <qtrade_framework/grpc/grpc_handler_interface.hpp>
+#include <qtrade/dao/trading_account.hpp>
+#include <qtrade/framework/grpc/grpc_handler_interface.hpp>
 
 #include <string>
 

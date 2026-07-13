@@ -7,7 +7,7 @@
 #ifndef QTRADE_SERVICE_ACCOUNT_GRPC_SERVICE_HPP_
 #define QTRADE_SERVICE_ACCOUNT_GRPC_SERVICE_HPP_
 
-#include "qtrade_framework/common/database/db_connection.hpp"
+#include "qtrade/framework/database/db_connection.hpp"
 
 #include <qtrade/proto/account/v1/account.grpc.pb.h>
 

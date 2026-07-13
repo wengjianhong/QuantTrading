@@ -3,7 +3,7 @@
 /// @author    wengjianhong
 /// @date      2026-07-09
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade_framework/common/dao/sql_utils.hpp"
+#include "qtrade/framework/dao/sql_utils.hpp"
 
 namespace qtrade::framework::dao {
 

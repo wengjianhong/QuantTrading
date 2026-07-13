@@ -3,7 +3,7 @@
 /// @author    wengjianhong
 /// @date      2026-07-03
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade_framework/common/database/database_options.hpp"
+#include "qtrade/framework/database/database_options.hpp"
 
 #include <cpputils/database/config.hpp>
 #include <cpputils/database/database_types.hpp>

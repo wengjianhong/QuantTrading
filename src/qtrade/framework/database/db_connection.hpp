@@ -6,7 +6,7 @@
 #ifndef QTRADE_COMMON_DATABASE_DB_CONNECTION_HPP_
 #define QTRADE_COMMON_DATABASE_DB_CONNECTION_HPP_
 
-#include "qtrade_framework/common/database/database_options.hpp"
+#include "qtrade/framework/database/database_options.hpp"
 
 #include <cpputils/database/connection.hpp>
 #include <cpputils/database/connection_pool.hpp>

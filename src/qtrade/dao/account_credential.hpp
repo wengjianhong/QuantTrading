@@ -6,10 +6,10 @@
 #ifndef QTRADE_DAO_ACCOUNT_CREDENTIAL_HPP_
 #define QTRADE_DAO_ACCOUNT_CREDENTIAL_HPP_
 
-#include "qtrade_framework/common/dao/dml_utils.hpp"
+#include "qtrade/framework/dao/dml_utils.hpp"
 
-#include <qtrade_framework/dao/ddl.hpp>
-#include <qtrade_framework/dao/dml.hpp>
+#include <qtrade/dao/ddl.hpp>
+#include <qtrade/dao/dml.hpp>
 
 #include <cstdint>
 #include <optional>

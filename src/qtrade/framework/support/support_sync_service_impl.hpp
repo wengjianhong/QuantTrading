@@ -6,11 +6,11 @@
 #ifndef QTRADE_COMMON_SUPPORT_SUPPORT_SYNC_SERVICE_IMPL_HPP_
 #define QTRADE_COMMON_SUPPORT_SUPPORT_SYNC_SERVICE_IMPL_HPP_
 
-#include "qtrade_framework/common/database/db_connection.hpp"
-#include "qtrade_framework/common/grpc/grpc_sync_service_host.hpp"
+#include "qtrade/framework/database/db_connection.hpp"
+#include "qtrade/framework/grpc/grpc_sync_service_host.hpp"
 
 #include <qtrade/error_code/error_codes.hpp>
-#include <qtrade_framework/support/support_service.hpp>
+#include <qtrade/framework/support/support_service.hpp>
 
 #include <memory>
 #include <mutex>
