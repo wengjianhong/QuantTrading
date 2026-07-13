@@ -40,15 +40,15 @@ qtrade/
 │   ├── guide.md                    # 开发指南：编码规范、插件开发流程、部署步骤、调试方法、协作规则
 │   └── deploy.md                   # 部署文档：各模块部署要求、机器配置、网络拓扑、监控告警、容灾切换
 ├── include/
-│   ├── qtrade/                 # 【对外 + 内部头文件】插件接口、共享数据结构、错误码
+│   ├── qtrade/                 # 【对外公共头文件】插件接口、共享数据结构、错误码
 │   │   ├── structs/            # 框架通用结构（如 result.hpp）
 │   │   ├── error_code/         # 错误码：error_codes.hpp、code_segment.hpp、code_message.hpp
 │   │   ├── strategy/           # 策略基类接口：IStrategy
-│   │   ├── dao/                # DAO 接口声明（ddl.hpp / dml.hpp）；表实现头在 src/qtrade/dao/
-│   │   └── framework/          # 【内部框架头文件】不 install；#include <qtrade/framework/...>
-│   │       ├── grpc/           # GrpcHandlerInterface、grpc_status_utils 等
-│   │       └── support/        # 支撑服务生命周期接口（ISupportService）
-│   └── qtrade_sdk/             # 插件 Target 接口：quote/、trader/（Api + Spi）
+│   │   └── dao/                # DAO 接口声明（ddl.hpp / dml.hpp）；表实现头在 src/qtrade/dao/
+│   ├── qtrade_sdk/             # 插件 Target 接口：quote/、trader/（Api + Spi）
+│   └── qtrade_framework/       # 【内部框架头文件】不 install；#include <qtrade_framework/...>
+│       ├── grpc/               # GrpcHandlerInterface、grpc_status_utils 等
+│       └── support/            # 支撑服务生命周期接口（ISupportService）
 ├── src/
 │   ├── qtrade/                     # 【交易平台产品实现】
 │   │   ├── apps/                   # 【可部署二进制入口】仅含 main，目录名 = 产物名
@@ -83,7 +83,7 @@ qtrade/
 │   │   │   ├── log_service/
 │   │   │   └── ...
 │   │   ├── dao/                    # 【表级 DAO 实现】.hpp + .cpp（命名空间 qtrade::framework::dao）
-│   │   ├── framework/              # 【内部框架实现】对应 include/qtrade/framework/
+│   │   ├── framework/              # 【内部框架实现】实现头在 src；公开接口头在 include/qtrade_framework/
 │   │   │   ├── support/            # SupportSyncServiceImpl / SupportAsyncServiceImpl
 │   │   │   ├── database/           # 连接选项、DbConnectionHolder、bootstrap
 │   │   │   ├── dao/                # dml_utils、ddl_utils、sql_utils（DAO 基建，非表级 DAO）
@@ -247,7 +247,7 @@ Spi 适配器**不**继承 `qtrade_sdk::*Spi`；`#include` 该头文件仅为使
 - `include/qtrade/` 下需 `.cpp` 的公共 API 实现，目录镜像放在 `src/qtrade/error_code/`（如 `code_message.cpp`）；SDK 适配器实现在 `src/qtrade_sdk/<vendor>/`；引擎内部 client 头文件与实现均在 `src/qtrade/client/`
 - 模块内部头文件与 `.cpp` 同目录放在 `src/` 下，不放入 `include/`；**`src/` 内部引用**统一以 `src/` 为 include 根，路径带层前缀，例如：
   - `#include "qtrade/service/account_service/account_service.hpp"`
-  - `#include "qtrade/framework/support/support_sync_service_impl.hpp"`
+  - `#include <qtrade_framework/grpc/grpc_handler_interface.hpp>`（`include/qtrade_framework/`，不 install）
   - `#include "qtrade/dao/trading_account.hpp"`
   - `#include "qtrade_sdk/mock/quote/mock_quote_api.hpp"`
   （CMake 对实现库使用 `target_include_directories(... PRIVATE ${QTRADE_SRC_DIR})`；公共头使用 `${QTRADE_INCLUDE_DIR}`）
