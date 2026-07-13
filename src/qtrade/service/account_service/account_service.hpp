@@ -6,8 +6,8 @@
 #ifndef QTRADE_SERVICE_ACCOUNT_SERVICE_HPP_
 #define QTRADE_SERVICE_ACCOUNT_SERVICE_HPP_
 
-#include "qtrade/service/account_service/grpc/account_grpc_service.hpp"
 #include "qtrade/framework/support/support_sync_service_impl.hpp"
+#include "qtrade/service/account_service/grpc/account_grpc_service.hpp"
 
 #include <qtrade/error_code/error_codes.hpp>
 

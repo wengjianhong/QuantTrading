@@ -5,18 +5,17 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/service/config_service/config_service.hpp"
 
-#include "qtrade/framework/database/database_service_bootstrap.hpp"
-#include "qtrade/framework/dao/ddl_utils.hpp"
-#include "qtrade/framework/grpc/grpc_options.hpp"
 #include "qtrade/dao/engine_config.hpp"
+#include "qtrade/framework/dao/ddl_utils.hpp"
+#include "qtrade/framework/database/database_service_bootstrap.hpp"
+#include "qtrade/framework/grpc/grpc_options.hpp"
 
 namespace qtrade::service {
 
 namespace {
 
 ErrorCode EnsureConfigSchema(cpputils::database::IConnection* connection) {
-  return qtrade::framework::dao::EnsureTableSchema(connection,
-                                                   qtrade::framework::dao::EngineConfig::Instance());
+  return qtrade::framework::dao::EnsureTableSchema(connection, qtrade::framework::dao::EngineConfig::Instance());
 }
 
 }  // namespace

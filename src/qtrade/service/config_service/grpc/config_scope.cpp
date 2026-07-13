@@ -57,7 +57,8 @@ qtrade::config::v1::ConfigSnapshot QueryConfigSnapshot(const ConfigScope& scope)
 
   const auto& record = result.data->front();
   qtrade::config::v1::EngineConfig engine;
-  if (!record.payload.has_value() || !qtrade::common::ProtoFromJson(record.payload.value(), engine, {}, "ConfigScope")) {
+  if (!record.payload.has_value() ||
+      !qtrade::common::ProtoFromJson(record.payload.value(), engine, {}, "ConfigScope")) {
     spdlog::error("[ConfigScope] invalid payload JSON for tenant={} engine={}", scope.tenant_id, scope.engine_id);
     return snapshot;
   }

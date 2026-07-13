@@ -6,8 +6,8 @@
 #ifndef QTRADE_SERVICE_CONFIG_SERVICE_HPP_
 #define QTRADE_SERVICE_CONFIG_SERVICE_HPP_
 
-#include "qtrade/service/config_service/grpc/config_grpc_async_handler.hpp"
 #include "qtrade/framework/support/support_service_impl.hpp"
+#include "qtrade/service/config_service/grpc/config_grpc_async_handler.hpp"
 
 #include <qtrade/error_code/error_codes.hpp>
 #include <qtrade/proto/config/v1/config.grpc.pb.h>

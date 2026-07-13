@@ -182,16 +182,16 @@ Result<void> GrpcHandlerInterface<RequestProto, ResponseProto, ServerData>::Run(
     /// 前置检查: 检查接口请求权限
     const auto perm_result = CheckPermission(context, request);
     if (perm_result.error_code != ErrorCode::kSuccess) {
-      spdlog::warn("GrpcHandlerInterface CheckPermission failed: method={}, {}", method_name_,
-                   perm_result.error_message);
+      spdlog::warn(
+        "GrpcHandlerInterface CheckPermission failed: method={}, {}", method_name_, perm_result.error_message);
       return perm_result;
     }
 
     /// 步骤1: 将外部 RequestProto 转换为内部 ServerData 结构体
     Result<ServerData> convert_result = ConvertToServerData(context, request);
     if (convert_result.error_code != ErrorCode::kSuccess) {
-      spdlog::warn("GrpcHandlerInterface ConvertToServerData failed: method={}, {}", method_name_,
-                   convert_result.error_message);
+      spdlog::warn(
+        "GrpcHandlerInterface ConvertToServerData failed: method={}, {}", method_name_, convert_result.error_message);
       return {convert_result.error_code,
               std::move(convert_result.error_message),
               std::move(convert_result.error_message_args)};
@@ -207,16 +207,16 @@ Result<void> GrpcHandlerInterface<RequestProto, ResponseProto, ServerData>::Run(
     /// 步骤2: 参数合法性校验
     const auto validate_result = ValidateParams(server_data.value());
     if (validate_result.error_code != ErrorCode::kSuccess) {
-      spdlog::warn("GrpcHandlerInterface ValidateParams failed: method={}, {}", method_name_,
-                   validate_result.error_message);
+      spdlog::warn(
+        "GrpcHandlerInterface ValidateParams failed: method={}, {}", method_name_, validate_result.error_message);
       return validate_result;
     }
 
     /// 步骤3: 前置条件检查
     const auto precond_result = CheckPreconditions(server_data.value());
     if (precond_result.error_code != ErrorCode::kSuccess) {
-      spdlog::warn("GrpcHandlerInterface CheckPreconditions failed: method={}, {}", method_name_,
-                   precond_result.error_message);
+      spdlog::warn(
+        "GrpcHandlerInterface CheckPreconditions failed: method={}, {}", method_name_, precond_result.error_message);
       return precond_result;
     }
 
@@ -224,8 +224,8 @@ Result<void> GrpcHandlerInterface<RequestProto, ResponseProto, ServerData>::Run(
     rollback_on_exception = true;
     const auto exec_result = ExecuteBusiness(server_data.value());
     if (exec_result.error_code != ErrorCode::kSuccess) {
-      spdlog::error("GrpcHandlerInterface ExecuteBusiness failed: method={}, {}", method_name_,
-                    exec_result.error_message);
+      spdlog::error(
+        "GrpcHandlerInterface ExecuteBusiness failed: method={}, {}", method_name_, exec_result.error_message);
       Rollback(server_data.value());
       rollback_on_exception = false;
       return exec_result;
@@ -234,7 +234,8 @@ Result<void> GrpcHandlerInterface<RequestProto, ResponseProto, ServerData>::Run(
     /// 步骤5: 校验操作是否真正生效落地【失败时回滚】
     const auto verify_result = VerifyExecutionEffective(server_data.value());
     if (verify_result.error_code != ErrorCode::kSuccess) {
-      spdlog::error("GrpcHandlerInterface VerifyExecutionEffective failed: method={}, {}", method_name_,
+      spdlog::error("GrpcHandlerInterface VerifyExecutionEffective failed: method={}, {}",
+                    method_name_,
                     verify_result.error_message);
       Rollback(server_data.value());
       rollback_on_exception = false;
@@ -245,16 +246,16 @@ Result<void> GrpcHandlerInterface<RequestProto, ResponseProto, ServerData>::Run(
     rollback_on_exception = false;
     const auto notify_result = NotifyService(server_data.value());
     if (notify_result.error_code != ErrorCode::kSuccess) {
-      spdlog::warn("GrpcHandlerInterface NotifyService failed: method={}, {}", method_name_,
-                   notify_result.error_message);
+      spdlog::warn(
+        "GrpcHandlerInterface NotifyService failed: method={}, {}", method_name_, notify_result.error_message);
     }
 
     /// 步骤7: 构造最终返回结果【失败时回滚】
     rollback_on_exception = true;
     const auto build_result = BuildResponse(server_data.value(), response);
     if (build_result.error_code != ErrorCode::kSuccess) {
-      spdlog::error("GrpcHandlerInterface BuildResponse failed: method={}, {}", method_name_,
-                    build_result.error_message);
+      spdlog::error(
+        "GrpcHandlerInterface BuildResponse failed: method={}, {}", method_name_, build_result.error_message);
       Rollback(server_data.value());
       rollback_on_exception = false;
       return build_result;

@@ -6,8 +6,8 @@
 #ifndef QTRADE_SERVICE_CONFIG_GRPC_ASYNC_HANDLER_HPP_
 #define QTRADE_SERVICE_CONFIG_GRPC_ASYNC_HANDLER_HPP_
 
-#include "qtrade/service/config_service/grpc/config_scope.hpp"
 #include "qtrade/framework/database/db_connection.hpp"
+#include "qtrade/service/config_service/grpc/config_scope.hpp"
 
 #include <qtrade/proto/config/v1/config.grpc.pb.h>
 

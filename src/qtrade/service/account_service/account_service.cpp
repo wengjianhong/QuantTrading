@@ -5,11 +5,11 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/service/account_service/account_service.hpp"
 
-#include "qtrade/framework/database/database_service_bootstrap.hpp"
-#include "qtrade/framework/dao/ddl_utils.hpp"
-#include "qtrade/framework/grpc/grpc_options.hpp"
 #include "qtrade/dao/account_credential.hpp"
 #include "qtrade/dao/trading_account.hpp"
+#include "qtrade/framework/dao/ddl_utils.hpp"
+#include "qtrade/framework/database/database_service_bootstrap.hpp"
+#include "qtrade/framework/grpc/grpc_options.hpp"
 
 namespace qtrade::service {
 
@@ -19,13 +19,12 @@ ErrorCode EnsureAccountSchema(cpputils::database::IConnection* connection) {
   if (connection == nullptr) {
     return ErrorCode::kSystemError;
   }
-  if (const auto rc = qtrade::framework::dao::EnsureTableSchema(
-        connection, qtrade::framework::dao::TradingAccount::Instance());
+  if (const auto rc =
+        qtrade::framework::dao::EnsureTableSchema(connection, qtrade::framework::dao::TradingAccount::Instance());
       rc != ErrorCode::kSuccess) {
     return rc;
   }
-  return qtrade::framework::dao::EnsureTableSchema(connection,
-                                                   qtrade::framework::dao::AccountCredential::Instance());
+  return qtrade::framework::dao::EnsureTableSchema(connection, qtrade::framework::dao::AccountCredential::Instance());
 }
 
 }  // namespace
@@ -44,8 +43,7 @@ ErrorCode AccountService::Initialize(const std::string& config_path) {
   config_path_ = config_path;
   listen_address_ = qtrade::common::ParseGrpcOptions(config_path, default_port_).ListenAddress();
 
-  const auto context =
-    qtrade::common::BootstrapDatabaseConnection(config_path, EnsureAccountSchema, service_name_);
+  const auto context = qtrade::common::BootstrapDatabaseConnection(config_path, EnsureAccountSchema, service_name_);
   if (!context.connection) {
     connection_.reset();
     state_ = qtrade::common::support::SupportServiceState::kFailed;

@@ -4,10 +4,10 @@
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade_sdk/mock/quote/mock_quote_api.hpp"
 #include "qtrade/common/app/app_runner.hpp"
 #include "qtrade/common/logging/logger.hpp"
 #include "qtrade/engine/trading_engine.hpp"
+#include "qtrade_sdk/mock/quote/mock_quote_api.hpp"
 #include "strategy/example_strategy.hpp"
 
 #include <spdlog/spdlog.h>

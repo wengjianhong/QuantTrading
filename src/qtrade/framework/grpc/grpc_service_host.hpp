@@ -105,11 +105,11 @@ class GrpcServiceHost {
   }
 
  private:
-  AsyncServiceT async_service_;                   ///< protobuf 异步服务实例
-  std::unique_ptr<GrpcAsyncServer> grpc_server_;  ///< gRPC 服务端
-  std::unique_ptr<HandlerT> handler_;             ///< RPC 异步处理器
+  AsyncServiceT async_service_;                                             ///< protobuf 异步服务实例
+  std::unique_ptr<GrpcAsyncServer> grpc_server_;                            ///< gRPC 服务端
+  std::unique_ptr<HandlerT> handler_;                                       ///< RPC 异步处理器
   std::shared_ptr<qtrade::framework::dao::DbConnectionHolder> connection_;  ///< 数据库连接
-  bool running_ = false;                          ///< 是否已启动
+  bool running_ = false;                                                    ///< 是否已启动
 };
 
 }  // namespace qtrade::common::grpc_async
