@@ -7,16 +7,20 @@
 #define QTRADE_SERVICE_ACCOUNT_HANDLER_UPDATE_ACCOUNT_HANDLER_HPP_
 
 #include <qtrade/proto/account/v1/account.pb.h>
+#include <qtrade_framework/dao/trading_account.hpp>
 #include <qtrade_framework/grpc/grpc_handler_interface.hpp>
+
+#include <string>
 
 namespace qtrade::service {
 
 /// @brief UpdateAccount 管道内业务数据
 struct UpdateAccountServerData {
-  qtrade::account::v1::TradingAccount account;  ///< 待更新账户
-  bool update_password = false;                 ///< 是否同步更新密码（password 非空时）
-  int previous_credential_version = 0;          ///< 更新前凭证版本号（预留回滚）
-  bool credential_updated = false;              ///< 凭证是否已更新（预留回滚）
+  bool update_password = false;                          ///< 是否同步更新密码
+  bool credential_updated = false;                       ///< 凭证是否已更新（预留回滚）
+  int previous_credential_version = 0;                   ///< 更新前凭证版本号（预留回滚）
+  std::string password;                                  ///< 新明文密码（空表示不更新凭证）
+  qtrade::framework::dao::TradingAccountRecord account;  ///< 待更新账户元数据
 };
 
 /// @brief 更新交易账户（可选更新 account_credential）
@@ -30,8 +34,8 @@ class UpdateAccountHandler final
 
  protected:
   /// 步骤1: 将 gRPC 请求转为业务数据
-  Result<UpdateAccountServerData> ConvertToServerData(::grpc::ServerContext* context,
-                                                     const qtrade::account::v1::UpdateAccountRequest* request) override;
+  Result<UpdateAccountServerData> ConvertToServerData(
+    ::grpc::ServerContext* context, const qtrade::account::v1::UpdateAccountRequest* request) override;
 
   /// 步骤2: 校验参数合法性
   Result<void> ValidateParams(UpdateAccountServerData& server_data) override;

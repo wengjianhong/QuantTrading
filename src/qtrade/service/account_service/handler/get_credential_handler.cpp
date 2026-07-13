@@ -59,8 +59,8 @@ Result<void> GetCredentialHandler::ExecuteBusiness(GetCredentialServerData& serv
     return ErrResult(ErrorCode::kNotFound, "account not found");
   }
 
-  ToTradingAccountProto(account_result.data->front(), server_data.account);
-  if (server_data.account.status() == "disabled") {
+  server_data.account = account_result.data->front();
+  if (server_data.account.status.value_or("") == "disabled") {
     return ErrResult(ErrorCode::kInternal, "account is disabled");
   }
 
@@ -81,12 +81,10 @@ Result<void> GetCredentialHandler::ExecuteBusiness(GetCredentialServerData& serv
     return ErrResult(ErrorCode::kInternal, "credential data invalid");
   }
 
-  std::string plain_password;
-  if (!DecryptCredential(cred_row.key_id.value(), cred_row.ciphertext.value(), plain_password)) {
+  if (!DecryptCredential(cred_row.key_id.value(), cred_row.ciphertext.value(), server_data.password)) {
     return ErrResult(ErrorCode::kInternal, "decrypt credential failed");
   }
 
-  server_data.account.set_password(plain_password);
   return OkResult();
 }
 
@@ -110,7 +108,10 @@ Result<void> GetCredentialHandler::NotifyService(GetCredentialServerData& server
 
 Result<void> GetCredentialHandler::BuildResponse(GetCredentialServerData& server_data,
                                                  qtrade::account::v1::GetCredentialResponse* response) {
-  *response->mutable_account() = std::move(server_data.account);
+  qtrade::account::v1::TradingAccount account_proto;
+  ToTradingAccountProto(server_data.account, account_proto);
+  account_proto.set_password(server_data.password);
+  *response->mutable_account() = std::move(account_proto);
   return OkResult();
 }
 

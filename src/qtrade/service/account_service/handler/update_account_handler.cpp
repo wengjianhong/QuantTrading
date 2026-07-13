@@ -17,6 +17,10 @@ namespace {
 using qtrade::framework::grpc::detail::ErrResult;
 using qtrade::framework::grpc::detail::OkResult;
 
+[[nodiscard]] bool OptionalStringEmpty(const std::optional<std::string>& value) {
+  return !value.has_value() || value->empty();
+}
+
 }  // namespace
 
 Result<UpdateAccountServerData> UpdateAccountHandler::ConvertToServerData(
@@ -27,13 +31,14 @@ Result<UpdateAccountServerData> UpdateAccountHandler::ConvertToServerData(
   }
 
   UpdateAccountServerData data;
-  data.account = request->account();
-  data.update_password = !data.account.password().empty();
+  data.account = ToTradingAccountRecord(request->account());
+  data.password = request->account().password();
+  data.update_password = !data.password.empty();
   return OkResult(std::move(data));
 }
 
 Result<void> UpdateAccountHandler::ValidateParams(UpdateAccountServerData& server_data) {
-  if (server_data.account.tenant_id().empty() || server_data.account.account_id().empty()) {
+  if (OptionalStringEmpty(server_data.account.tenant_id) || OptionalStringEmpty(server_data.account.account_id)) {
     return ErrResult(ErrorCode::kInternal, "tenant_id and account_id are required");
   }
   return OkResult();
@@ -49,11 +54,11 @@ Result<void> UpdateAccountHandler::ExecuteBusiness(UpdateAccountServerData& serv
   auto& credential_dao = qtrade::framework::dao::AccountCredential::Instance();
 
   qtrade::framework::dao::TradingAccountRecord where;
-  where.tenant_id = server_data.account.tenant_id();
-  where.account_id = server_data.account.account_id();
+  where.tenant_id = server_data.account.tenant_id;
+  where.account_id = server_data.account.account_id;
 
   /// 更新 trading_account
-  const auto update_result = trading_dao.Update(ToTradingAccountRecord(server_data.account), where);
+  const auto update_result = trading_dao.Update(server_data.account, where);
   if (update_result.error_code != ErrorCode::kSuccess) {
     return ErrResult(update_result.error_code, update_result.error_message);
   }
@@ -68,13 +73,13 @@ Result<void> UpdateAccountHandler::ExecuteBusiness(UpdateAccountServerData& serv
   /// password 非空时，同步更新 account_credential
   std::string key_id;
   std::string ciphertext;
-  if (!EncryptCredential(server_data.account.password(), key_id, ciphertext)) {
+  if (!EncryptCredential(server_data.password, key_id, ciphertext)) {
     return ErrResult(ErrorCode::kInternal, "encrypt credential failed");
   }
 
   qtrade::framework::dao::AccountCredentialRecord credential_key;
-  credential_key.tenant_id = server_data.account.tenant_id();
-  credential_key.account_id = server_data.account.account_id();
+  credential_key.tenant_id = server_data.account.tenant_id;
+  credential_key.account_id = server_data.account.account_id;
   const auto existing = credential_dao.Select(credential_key);
   if (existing.error_code != ErrorCode::kSuccess || !existing.data.has_value() || existing.data->empty()) {
     return ErrResult(ErrorCode::kNotFound, "credential not found");
@@ -83,8 +88,8 @@ Result<void> UpdateAccountHandler::ExecuteBusiness(UpdateAccountServerData& serv
   server_data.previous_credential_version = existing.data->front().version.value_or(0);
 
   qtrade::framework::dao::AccountCredentialRecord credential_row;
-  credential_row.tenant_id = server_data.account.tenant_id();
-  credential_row.account_id = server_data.account.account_id();
+  credential_row.tenant_id = server_data.account.tenant_id;
+  credential_row.account_id = server_data.account.account_id;
   credential_row.key_id = key_id;
   credential_row.ciphertext = ciphertext;
   credential_row.version = server_data.previous_credential_version + 1;

@@ -17,6 +17,10 @@ namespace {
 using qtrade::framework::grpc::detail::ErrResult;
 using qtrade::framework::grpc::detail::OkResult;
 
+[[nodiscard]] bool OptionalStringEmpty(const std::optional<std::string>& value) {
+  return !value.has_value() || value->empty();
+}
+
 }  // namespace
 
 Result<AddAccountServerData> AddAccountHandler::ConvertToServerData(
@@ -27,13 +31,14 @@ Result<AddAccountServerData> AddAccountHandler::ConvertToServerData(
   }
 
   AddAccountServerData data;
-  data.account = request->account();
+  data.account = ToTradingAccountRecord(request->account());
+  data.password = request->account().password();
   return OkResult(std::move(data));
 }
 
 Result<void> AddAccountHandler::ValidateParams(AddAccountServerData& server_data) {
-  const auto& account = server_data.account;
-  if (account.tenant_id().empty() || account.account_id().empty() || account.password().empty()) {
+  if (OptionalStringEmpty(server_data.account.tenant_id) || OptionalStringEmpty(server_data.account.account_id) ||
+      server_data.password.empty()) {
     return ErrResult(ErrorCode::kInternal, "tenant_id, account_id and password are required");
   }
   return OkResult();
@@ -41,8 +46,8 @@ Result<void> AddAccountHandler::ValidateParams(AddAccountServerData& server_data
 
 Result<void> AddAccountHandler::CheckPreconditions(AddAccountServerData& server_data) {
   qtrade::framework::dao::TradingAccountRecord key;
-  key.tenant_id = server_data.account.tenant_id();
-  key.account_id = server_data.account.account_id();
+  key.tenant_id = server_data.account.tenant_id;
+  key.account_id = server_data.account.account_id;
 
   const auto exists = qtrade::framework::dao::TradingAccount::Instance().Count(key);
   if (exists.error_code != ErrorCode::kSuccess) {
@@ -61,12 +66,12 @@ Result<void> AddAccountHandler::ExecuteBusiness(AddAccountServerData& server_dat
   /// 加密明文密码
   std::string key_id;
   std::string ciphertext;
-  if (!EncryptCredential(server_data.account.password(), key_id, ciphertext)) {
+  if (!EncryptCredential(server_data.password, key_id, ciphertext)) {
     return ErrResult(ErrorCode::kInternal, "encrypt credential failed");
   }
 
   /// 写入 trading_account
-  if (const auto insert_account = trading_dao.Insert({ToTradingAccountRecord(server_data.account)});
+  if (const auto insert_account = trading_dao.Insert({server_data.account});
       insert_account.error_code != ErrorCode::kSuccess) {
     return ErrResult(insert_account.error_code, insert_account.error_message);
   }
@@ -74,8 +79,8 @@ Result<void> AddAccountHandler::ExecuteBusiness(AddAccountServerData& server_dat
 
   /// 写入 account_credential
   qtrade::framework::dao::AccountCredentialRecord credential_row;
-  credential_row.tenant_id = server_data.account.tenant_id();
-  credential_row.account_id = server_data.account.account_id();
+  credential_row.tenant_id = server_data.account.tenant_id;
+  credential_row.account_id = server_data.account.account_id;
   credential_row.key_id = key_id;
   credential_row.ciphertext = ciphertext;
   credential_row.version = 1;
@@ -100,8 +105,8 @@ void AddAccountHandler::Rollback(AddAccountServerData& server_data) {
 
   /// 凭证写入失败时，删除已插入的 trading_account 记录
   qtrade::framework::dao::TradingAccountRecord where;
-  where.tenant_id = server_data.account.tenant_id();
-  where.account_id = server_data.account.account_id();
+  where.tenant_id = server_data.account.tenant_id;
+  where.account_id = server_data.account.account_id;
   (void)qtrade::framework::dao::TradingAccount::Instance().Delete(where);
   server_data.account_inserted = false;
 }

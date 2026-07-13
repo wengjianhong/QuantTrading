@@ -19,7 +19,7 @@ namespace qtrade::service {
 /// @brief 配置中心支撑服务（异步 gRPC，含 SubscribeConfig Streaming）
 class ConfigService final
   : public qtrade::common::support::SupportAsyncServiceImpl<qtrade::config::v1::ConfigService::AsyncService,
-                                                              ConfigGrpcAsyncHandler> {
+                                                            ConfigGrpcAsyncHandler> {
  public:
   ConfigService();
 

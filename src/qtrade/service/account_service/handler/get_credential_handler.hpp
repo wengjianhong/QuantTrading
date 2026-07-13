@@ -7,6 +7,7 @@
 #define QTRADE_SERVICE_ACCOUNT_HANDLER_GET_CREDENTIAL_HANDLER_HPP_
 
 #include <qtrade/proto/account/v1/account.pb.h>
+#include <qtrade_framework/dao/trading_account.hpp>
 #include <qtrade_framework/grpc/grpc_handler_interface.hpp>
 
 #include <string>
@@ -15,10 +16,11 @@ namespace qtrade::service {
 
 /// @brief GetCredential 管道内业务数据
 struct GetCredentialServerData {
-  std::string tenant_id;                        ///< 租户 ID
-  std::string account_id;                       ///< 交易账户号
-  std::string engine_id;                        ///< 引擎实例 ID（用于审计日志）
-  qtrade::account::v1::TradingAccount account;  ///< 含解密后明文密码的账户信息
+  std::string tenant_id;                                 ///< 租户 ID
+  std::string account_id;                                ///< 交易账户号
+  std::string engine_id;                                 ///< 引擎实例 ID（用于审计日志）
+  std::string password;                                  ///< 解密后的明文密码
+  qtrade::framework::dao::TradingAccountRecord account;  ///< 账户元数据
 };
 
 /// @brief 获取登录凭证（含明文密码，供引擎冷启动/换密使用）
@@ -32,8 +34,8 @@ class GetCredentialHandler final
 
  protected:
   /// 步骤1: 将 gRPC 请求转为业务数据
-  Result<GetCredentialServerData> ConvertToServerData(::grpc::ServerContext* context,
-                                                      const qtrade::account::v1::GetCredentialRequest* request) override;
+  Result<GetCredentialServerData> ConvertToServerData(
+    ::grpc::ServerContext* context, const qtrade::account::v1::GetCredentialRequest* request) override;
 
   /// 步骤2: 校验参数合法性
   Result<void> ValidateParams(GetCredentialServerData& server_data) override;

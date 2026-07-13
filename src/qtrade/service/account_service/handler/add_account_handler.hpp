@@ -7,14 +7,18 @@
 #define QTRADE_SERVICE_ACCOUNT_HANDLER_ADD_ACCOUNT_HANDLER_HPP_
 
 #include <qtrade/proto/account/v1/account.pb.h>
+#include <qtrade_framework/dao/trading_account.hpp>
 #include <qtrade_framework/grpc/grpc_handler_interface.hpp>
+
+#include <string>
 
 namespace qtrade::service {
 
 /// @brief AddAccount 管道内业务数据
 struct AddAccountServerData {
-  qtrade::account::v1::TradingAccount account;  ///< 待添加账户（含明文密码）
-  bool account_inserted = false;                  ///< trading_account 是否已写入（用于回滚）
+  bool account_inserted = false;                         ///< trading_account 是否已写入（用于回滚）
+  std::string password;                                  ///< 明文密码（写入 account_credential）
+  qtrade::framework::dao::TradingAccountRecord account;  ///< 待添加账户元数据
 };
 
 /// @brief 添加交易账户（写入 trading_account + account_credential）

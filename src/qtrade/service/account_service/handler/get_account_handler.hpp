@@ -7,6 +7,7 @@
 #define QTRADE_SERVICE_ACCOUNT_HANDLER_GET_ACCOUNT_HANDLER_HPP_
 
 #include <qtrade/proto/account/v1/account.pb.h>
+#include <qtrade_framework/dao/trading_account.hpp>
 #include <qtrade_framework/grpc/grpc_handler_interface.hpp>
 
 #include <string>
@@ -15,9 +16,9 @@ namespace qtrade::service {
 
 /// @brief GetAccount 管道内业务数据
 struct GetAccountServerData {
-  std::string tenant_id;                          ///< 租户 ID
-  std::string account_id;                         ///< 交易账户号
-  qtrade::account::v1::TradingAccount account;    ///< 查询结果（password 在 BuildResponse 中清空）
+  std::string tenant_id;                                 ///< 租户 ID
+  std::string account_id;                                ///< 交易账户号
+  qtrade::framework::dao::TradingAccountRecord account;  ///< 查询结果
 };
 
 /// @brief 查询单个交易账户（不返回密码）

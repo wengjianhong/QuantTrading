@@ -7,17 +7,19 @@
 #define QTRADE_SERVICE_ACCOUNT_HANDLER_LIST_ACCOUNTS_HANDLER_HPP_
 
 #include <qtrade/proto/account/v1/account.pb.h>
+#include <qtrade_framework/dao/trading_account.hpp>
 #include <qtrade_framework/grpc/grpc_handler_interface.hpp>
 
 #include <string>
 #include <vector>
 
 namespace qtrade::service {
+using qtrade::framework::dao::TradingAccountRecord;
 
 /// @brief ListAccounts 管道内业务数据
 struct ListAccountsServerData {
-  std::string tenant_id;                                      ///< 租户 ID（空表示不过滤）
-  std::vector<qtrade::account::v1::TradingAccount> accounts;  ///< 查询结果列表
+  std::string tenant_id;                       ///< 租户 ID（空表示不过滤）
+  std::vector<TradingAccountRecord> accounts;  ///< 查询结果列表
 };
 
 /// @brief 查询交易账户列表（password 均置空）

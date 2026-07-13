@@ -48,14 +48,7 @@ Result<void> ListAccountsHandler::ExecuteBusiness(ListAccountsServerData& server
     return ErrResult(result.error_code, result.error_message);
   }
 
-  server_data.accounts.reserve(result.data->size());
-  for (const auto& row : *result.data) {
-    qtrade::account::v1::TradingAccount account;
-    ToTradingAccountProto(row, account);
-    /// 列表响应中不返回密码
-    account.set_password("");
-    server_data.accounts.push_back(std::move(account));
-  }
+  server_data.accounts = std::move(*result.data);
   return OkResult();
 }
 
@@ -75,8 +68,12 @@ Result<void> ListAccountsHandler::NotifyService(ListAccountsServerData& server_d
 
 Result<void> ListAccountsHandler::BuildResponse(ListAccountsServerData& server_data,
                                                 qtrade::account::v1::ListAccountsResponse* response) {
-  for (auto& account : server_data.accounts) {
-    *response->add_accounts() = std::move(account);
+  for (const auto& row : server_data.accounts) {
+    qtrade::account::v1::TradingAccount account_proto;
+    ToTradingAccountProto(row, account_proto);
+    /// 列表响应中不返回密码
+    account_proto.set_password("");
+    *response->add_accounts() = std::move(account_proto);
   }
   return OkResult();
 }

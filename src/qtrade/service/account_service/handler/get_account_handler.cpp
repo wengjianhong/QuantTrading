@@ -51,7 +51,7 @@ Result<void> GetAccountHandler::ExecuteBusiness(GetAccountServerData& server_dat
     return ErrResult(ErrorCode::kNotFound, "account not found");
   }
 
-  ToTradingAccountProto(result.data->front(), server_data.account);
+  server_data.account = result.data->front();
   return OkResult();
 }
 
@@ -71,9 +71,11 @@ Result<void> GetAccountHandler::NotifyService(GetAccountServerData& server_data)
 
 Result<void> GetAccountHandler::BuildResponse(GetAccountServerData& server_data,
                                               qtrade::account::v1::GetAccountResponse* response) {
+  qtrade::account::v1::TradingAccount account_proto;
+  ToTradingAccountProto(server_data.account, account_proto);
   /// 响应中不返回密码
-  server_data.account.set_password("");
-  *response->mutable_account() = std::move(server_data.account);
+  account_proto.set_password("");
+  *response->mutable_account() = std::move(account_proto);
   return OkResult();
 }
 
