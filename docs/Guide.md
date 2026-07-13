@@ -87,12 +87,8 @@ qtrade/
 │   │   │   ├── support/            # SupportSyncServiceImpl / SupportAsyncServiceImpl
 │   │   │   ├── database/           # 连接选项、DbConnectionHolder、bootstrap
 │   │   │   ├── dao/                # dml_utils、ddl_utils、sql_utils（DAO 基建，非表级 DAO）
-│   │   │   └── grpc/               # 同步/异步 gRPC Server、CallTag、CQ 循环
-│   │   ├── common/                 # 【产品进程公共能力】引擎与各微服务入口共用
-│   │   │   ├── app/                # 进程 bootstrap：参数解析、信号处理、服务入口
-│   │   │   ├── logging/            # 日志初始化
-│   │   │   └── proto/              # proto ↔ JSON 等通用转换
-│   │   └── error_code/             # include/qtrade/error_code/ 的实现（目录镜像）
+│   │   │   ├── grpc/               # 同步/异步 gRPC Server、CallTag、CQ 循环
+│   │   │   └── error_code/         # include/qtrade/error_code/ 的实现（如 code_message.cpp）
 │   └── qtrade_sdk/                 # 【SDK 接口实现】对应 include/qtrade_sdk/
 │       ├── mock/quote|trader/      # Mock 开发/测试适配
 │       └── emt/quote|trader/       # EMT 厂商适配
@@ -244,7 +240,7 @@ Spi 适配器**不**继承 `qtrade_sdk::*Spi`；`#include` 该头文件仅为使
 
 - 跨模块共享的数据结构定义在 `qtrade_sdk/quote/`、`qtrade_sdk/trader/`；按需 `#include` 对应头文件，使用 `qtrade_sdk::quote::`、`qtrade_sdk::trader::` 命名空间
 - 错误码枚举见 `include/qtrade/error_code/error_codes.hpp`，分段规则见 `code_segment.hpp`
-- `include/qtrade/` 下需 `.cpp` 的公共 API 实现，目录镜像放在 `src/qtrade/error_code/`（如 `code_message.cpp`）；SDK 适配器实现在 `src/qtrade_sdk/<vendor>/`；引擎内部 client 头文件与实现均在 `src/qtrade/client/`
+- `include/qtrade/` 下需 `.cpp` 的公共 API 实现，目录镜像放在 `src/qtrade/framework/error_code/`（如 `code_message.cpp`）；SDK 适配器实现在 `src/qtrade_sdk/<vendor>/`；引擎内部 client 头文件与实现均在 `src/qtrade/client/`
 - 模块内部头文件与 `.cpp` 同目录放在 `src/` 下，不放入 `include/`；**`src/` 内部引用**统一以 `src/` 为 include 根，路径带层前缀，例如：
   - `#include "qtrade/service/account_service/account_service.hpp"`
   - `#include <qtrade_framework/grpc/grpc_handler_interface.hpp>`（`include/qtrade_framework/`，不 install）
