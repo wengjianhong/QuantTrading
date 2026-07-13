@@ -6,6 +6,7 @@
 #ifndef QTRADE_COMMON_GRPC_GRPC_SERVICE_HOST_HPP_
 #define QTRADE_COMMON_GRPC_GRPC_SERVICE_HOST_HPP_
 
+#include "qtrade_framework/common/database/db_connection.hpp"
 #include "qtrade_framework/common/grpc/grpc_async_server.hpp"
 
 #include <qtrade/error_code/error_codes.hpp>
@@ -21,8 +22,7 @@ namespace qtrade::common::grpc_async {
 /// @brief gRPC Async + CQ 服务端封装
 /// @tparam AsyncServiceT protobuf 生成的 gRPC AsyncService 类型
 /// @tparam HandlerT RPC 异步处理器，需提供 Init / Start / Shutdown
-/// @tparam RepositoryT 注入 Handler 的仓储类型
-template <typename AsyncServiceT, typename HandlerT, typename RepositoryT>
+template <typename AsyncServiceT, typename HandlerT>
 class GrpcServiceHost {
  public:
   GrpcServiceHost() = default;
@@ -37,20 +37,20 @@ class GrpcServiceHost {
 
   /// @brief 启动 gRPC 监听
   /// @param listen_address 监听地址，如 0.0.0.0:50051
-  /// @param repository 数据库仓储
+  /// @param connection 数据库连接持有者
   /// @param log_tag 日志标识
   /// @return ErrorCode::kSuccess 表示成功
   ErrorCode Start(const std::string& listen_address,
-                  const std::shared_ptr<RepositoryT>& repository,
+                  const std::shared_ptr<qtrade::framework::dao::DbConnectionHolder>& connection,
                   const std::string_view log_tag) {
     if (running_) {
       return ErrorCode::kSystemError;
     }
-    if (!repository) {
+    if (!connection || !connection->IsReady()) {
       return ErrorCode::kInternal;
     }
 
-    repository_ = repository;
+    connection_ = connection;
     grpc_server_ = std::make_unique<GrpcAsyncServer>();
     handler_ = std::make_unique<HandlerT>();
 
@@ -61,11 +61,11 @@ class GrpcServiceHost {
     if (const auto rc = grpc_server_->Start(opts, &async_service_); rc != ErrorCode::kSuccess) {
       handler_.reset();
       grpc_server_.reset();
-      repository_.reset();
+      connection_.reset();
       return rc;
     }
 
-    handler_->Init(&async_service_, grpc_server_->CompletionQueue(), repository_);
+    handler_->Init(&async_service_, grpc_server_->CompletionQueue(), connection_);
     handler_->Start();
 
     running_ = true;
@@ -87,7 +87,7 @@ class GrpcServiceHost {
       grpc_server_->Shutdown();
     }
 
-    repository_.reset();
+    connection_.reset();
     running_ = false;
   }
 
@@ -108,7 +108,7 @@ class GrpcServiceHost {
   AsyncServiceT async_service_;                   ///< protobuf 异步服务实例
   std::unique_ptr<GrpcAsyncServer> grpc_server_;  ///< gRPC 服务端
   std::unique_ptr<HandlerT> handler_;             ///< RPC 异步处理器
-  std::shared_ptr<RepositoryT> repository_;       ///< 数据库仓储
+  std::shared_ptr<qtrade::framework::dao::DbConnectionHolder> connection_;  ///< 数据库连接
   bool running_ = false;                          ///< 是否已启动
 };
 

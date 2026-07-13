@@ -3,7 +3,7 @@
 /// @author    wengjianhong
 /// @date      2026-07-03
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade/service/account_service/repository/credential_codec.hpp"
+#include "qtrade/service/account_service/logic/credential_codec.hpp"
 
 #include <spdlog/spdlog.h>
 

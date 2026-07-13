@@ -6,6 +6,7 @@
 #include "qtrade_framework/common/database/database_options.hpp"
 
 #include <cpputils/database/config.hpp>
+#include <cpputils/database/database_types.hpp>
 
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
@@ -16,22 +17,6 @@
 
 namespace qtrade::common {
 namespace {
-
-cpputils::database::DatabaseType ParseDatabaseType(const std::string& name) {
-  if (name == "mysql") {
-    return cpputils::database::DatabaseType::kMySql;
-  }
-  if (name == "postgresql" || name == "postgres") {
-    return cpputils::database::DatabaseType::kPostgreSql;
-  }
-  if (name == "oracle") {
-    return cpputils::database::DatabaseType::kOracle;
-  }
-  if (name == "odbc") {
-    return cpputils::database::DatabaseType::kOdbc;
-  }
-  return cpputils::database::DatabaseType::kSqlite3;
-}
 
 void ParseSociOptions(const nlohmann::json& node, std::map<std::string, std::string>& out) {
   if (!node.contains("soci_options") || !node["soci_options"].is_object()) {
@@ -159,7 +144,7 @@ const nlohmann::json& DbConfigNode(const nlohmann::json& database) {
 }
 
 cpputils::database::ConnectionConfig BuildConnectionConfig(const nlohmann::json& database) {
-  const auto type = ParseDatabaseType(database.value("type", "sqlite3"));
+  const auto type = cpputils::database::GetDatabaseTypeByName(database.value("type", ""));
 
   if (database.contains("conn_string")) {
     return BuildLegacyConnectionConfig(database, type);

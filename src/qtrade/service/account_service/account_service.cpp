@@ -6,11 +6,31 @@
 #include "qtrade/service/account_service/account_service.hpp"
 
 #include "qtrade_framework/common/database/database_service_bootstrap.hpp"
+#include "qtrade_framework/common/dao/ddl_utils.hpp"
 #include "qtrade_framework/common/grpc/grpc_options.hpp"
+#include "qtrade_framework/dao/account_credential.hpp"
+#include "qtrade_framework/dao/trading_account.hpp"
 
 namespace qtrade::service {
 
-AccountService::AccountService() : SupportServiceImpl("qtrade_account_service", 50052) {}
+namespace {
+
+ErrorCode EnsureAccountSchema(cpputils::database::IConnection* connection) {
+  if (connection == nullptr) {
+    return ErrorCode::kSystemError;
+  }
+  if (const auto rc = qtrade::framework::dao::EnsureTableSchema(
+        connection, qtrade::framework::dao::TradingAccount::Instance());
+      rc != ErrorCode::kSuccess) {
+    return rc;
+  }
+  return qtrade::framework::dao::EnsureTableSchema(connection,
+                                                   qtrade::framework::dao::AccountCredential::Instance());
+}
+
+}  // namespace
+
+AccountService::AccountService() : SupportSyncServiceImpl("qtrade_account_service", 50052) {}
 
 ErrorCode AccountService::Initialize(const std::string& config_path) {
   std::lock_guard lock(mutex_);
@@ -25,15 +45,15 @@ ErrorCode AccountService::Initialize(const std::string& config_path) {
   listen_address_ = qtrade::common::ParseGrpcOptions(config_path, default_port_).ListenAddress();
 
   const auto context =
-    qtrade::common::BootstrapDatabaseService<IAccountRepository>(config_path, CreateAccountRepository, service_name_);
-  if (!context.repository) {
-    repository_.reset();
+    qtrade::common::BootstrapDatabaseConnection(config_path, EnsureAccountSchema, service_name_);
+  if (!context.connection) {
+    connection_.reset();
     state_ = qtrade::common::support::SupportServiceState::kFailed;
     last_error_ = ErrorCode::kInternal;
     return last_error_;
   }
 
-  repository_ = std::move(context.repository);
+  connection_ = std::move(context.connection);
   last_error_ = ErrorCode::kSuccess;
   return ErrorCode::kSuccess;
 }

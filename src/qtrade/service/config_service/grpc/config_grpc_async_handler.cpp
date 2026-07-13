@@ -3,7 +3,7 @@
 /// @author    wengjianhong
 /// @date      2026-06-28
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade/service/config_service/config_grpc_async_handler.hpp"
+#include "qtrade/service/config_service/grpc/config_grpc_async_handler.hpp"
 
 #include "qtrade_framework/common/grpc/call_tag_base.hpp"
 #include "qtrade_framework/common/grpc/unary_call_tag.hpp"
@@ -142,14 +142,14 @@ ConfigGrpcAsyncHandler::~ConfigGrpcAsyncHandler() {
 
 void ConfigGrpcAsyncHandler::Init(qtrade::config::v1::ConfigService::AsyncService* async_service,
                                   grpc::ServerCompletionQueue* cq,
-                                  std::shared_ptr<IConfigRepository> repository) {
+                                  std::shared_ptr<qtrade::framework::dao::DbConnectionHolder> connection) {
   async_service_ = async_service;
   cq_ = cq;
-  repository_ = std::move(repository);
+  connection_ = std::move(connection);
 }
 
 void ConfigGrpcAsyncHandler::Start() {
-  if (started_ || async_service_ == nullptr || cq_ == nullptr || !repository_) {
+  if (started_ || async_service_ == nullptr || cq_ == nullptr || !DatabaseReady()) {
     return;
   }
 
@@ -164,7 +164,7 @@ void ConfigGrpcAsyncHandler::Shutdown() {
 }
 
 void ConfigGrpcAsyncHandler::SpawnGetConfig() {
-  if (async_service_ == nullptr || cq_ == nullptr || !repository_) {
+  if (async_service_ == nullptr || cq_ == nullptr || !DatabaseReady()) {
     return;
   }
   new detail::ConfigUnaryCallTag(
@@ -183,14 +183,14 @@ void ConfigGrpcAsyncHandler::SpawnGetConfig() {
 }
 
 void ConfigGrpcAsyncHandler::SpawnSubscribeConfig() {
-  if (async_service_ == nullptr || cq_ == nullptr || !repository_) {
+  if (async_service_ == nullptr || cq_ == nullptr || !DatabaseReady()) {
     return;
   }
   new detail::SubscribeConfigCallTag(this, async_service_, cq_);
 }
 
 qtrade::config::v1::ConfigSnapshot ConfigGrpcAsyncHandler::QuerySnapshot(const ConfigScope& scope) const {
-  return QueryConfigSnapshot(repository_.get(), scope);
+  return QueryConfigSnapshot(scope);
 }
 
 }  // namespace qtrade::service

@@ -6,9 +6,8 @@
 #ifndef QTRADE_SERVICE_CONFIG_SERVICE_HPP_
 #define QTRADE_SERVICE_CONFIG_SERVICE_HPP_
 
+#include "qtrade/service/config_service/grpc/config_grpc_async_handler.hpp"
 #include "qtrade_framework/support/support_service_impl.hpp"
-#include "qtrade/service/config_service/config_grpc_async_handler.hpp"
-#include "qtrade/service/config_service/repository/config_repository.hpp"
 
 #include <qtrade/error_code/error_codes.hpp>
 #include <qtrade/proto/config/v1/config.grpc.pb.h>
@@ -17,10 +16,10 @@
 
 namespace qtrade::service {
 
-/// @brief 配置中心支撑服务
+/// @brief 配置中心支撑服务（异步 gRPC，含 SubscribeConfig Streaming）
 class ConfigService final
-  : public qtrade::common::support::SupportServiceImpl<qtrade::config::v1::ConfigService::AsyncService,
-                                                       ConfigGrpcAsyncHandler> {
+  : public qtrade::common::support::SupportAsyncServiceImpl<qtrade::config::v1::ConfigService::AsyncService,
+                                                              ConfigGrpcAsyncHandler> {
  public:
   ConfigService();
 
