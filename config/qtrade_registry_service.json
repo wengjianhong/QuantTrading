@@ -7,8 +7,10 @@
     "type": "static",
     "static_services": {
       "config-service": "127.0.0.1:50051",
-      "log-service": "127.0.0.1:50052",
-      "monitor-service": "127.0.0.1:50053"
+      "account-service": "127.0.0.1:50052",
+      "log-service": "127.0.0.1:50053",
+      "monitor-service": "127.0.0.1:50061",
+      "account-risk-service": "127.0.0.1:50060"
     }
   }
 }

@@ -13,10 +13,14 @@ namespace qtrade::client {
 
 /// @brief 旁路上报优先级（数值越小越优先保留）
 enum class ReportPriority : std::uint8_t {
-  kP0Audit = 0,     ///< 合规拦截、发单/撤单流水
-  kP1Business = 1,  ///< 订单状态、成交副本
-  kP2Metrics = 2,   ///< 延迟直方图、队列深度
-  kP3Debug = 3,     ///< verbose 日志
+  /// 合规拦截、发单/撤单流水
+  kP0Audit = 0,
+  /// 订单状态、成交副本
+  kP1Business = 1,
+  /// 延迟直方图、队列深度
+  kP2Metrics = 2,
+  /// verbose 日志
+  kP3Debug = 3,
 };
 
 }  // namespace qtrade::client

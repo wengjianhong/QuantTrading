@@ -24,6 +24,15 @@ message StrategyConfig {
     map<string, string> params = 5;
 }
 
+// 实例级弱一致风险预算。账户硬限制由 account-risk-service 独立裁决。
+message RiskBudget {
+    uint64 version = 1;
+    double max_notional = 2;
+    double max_margin = 3;
+    uint64 max_open_orders = 4;
+    double safety_buffer = 5;
+}
+
 // 引擎实例配置（按 engine_id 分片）
 message EngineConfig {
     // 引擎实例标识
@@ -32,6 +41,18 @@ message EngineConfig {
     string quote_source = 2;
     // 策略绑定列表
     repeated StrategyConfig strategies = 3;
+    // 租户标识；必须与引导配置一致
+    string tenant_id = 4;
+    // 引擎使用的交易账户引用，不含凭证
+    string account_id = 5;
+    // 备用行情源；空表示不启用自动切换
+    string quote_failover = 6;
+    // 实例级弱一致风险预算
+    RiskBudget risk_budget = 7;
+    // 配置原子生效世代；控制线程不得回退
+    uint64 activation_epoch = 8;
+    // 配置失效时间（Unix 毫秒）；0 表示由服务端默认 TTL 决定
+    int64 valid_until_unix_ms = 9;
 }
 
 // 配置

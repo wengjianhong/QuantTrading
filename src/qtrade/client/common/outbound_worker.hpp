@@ -25,8 +25,10 @@ namespace qtrade::client::detail {
 
 /// @brief Outbound 队列单条待上报项
 struct OutboundItem {
-  ReportPriority priority = ReportPriority::kP3Debug;  ///< 旁路优先级
-  std::string payload;                                 ///< 序列化后的上报载荷
+  /// 旁路优先级
+  ReportPriority priority = ReportPriority::kP3Debug;
+  /// 序列化后的上报载荷
+  std::string payload;
 };
 
 /// @brief 旁路上报 Outbound 工作线程（log_client / monitor_client 内部使用）
@@ -60,12 +62,19 @@ class OutboundWorker {
   /// @brief 异步入队（供 A 段或任意线程调用，非阻塞）
   /// @param priority 旁路优先级
   /// @param payload 上报载荷
-  /// @return false 表示 P0 队列与 spool 均已满（§8.1 拒写并应告警）
+  /// @return false 表示 P0 队列与 spool 均已满（拒写并应告警）
   bool Enqueue(ReportPriority priority, std::string payload);
 
   /// @brief worker 是否正在运行
+  /// @return true 表示已 Start 且未 Stop
   [[nodiscard]] bool IsRunning() const {
     return running_.load(std::memory_order_acquire);
+  }
+
+  /// @brief P0 审计 spool 已满时为 true；发单准入层必须拒绝新单
+  /// @return true 表示审计门禁已触发
+  [[nodiscard]] bool IsAuditHalted() const {
+    return audit_halted_.load(std::memory_order_acquire);
   }
 
  private:
@@ -83,15 +92,26 @@ class OutboundWorker {
   /// @param payload 审计载荷
   void SpoolP0Locked(std::string payload);
 
-  std::mutex mutex_;                                     ///< 保护 queue_ 与 p0_spool_
-  std::condition_variable cv_;                           ///< 通知 worker 有新项
-  std::deque<OutboundItem> queue_;                       ///< 待上报内存队列
-  std::deque<std::string> p0_spool_;                     ///< P0 审计本地 spool
-  std::thread worker_;                                   ///< Outbound 专用线程
-  std::atomic<bool> running_{false};                     ///< worker 运行标志
-  SinkFn sink_;                                          ///< 实际上报回调
-  std::size_t max_queue_size_ = 4096;                    ///< 内存队列容量上限
-  static constexpr std::size_t kP0SpoolCapacity = 1024;  ///< P0 spool 容量上限
+  /// 保护 queue_ 与 p0_spool_
+  std::mutex mutex_;
+  /// 通知 worker 有新项
+  std::condition_variable cv_;
+  /// 待上报内存队列
+  std::deque<OutboundItem> queue_;
+  /// P0 审计本地 spool
+  std::deque<std::string> p0_spool_;
+  /// Outbound 专用线程
+  std::thread worker_;
+  /// worker 运行标志
+  std::atomic<bool> running_{false};
+  /// P0 审计无法保底时的交易门禁状态
+  std::atomic<bool> audit_halted_{false};
+  /// 实际上报回调
+  SinkFn sink_;
+  /// 内存队列容量上限
+  std::size_t max_queue_size_ = 4096;
+  /// P0 spool 容量上限
+  static constexpr std::size_t kP0SpoolCapacity = 1024;
 };
 
 }  // namespace qtrade::client::detail

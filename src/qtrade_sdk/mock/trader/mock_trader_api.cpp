@@ -122,11 +122,40 @@ std::uint64_t MockTraderApi::InsertOrder(const sdk::OrderRequest& order, std::ui
 }
 
 qtrade::ErrorCode MockTraderApi::SendOrder(const sdk::OrderRequest& request) {
+  if (!connected_) {
+    return qtrade::ErrorCode::kNotConnected;
+  }
+  const std::uint64_t order_emt_id = request.order_emt_id != 0 ? request.order_emt_id : next_order_emt_id_++;
   if (on_order_) {
     sdk::Order order;
+    order.client_order_id = request.client_order_id;
     order.instrument = request.instrument;
-    order.order_emt_id = request.order_emt_id;
+    order.market = request.market;
+    order.order_emt_id = order_emt_id;
+    order.price = request.price;
+    order.volume = request.volume;
+    order.left_volume = request.volume;
+    order.side = request.side;
+    order.position_effect = request.position_effect;
+    order.business_type = request.business_type;
+    order.status = sdk::OrderStatusType::kNotTradedQueueing;
+    order.submit_status = sdk::OrderSubmitStatusType::kInsertAccepted;
     on_order_(order);
+  }
+  if (on_trade_) {
+    sdk::Trade trade;
+    trade.trade_id = "MOCK-TRADE-" + std::to_string(next_trade_id_++);
+    trade.order_emt_id = order_emt_id;
+    trade.client_order_id = request.client_order_id;
+    trade.instrument = request.instrument;
+    trade.market = request.market;
+    trade.price = request.price;
+    trade.volume = request.volume;
+    trade.trade_amount = request.price * static_cast<double>(request.volume);
+    trade.side = request.side;
+    trade.position_effect = request.position_effect;
+    trade.business_type = request.business_type;
+    on_trade_(trade);
   }
   return qtrade::ErrorCode::kSuccess;
 }

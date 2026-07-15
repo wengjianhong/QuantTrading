@@ -12,17 +12,18 @@
 |交易引擎层|`src/qtrade/engine/`（单进程封闭运行：事件总线、行情/交易标准化、策略引擎、OMS、EMS、账户、持仓、实时风控、合规）|
 |支撑服务客户端|`src/qtrade/client/`（轻量级异步客户端：日志、配置、**账户凭证**、监控、服务发现）|
 |支撑服务层|`src/qtrade/service/<名称>/`（独立进程 / 镜像部署；与引擎经 gRPC 控制面与 `client/` 旁路接口交互）|
-|内部框架基建|`src/qtrade_framework/`（DAO、gRPC、数据库、进程 bootstrap 等共享实现）|
+|内部框架基建|`src/qtrade/framework/`（gRPC、数据库 bootstrap、支撑服务生命周期等共享实现；**不 install**）|
+|表级 DAO|`src/qtrade/dao/`（`trading_account`、`account_credential`、`engine_config` 等；接口见 `include/qtrade/dao/`）|
 |接入层（外部独立项目）|不在本仓库；北向 HTTP REST，南向调 QTrade 支撑服务 gRPC|见《架构》§五|
-|企业级治理|多与**外部接入层**、运维流水线耦合：`release/deploy/`、`release/ci/`；Keycloak 等 IdP 可外置|
+|外部企业基础服务|由机构平台提供；QTrade 仅集成身份、数据安全、运维和合规能力，不负责其实现或部署|
 
-**性能口径**：A/B/C/D 链路分段、控制面/数据面边界见《架构》**§1.3、§2.1**；**A 段**（策略回调同线程）禁止同步阻塞远程服务、禁止等待磁盘 fsync。
+**性能口径**：A/B/C/D/E 链路分段、控制面/数据面边界见《架构》**§2.1、§2.2**；**A 段**（策略回调同线程）禁止同步阻塞远程服务、禁止等待磁盘 fsync。
 
 ---
 
 ## 2. 代码结构（目标布局与当前仓库）
 
-仓库根目录名可与克隆方式一致（如 `qtrade/`）；下列树状结构与《架构》**第三节～第七节**对齐，完全匹配当前代码布局。
+仓库根目录名可与克隆方式一致（如 `qtrade/`）；下列树状结构与《架构》**第三节～第六节**对齐，完全匹配当前代码布局。
 
 ```shell
 qtrade/
@@ -42,13 +43,14 @@ qtrade/
 │   ├── qtrade/                 # 【对外公共头文件】插件接口、共享数据结构、错误码
 │   │   ├── structs/            # 框架通用结构（如 result.hpp）
 │   │   ├── error_code/         # 错误码：error_codes.hpp、code_segment.hpp、code_message.hpp
-│   │   └── strategy/           # 策略基类接口：IStrategy
+│   │   ├── strategy/           # 策略基类接口：IStrategy
+│   │   └── dao/                # DAO 接口声明（ddl.hpp / dml.hpp）；表实现头在 src/qtrade/dao/
 │   ├── qtrade_sdk/             # 插件 Target 接口：quote/、trader/（Api + Spi）
 │   └── qtrade_framework/       # 【内部框架头文件】不 install；#include <qtrade_framework/...>
-│       ├── dao/                # dml.hpp / ddl.hpp 等接口声明
+│       ├── grpc/               # GrpcHandlerInterface、grpc_status_utils 等
 │       └── support/            # 支撑服务生命周期接口（ISupportService）
 ├── src/
-│   ├── qtrade/                     # 【交易平台产品实现】对应 include/qtrade/ + 引擎/服务/客户端
+│   ├── qtrade/                     # 【交易平台产品实现】
 │   │   ├── apps/                   # 【可部署二进制入口】仅含 main，目录名 = 产物名
 │   │   │   ├── qtrade_engine/main.cpp
 │   │   │   ├── qtrade_config_service/main.cpp
@@ -71,24 +73,27 @@ qtrade/
 │   │   │   ├── monitor_client/
 │   │   │   └── registry_client/
 │   │   ├── service/                # 【支撑服务层】业务实现（无 main；入口在 apps/）
-│   │   │   ├── config_service/
-│   │   │   ├── account_service/
+│   │   │   ├── config_service/     # 异步 gRPC（含 SubscribeConfig Streaming）
+│   │   │   │   ├── grpc/           # Async + CQ 接入、CallTag 调度
+│   │   │   │   └── ...
+│   │   │   ├── account_service/    # 同步 gRPC（Unary RPC）
+│   │   │   │   ├── grpc/           # 薄路由层：DatabaseReady → handler.Run()
+│   │   │   │   ├── handler/        # 每 RPC 一个 Handler（继承 GrpcHandlerInterface）
+│   │   │   │   └── logic/          # 可复用业务工具（converter、codec）
 │   │   │   ├── log_service/
 │   │   │   └── ...
-│   │   ├── common/                 # 【产品进程公共能力】引擎与各微服务入口共用
-│   │   │   ├── app/                # 进程 bootstrap：参数解析、信号处理、服务入口
-│   │   │   └── logging/            # 日志初始化
-│   │   └── error_code/             # include/qtrade/error_code/ 的实现（目录镜像）
-│   ├── qtrade_sdk/                 # 【SDK 接口实现】对应 include/qtrade_sdk/
-│   │   ├── mock/quote|trader/      # Mock 开发/测试适配
-│   │   └── emt/quote|trader/       # EMT 厂商适配
-│   └── qtrade_framework/           # 【内部框架实现】对应 include/qtrade_framework/
-│       ├── dao/                    # 表级 DAO（.hpp + .cpp）
-│       ├── support/                # SupportServiceImpl 等（对应 include/qtrade_framework/support/）
-│       └── common/                 # 【框架基建】DAO/数据库/gRPC
-│           ├── database/           # 连接选项、DbConnectionHolder
-│           ├── dao/                # dml_utils、ddl_utils、sql_utils
-│           └── grpc/               # gRPC 异步服务基础设施
+│   │   ├── dao/                    # 【表级 DAO 实现】.hpp + .cpp（命名空间 qtrade::framework::dao）
+│   │   ├── framework/              # 【内部框架实现】实现头在 src；公开接口头在 include/qtrade_framework/
+│   │   │   ├── support/            # SupportSyncServiceImpl / SupportAsyncServiceImpl
+│   │   │   ├── database/           # 连接选项、DbConnectionHolder、bootstrap
+│   │   │   ├── dao/                # dml_utils、ddl_utils、sql_utils（DAO 基建，非表级 DAO）
+│   │   │   ├── grpc/               # gRPC 传输层
+│   │   │   │   ├── sync/           # GrpcSyncServer
+│   │   │   │   └── async/          # GrpcAsyncServer、CallTag、CQ 循环
+│   │   │   └── error_code/         # include/qtrade/error_code/ 的实现（如 code_message.cpp）
+│   └── qtrade_sdk/                 # 【SDK 接口实现】对应 include/qtrade_sdk/
+│       ├── mock/quote|trader/      # Mock 开发/测试适配
+│       └── emt/quote|trader/       # EMT 厂商适配
 ├── config/                         # 【示例配置】与 build/bin 二进制同名（--config 传入）
 │   ├── qtrade_engine.json          # 引擎引导：config/account 地址、engine_id、log/monitor
 │   ├── qtrade_config_service.json
@@ -123,13 +128,17 @@ qtrade/
    ```
    Ctrl+C 退出支撑服务。
 
-   **配置分层**见《架构》§2.5。
+   **配置分层**见《架构》§2.6。
 
 3. 尚未创建的目录（如 `history_market_service/`）可在对应里程碑落地时补齐。**接入层（网关/控制台）为外部独立项目，不在本仓库。**
 
 4. 策略代码**由独立仓库维护**，本仓库仅保留 `demo/strategy/` 作为开发示例；策略独立仓库规范见 **§7.2**。
 
-5. 若日后将通用基础组件（线程池、无锁结构、工具函数等）从 `include/` + `src/` 中独立为 `base/` 目录，保持与《架构》「共享基础代码」职责一致即可。
+5. **gRPC 接入模式**（支撑服务）：
+   - **Unary-only**（如 `account_service`）：同步 `Service::Service` + `SupportSyncServiceImpl`；`grpc/` 薄路由，`handler/` 按 RPC 继承 `GrpcHandlerInterface`
+   - **含 Streaming**（如 `config_service`）：异步 `AsyncService` + CQ + `SupportAsyncServiceImpl`；`grpc/` 负责 CallTag 生命周期，业务逐步下沉到 `handler/`
+
+6. 若日后将通用基础组件（线程池、无锁结构、工具函数等）从 `include/` + `src/` 中独立为 `base/` 目录，保持与《架构》「共享基础代码」职责一致即可。
 
 ---
 
@@ -137,9 +146,9 @@ qtrade/
 
 ### 3.1 A 段热路径（强制约束）
 
-- **定义**（§1.3.1）：Lane-M → 策略 → CMS → Risk → OMS → EMS 入队（完整路径 **§8.2①**）
+- **定义**（§2.1.1）：Lane-M → 策略 → CMS → Risk → [E 段] → OMS → EMS 入队（完整路径见《架构》§7.2）
 
-- **发单主链**（§1.3.4）：A 段结束后 **紧接 C 段**（EMS 出队 → 适配器 → 交易所）；A+C 为完整发单路径，**分开计量 SLA**
+- **发单主链**（§2.1.4）：A 段结束后经可选 E 段账户预占，再进入 C 段（EMS 出队 → 适配器 → 交易所）；各段分别计量 SLA
 
 - **同线程禁止**：同步阻塞、磁盘 fsync、**等待交易所/远程 ack**、调用支撑服务 client（C 段 RTT 不计入 A 段 50μs）
 
@@ -149,9 +158,9 @@ qtrade/
 
 ### 3.2 C 段出站与 D 段旁路
 
-- **C 段**：EMS → 执行适配器 → 交易所/券商，**单独 SLA**，与 A 段分别压测（见《架构》§1.3.4）
+- **C 段**：EMS → 执行适配器 → 交易所/券商，**单独 SLA**，与 A 段分别压测（见《架构》§2.1.4）
 
-- **D 段及非热路径**：回测、报表、日志检索、事后审计、批量查询等；Outbound 旁路上报；背压策略见《架构》§8.1（A 段永不因旁路满而阻塞）
+- **D 段及非热路径**：回测、报表、日志检索、事后审计、批量查询等；Outbound 旁路上报；背压策略见《架构》§7.1（A 段永不因旁路满而阻塞）
 
 ---
 
@@ -161,11 +170,12 @@ qtrade/
 
 |交互场景|推荐协议|约束|
 |---|---|---|
-|交易引擎内部|内存结构体 + 无锁队列|无网络、无序列化|
+|交易引擎内部|内存结构体 + Lane-M/Lane-R 内存队列|无网络、无序列化|
 |交易引擎 ↔ 适配器|函数调用 + 回调接口|同进程内|
 |交易引擎 → 支撑服务（D 段）|`client/` 异步接口 + Protobuf|Outbound 线程 fire-and-forget；内部传输可插拔，MVP 可 stub|
 |引擎 ↔ config-service|gRPC + Protobuf|引擎仅作 Client：`GetConfig` + `SubscribeConfig`（`EngineConfig`）|
 |引擎 ↔ account-service|gRPC + Protobuf|【规划】引擎 Client：`ResolveCredential`（启动/换密，不进 A 段）|
+|引擎 ↔ account-risk-service|gRPC + Protobuf|E 段：`ReserveOrder` / `ReleaseOrder`；超时或不可达默认拒绝受限账户的新订单|
 |支撑服务之间|gRPC + Protobuf|同步 / 异步均可（如 config 写入前校验 account 授权）|
 |接入层 ↔ 外部系统|HTTP(S)/WebSocket|**外部独立项目**；RESTful 北向，网关转 gRPC 调本仓库支撑服务|
 |外部接入层 → QTrade 支撑服务|gRPC + Protobuf|config / **account** / history / observability 等（`src/qtrade/service/`）|
@@ -176,9 +186,44 @@ qtrade/
 
 - **控制面（config）**：配置变更经 config-service 审计后，由 `SubscribeConfig` 流推送 `ConfigSnapshot`（`version` + `EngineConfig`）；引擎按 `version` 幂等应用
 
-- **凭证面（account）**：登录凭证经 account-service 按需拉取，不进 `SubscribeConfig`（详见《架构》§2.5）
+- **凭证面（account）**：登录凭证经 account-service 按需拉取，不进 `SubscribeConfig`（详见《架构》§2.6）
 
 - **优先级**：P0 审计须经本地 Spool 保底，不得仅依赖远程上报
+
+### 4.3 引擎配置与多实例示例
+
+本地引导配置仅描述进程身份和服务地址；策略、行情源与参数由 config-service 下发。当前仓库的引导样例为 `config/qtrade_engine.json`：
+
+```json
+{
+  "config_service": "127.0.0.1:50051",
+  "account_service": "127.0.0.1:50052",
+  "tenant_id": "default",
+  "engine_id": "engine-1",
+  "account_id": "acc_001",
+  "log_topic": "qtrade_engine",
+  "monitor_endpoint": "stub://local"
+}
+```
+
+对应的业务配置样例位于 `config/examples/engine_config_engine-1.json`。同一账户的两个策略若均交易 `IF2506`，必须分别创建 `engine-03` 和 `engine-04` 两份业务配置；每份配置中 `IF2506` 只能绑定一个策略。两个实例共享账户时，实例预算各自维护，资金、保证金和总敞口硬限制由 account-risk-service 在 E 段原子预占。
+
+```json
+{
+  "engine_id": "engine-03",
+  "quote_source": "emt-primary",
+  "quote_failover": "emt-backup",
+  "strategies": [{
+    "strategy_id": "mean_reversion_01",
+    "plugin": "libmean_reversion.so",
+    "enabled": true,
+    "instruments": ["IF2506", "IH2506"],
+    "params": { "lookback": "20", "threshold": "0.02" }
+  }]
+}
+```
+
+配置更新必须按版本幂等应用。策略启停、参数和行情地址可由控制面更新；品种归属变更必须在维护窗口通过重启或 controlled reload 生效，MVP 不支持跨实例在线迁移。
 
 
 ---
@@ -197,7 +242,7 @@ qtrade/
    - `src/qtrade_sdk/mock/trader/`：`mock_trader_api`、`mock_trader_spi`
    - `src/qtrade_sdk/emt/trader/`：`emt_trader_api`、`emt_trader_spi`
 
-**双向适配约定**（详见 `docs/Architecture.md` §7.0）：
+**双向适配约定**（详见 `docs/Architecture.md` §6.1）：
 
 | 适配器 | 继承 | 职责 |
 |--------|------|------|
@@ -207,6 +252,32 @@ qtrade/
 
 Spi 适配器**不**继承 `qtrade_sdk::*Spi`；`#include` 该头文件仅为使用 `QuoteSpi*` 与结构体类型。
 
+一个厂商接入应按以下模式接线；实际类型和回调签名以厂商 SDK 与公共头文件为准：
+
+```cpp
+class VendorQuoteApi final : public qtrade_sdk::quote::QuoteApi {
+ public:
+  void RegisterSpi(qtrade_sdk::quote::QuoteSpi& spi) override {
+    vendor_spi_.SetTarget(&spi);
+    vendor_api_->RegisterSpi(&vendor_spi_);
+  }
+ private:
+  VendorQuoteSpi vendor_spi_;
+  VendorSdk::QuoteApi* vendor_api_;
+};
+
+class VendorQuoteSpi final : public VendorSdk::QuoteSpi {
+ public:
+  void OnMarketData(const VendorSdk::MarketData& data) override {
+    target_->OnDepthMarketData(Normalize(data));
+  }
+ private:
+  qtrade_sdk::quote::QuoteSpi* target_{};
+};
+```
+
+Api 适配器实现 QTrade 的稳定接口并转发调用；Spi 适配器继承厂商回调接口、转换数据后委托给引擎 Target。不得在适配器内执行策略、风险裁决或 OMS 状态变更；标准化后由 Normalizer 发布事件。
+
 3. **策略插件**：继承 `IStrategy` 基类，**由独立仓库维护**，本仓库仅保留示例
 
 **插件约束**：
@@ -215,7 +286,7 @@ Spi 适配器**不**继承 `qtrade_sdk::*Spi`；`#include` 该头文件仅为使
 
 - ABI 版本与核心二进制严格兼容，发布说明中必须包含兼容矩阵
 
-- 插件运行在沙箱环境中，资源使用受限制，单个插件崩溃不影响核心引擎
+- 策略插件经沙箱编译、签名校验和资源限制后加载；同进程运行不构成恶意代码的强隔离，未捕获异常的策略由引擎熔断
 
 ### 5.2 Protobuf 接口规范
 
@@ -233,8 +304,14 @@ Spi 适配器**不**继承 `qtrade_sdk::*Spi`；`#include` 该头文件仅为使
 
 - 跨模块共享的数据结构定义在 `qtrade_sdk/quote/`、`qtrade_sdk/trader/`；按需 `#include` 对应头文件，使用 `qtrade_sdk::quote::`、`qtrade_sdk::trader::` 命名空间
 - 错误码枚举见 `include/qtrade/error_code/error_codes.hpp`，分段规则见 `code_segment.hpp`
-- `include/qtrade/` 下需 `.cpp` 的公共 API 实现，目录镜像放在 `src/qtrade/error_code/`（如 `code_message.cpp`）；SDK 适配器实现在 `src/qtrade_sdk/<vendor>/`；引擎内部 client 头文件与实现均在 `src/qtrade/client/`
-- 模块内部头文件与 `.cpp` 同目录放在 `src/` 下，不放入 `include/`；**`src/` 内部引用**统一以 `src/` 为 include 根，路径带层前缀，例如 `#include "qtrade/service/account_service/account_service.hpp"`、`#include "qtrade_framework/support/support_service_impl.hpp"`、`#include "qtrade_sdk/mock/quote/mock_quote_api.hpp"`（CMake 仅 `target_include_directories(... PRIVATE ${QTRADE_SRC_DIR})`）
+- `include/qtrade/` 下需 `.cpp` 的公共 API 实现，目录镜像放在 `src/qtrade/framework/error_code/`（如 `code_message.cpp`）；SDK 适配器实现在 `src/qtrade_sdk/<vendor>/`；引擎内部 client 头文件与实现均在 `src/qtrade/client/`
+- 模块内部头文件与 `.cpp` 同目录放在 `src/` 下，不放入 `include/`；**`src/` 内部引用**统一以 `src/` 为 include 根，路径带层前缀，例如：
+  - `#include "qtrade/service/account_service/account_service.hpp"`
+  - `#include <qtrade_framework/grpc/grpc_handler_interface.hpp>`（`include/qtrade_framework/`，不 install）
+  - `#include "qtrade/dao/trading_account.hpp"`
+  - `#include "qtrade_sdk/mock/quote/mock_quote_api.hpp"`
+  （CMake 对实现库使用 `target_include_directories(... PRIVATE ${QTRADE_SRC_DIR})`；公共头使用 `${QTRADE_INCLUDE_DIR}`）
+- **Handler 管道内业务数据（ServerData）**使用 DAO 记录或内部 struct，**不直接持有 proto**；proto ↔ 内部结构在 `ConvertToServerData` / `BuildResponse` 边界转换（参考 `account_service/handler/`）
 
 - 通用工具函数（时间、字符串、加密等）统一放在 `include/common/utils/`
 
@@ -246,7 +323,7 @@ Spi 适配器**不**继承 `qtrade_sdk::*Spi`；`#include` 该头文件仅为使
 
 - 策略**仅由内部行情 Tick/Bar 事件驱动**，不接受任何外部触发信号
 
-- 所有**引擎业务配置**更新经 config-service 的 gRPC `SubscribeConfig` 推送；**交易凭证**经 account-service 单独管理（《架构》§2.5）；禁止外部直接修改交易引擎内存
+- 所有**引擎业务配置**更新经 config-service 的 gRPC `SubscribeConfig` 推送；**交易凭证**经 account-service 单独管理（《架构》§2.6）；禁止外部直接修改交易引擎内存
 
 ### 6.3 可观测性
 
@@ -337,4 +414,26 @@ Spi 适配器**不**继承 `qtrade_sdk::*Spi`；`#include` 该头文件仅为使
 - 所有核心流程必须有集成测试覆盖
 
 - 每次提交必须通过单元测试，合并到主分支前必须通过所有测试
+
+---
+
+## 11. 实现里程碑与当前状态
+
+本节记录仓库实现状态，不构成架构承诺；功能合并或范围调整时应同步更新，并以代码和测试结果为准。
+
+| 架构能力 | 目标阶段 | 当前实现状态 |
+|---|---|---|
+| EventBus 与双 EventReactor 事件通道 | MVP | ✅ 已有引擎骨架、EventReactorLoop 与事件类型 |
+| CMS / OMS / EMS / 风控 / 持仓 | MVP | 🟡 模块骨架已有；WAL 与幂等语义仍待完善 |
+| 配置驱动分片与一品种一策略校验 | MVP | 🟡 `EngineConfig` 模型已对齐；配置校验和策略一对一分发待实现 |
+| account-service 与凭证、配置分离 | MVP | ❌ 服务与凭证链路待实现 |
+| 行情标准化与可替换行情适配器 | MVP | ✅ 已有 `QuoteNormalizer` 与 `QuoteApi`；故障切换待实现 |
+| 交易回报标准化与 OMS 串联 | MVP | 🟡 骨架已有；语义标准化与回报链路待完善 |
+| config-client Watch | MVP | 🟡 客户端待接入引擎 |
+| D 段旁路上报与支撑微服务 | MVP | 🟡 接口或服务桩存在；远程上报与引擎集成待实现 |
+| account-risk-service（E 段） | MVP | ❌ 服务、协议与账簿待实现 |
+| 外部接入层 | 二期（非本仓库） | 由独立项目实现；本仓库提供稳定 gRPC 契约 |
+| 主备与跨机房灾备 | 后续规划 | 当前不纳入实现和验收承诺 |
+
+图例：✅ 可用　🟡 进行中　❌ 未开始
 

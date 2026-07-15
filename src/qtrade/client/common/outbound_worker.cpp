@@ -21,6 +21,7 @@ ErrorCode OutboundWorker::Start(SinkFn sink, std::size_t max_queue_size) {
 
   max_queue_size_ = max_queue_size > 0 ? max_queue_size : 4096;
   sink_ = std::move(sink);
+  audit_halted_.store(false, std::memory_order_release);
   running_.store(true, std::memory_order_release);
   worker_ = std::thread([this] { WorkerLoop(); });
   return ErrorCode::kSuccess;
@@ -39,6 +40,7 @@ void OutboundWorker::Stop() {
   std::lock_guard lock(mutex_);
   queue_.clear();
   p0_spool_.clear();
+  audit_halted_.store(false, std::memory_order_release);
   sink_ = nullptr;
 }
 
@@ -52,6 +54,7 @@ bool OutboundWorker::Enqueue(ReportPriority priority, std::string payload) {
     if (queue_.size() >= max_queue_size_) {
       if (priority == ReportPriority::kP0Audit) {
         if (p0_spool_.size() >= kP0SpoolCapacity) {
+          audit_halted_.store(true, std::memory_order_release);
           spdlog::error("[OutboundWorker] P0 spool full, rejecting new audit record");
           return false;
         }
@@ -116,6 +119,9 @@ void OutboundWorker::ReplayP0SpoolLocked() {
     const std::string& payload = p0_spool_.front();
     sink_(ReportPriority::kP0Audit, payload);
     p0_spool_.pop_front();
+  }
+  if (p0_spool_.empty()) {
+    audit_halted_.store(false, std::memory_order_release);
   }
 }
 

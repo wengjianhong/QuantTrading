@@ -51,15 +51,22 @@ class LogClient {
   /// @param message 审计流水正文
   void EmitAudit(std::string_view message);
 
+  /// @brief P0 审计无法继续保底时返回 true，准入链路必须拒绝新单
+  /// @return true 表示审计门禁已触发
+  [[nodiscard]] bool IsAuditHalted() const;
+
  private:
   /// @brief 将日志级别映射为旁路优先级
   /// @param level 日志级别字符串
   /// @return 对应的 ReportPriority
   static ReportPriority LevelToPriority(std::string_view level);
 
-  std::string topic_;                               ///< 日志主题/分类
-  bool initialized_ = false;                        ///< 是否已完成 Init
-  std::unique_ptr<detail::OutboundWorker> worker_;  ///< Outbound 队列与专用线程
+  /// 日志主题/分类
+  std::string topic_;
+  /// 是否已完成 Init
+  bool initialized_ = false;
+  /// Outbound 队列与专用线程
+  std::unique_ptr<detail::OutboundWorker> worker_;
 };
 
 }  // namespace qtrade::client

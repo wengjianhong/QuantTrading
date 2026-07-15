@@ -58,6 +58,25 @@ void StrategyEngine::RegisterStrategy(std::unique_ptr<qtrade::strategy::IStrateg
   spdlog::info("[StrategyEngine] registered new strategy");
 }
 
+ErrorCode StrategyEngine::RegisterStrategy(std::unique_ptr<qtrade::strategy::IStrategy> strategy,
+                                           const std::vector<std::string>& instruments) {
+  if (!strategy || instruments.empty()) {
+    return ErrorCode::kInternal;
+  }
+  std::lock_guard<std::mutex> lock(mutex_);
+  for (const auto& instrument : instruments) {
+    if (instrument.empty() || instrument_routes_.contains(instrument)) {
+      return ErrorCode::kSystemError;
+    }
+  }
+  auto* raw = strategy.get();
+  for (const auto& instrument : instruments) {
+    instrument_routes_.emplace(instrument, raw);
+  }
+  strategies_.push_back(std::move(strategy));
+  return ErrorCode::kSuccess;
+}
+
 void StrategyEngine::SetOrderSender(OrderSender sender) {
   std::lock_guard<std::mutex> lock(mutex_);
   order_sender_ = std::move(sender);
@@ -65,6 +84,14 @@ void StrategyEngine::SetOrderSender(OrderSender sender) {
 
 void StrategyEngine::OnTickEvent(const qtrade_sdk::quote::MarketTick& tick) {
   std::lock_guard<std::mutex> lock(mutex_);
+  if (const auto route = instrument_routes_.find(tick.instrument); route != instrument_routes_.end()) {
+    try {
+      route->second->OnTick(tick);
+    } catch (const std::exception& e) {
+      spdlog::error("[StrategyEngine] routed strategy OnTick exception: {}", e.what());
+    }
+    return;
+  }
   for (auto& strategy : strategies_) {
     try {
       strategy->OnTick(tick);
@@ -76,6 +103,14 @@ void StrategyEngine::OnTickEvent(const qtrade_sdk::quote::MarketTick& tick) {
 
 void StrategyEngine::OnBarEvent(const qtrade_sdk::quote::Bar& bar) {
   std::lock_guard<std::mutex> lock(mutex_);
+  if (const auto route = instrument_routes_.find(bar.instrument); route != instrument_routes_.end()) {
+    try {
+      route->second->OnBar(bar);
+    } catch (const std::exception& e) {
+      spdlog::error("[StrategyEngine] routed strategy OnBar exception: {}", e.what());
+    }
+    return;
+  }
   for (auto& strategy : strategies_) {
     try {
       strategy->OnBar(bar);
