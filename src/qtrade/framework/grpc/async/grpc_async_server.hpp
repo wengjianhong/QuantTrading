@@ -28,8 +28,10 @@ class GrpcAsyncServer {
  public:
   /// @brief Async Server 启动选项
   struct Options {
-    std::string listen_address;       ///< 监听地址，如 0.0.0.0:50051
-    std::size_t cq_thread_count = 1;  ///< CQ 轮询线程数
+    /// 监听地址，如 0.0.0.0:50051
+    std::string listen_address;
+    /// CQ 轮询线程数
+    std::size_t cq_thread_count = 1;
   };
 
   /// @brief 构造未启动的异步 Server
@@ -66,10 +68,14 @@ class GrpcAsyncServer {
   }
 
  private:
-  bool running_ = false;                             ///< 是否正在运行
-  std::unique_ptr<grpc::Server> server_;             ///< gRPC Server 实例
-  std::unique_ptr<CompletionQueueLoop> loop_;        ///< CQ 轮询线程
-  std::unique_ptr<grpc::ServerCompletionQueue> cq_;  ///< 服务端 CompletionQueue
+  /// 是否正在运行
+  bool running_ = false;
+  /// gRPC Server 实例
+  std::unique_ptr<grpc::Server> server_;
+  /// CQ 轮询线程
+  std::unique_ptr<CompletionQueueLoop> loop_;
+  /// 服务端 CompletionQueue
+  std::unique_ptr<grpc::ServerCompletionQueue> cq_;
 };
 
 }  // namespace qtrade::common::grpc_async

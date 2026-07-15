@@ -47,9 +47,12 @@ class CompletionQueueLoop {
   /// @brief 单线程轮询循环：Next → CallTagBase::Proceed
   void Run();
 
-  bool running_ = false;                       ///< 是否正在轮询
-  std::vector<std::thread> threads_;           ///< 轮询线程集合
-  grpc::ServerCompletionQueue* cq_ = nullptr;  ///< 非拥有的 CQ 指针
+  /// 是否正在轮询
+  bool running_ = false;
+  /// 轮询线程集合
+  std::vector<std::thread> threads_;
+  /// 非拥有的 CQ 指针
+  grpc::ServerCompletionQueue* cq_ = nullptr;
 };
 
 }  // namespace qtrade::common::grpc_async

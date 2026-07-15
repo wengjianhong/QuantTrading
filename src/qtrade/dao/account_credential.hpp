@@ -27,11 +27,16 @@ enum class CredentialType {
 
 /// @brief account_credential 表行记录
 struct AccountCredentialRecord {
-  std::optional<std::string> tenant_id;           ///< 租户 ID
-  std::optional<std::string> account_id;          ///< 账户 ID
-  std::optional<std::string> key_id;              ///< 加密密钥标识
-  std::optional<CredentialType> credential_type;  ///< 凭证类型（同账户可多行）
-  std::optional<std::string> ciphertext;          ///< 凭证密文
+  /// 租户 ID
+  std::optional<std::string> tenant_id;
+  /// 账户 ID
+  std::optional<std::string> account_id;
+  /// 加密密钥标识
+  std::optional<std::string> key_id;
+  /// 凭证类型（同账户可多行）
+  std::optional<CredentialType> credential_type;
+  /// 凭证密文
+  std::optional<std::string> ciphertext;
 };
 
 /// @brief account_credential 表 DAO（单例）

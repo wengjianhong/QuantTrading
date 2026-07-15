@@ -24,7 +24,7 @@ std::optional<QtradeConfigServiceConfig> ParseQtradeConfigServiceConfig(const st
   }
 
   QtradeConfigServiceConfig out;
-  out.grpc = *grpc;
+  out.grpc = grpc.value();
   out.database = ParseDatabaseConfigFromRoot(root_json);
   return out;
 }

@@ -18,11 +18,16 @@ namespace qtrade::framework::dao {
 
 /// @brief trading_account 表行记录
 struct TradingAccountRecord {
-  std::optional<std::string> tenant_id;          ///< 租户 ID
-  std::optional<std::string> account_id;         ///< 账户 ID
-  std::optional<std::string> broker_id;          ///< 券商 ID
-  std::optional<std::string> connection_string;  ///< 连接串
-  std::optional<std::string> status;             ///< 账户状态（如 active / disabled）
+  /// 租户 ID
+  std::optional<std::string> tenant_id;
+  /// 账户 ID
+  std::optional<std::string> account_id;
+  /// 券商 ID
+  std::optional<std::string> broker_id;
+  /// 连接串
+  std::optional<std::string> connection_string;
+  /// 账户状态（如 active / disabled）
+  std::optional<std::string> status;
 };
 
 /// @brief trading_account 表 DAO（单例）

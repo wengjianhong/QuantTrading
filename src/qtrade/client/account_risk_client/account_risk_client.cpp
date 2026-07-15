@@ -1,4 +1,8 @@
-/// @file account_risk_client.cpp
+/// @file      account_risk_client.cpp
+/// @brief     AccountRiskClient gRPC 调用实现
+/// @author    wengjianhong
+/// @date      2026-07-15
+/// @copyright CC BY-NC-SA 4.0
 #include "qtrade/client/account_risk_client/account_risk_client.hpp"
 
 #include <qtrade/proto/account_risk/v1/account_risk.grpc.pb.h>
@@ -11,8 +15,11 @@
 namespace qtrade::client {
 
 struct AccountRiskClient::Impl {
+  /// 初始化选项快照
   AccountRiskClientOptions options;
+  /// gRPC 通道
   std::shared_ptr<grpc::Channel> channel;
+  /// AccountRiskService stub
   std::unique_ptr<qtrade::account_risk::v1::AccountRiskService::Stub> stub;
 };
 

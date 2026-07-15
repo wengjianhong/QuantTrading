@@ -1,7 +1,14 @@
+/// @file      qtrade_log_service_config.cpp
+/// @brief     QtradeLogServiceConfig 解析实现
+/// @author    wengjianhong
+/// @date      2026-07-15
+/// @copyright CC BY-NC-SA 4.0
 #include "qtrade/common/config/qtrade_log_service_config.hpp"
 
 #include "qtrade/common/json/json_util.hpp"
+
 namespace qtrade::common::config {
+
 std::optional<QtradeLogServiceConfig> ParseQtradeLogServiceConfig(const std::string& text) {
   const auto root = ParseJsonString(text);
   if (!root.has_value()) {
@@ -16,7 +23,7 @@ std::optional<QtradeLogServiceConfig> ParseQtradeLogServiceConfig(const std::str
   const auto& storage = root_json.at("storage");
   const auto& ingest = root_json.at("ingest");
   QtradeLogServiceConfig out;
-  out.grpc = *grpc;
+  out.grpc = grpc.value();
   out.storage_type = storage.value("type", "");
   out.storage_path = storage.value("path", "");
   out.retention_days = storage.value("retention_days", 0);
@@ -27,4 +34,5 @@ std::optional<QtradeLogServiceConfig> ParseQtradeLogServiceConfig(const std::str
   }
   return out;
 }
+
 }  // namespace qtrade::common::config

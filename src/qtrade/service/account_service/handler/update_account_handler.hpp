@@ -16,10 +16,14 @@ namespace qtrade::service {
 
 /// @brief UpdateAccount 管道内业务数据
 struct UpdateAccountServerData {
-  bool update_password = false;                          ///< 是否同步更新密码
-  bool credential_updated = false;                       ///< 凭证是否已更新（预留回滚）
-  std::string password;                                  ///< 新明文密码（空表示不更新凭证）
-  qtrade::framework::dao::TradingAccountRecord account;  ///< 待更新账户元数据
+  /// 是否同步更新密码
+  bool update_password = false;
+  /// 凭证是否已更新（预留回滚）
+  bool credential_updated = false;
+  /// 新明文密码（空表示不更新凭证）
+  std::string password;
+  /// 待更新账户元数据
+  qtrade::framework::dao::TradingAccountRecord account;
 };
 
 /// @brief 更新交易账户（可选更新 account_credential）

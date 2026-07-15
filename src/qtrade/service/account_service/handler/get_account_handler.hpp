@@ -16,9 +16,12 @@ namespace qtrade::service {
 
 /// @brief GetAccount 管道内业务数据
 struct GetAccountServerData {
-  std::string tenant_id;                                 ///< 租户 ID
-  std::string account_id;                                ///< 交易账户号
-  qtrade::framework::dao::TradingAccountRecord account;  ///< 查询结果
+  /// 租户 ID
+  std::string tenant_id;
+  /// 交易账户号
+  std::string account_id;
+  /// 查询结果
+  qtrade::framework::dao::TradingAccountRecord account;
 };
 
 /// @brief 查询单个交易账户（不返回密码）

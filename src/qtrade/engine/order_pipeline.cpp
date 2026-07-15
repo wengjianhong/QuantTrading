@@ -1,3 +1,8 @@
+/// @file      order_pipeline.cpp
+/// @brief     OrderPipeline 发单准入编排实现
+/// @author    wengjianhong
+/// @date      2026-07-15
+/// @copyright CC BY-NC-SA 4.0
 #include "qtrade/engine/order_pipeline.hpp"
 
 #include "qtrade/client/account_risk_client/account_risk_client.hpp"
@@ -27,6 +32,7 @@ void OrderPipeline::SetLogClient(qtrade::client::LogClient* log_client) {
 }
 
 ErrorCode OrderPipeline::Submit(const qtrade_sdk::trader::OrderRequest& request) {
+  // 1. 审计门禁、合规与实例风控
   if (log_client_ != nullptr && log_client_->IsAuditHalted()) {
     return ErrorCode::kInternal;
   }
@@ -36,6 +42,8 @@ ErrorCode OrderPipeline::Submit(const qtrade_sdk::trader::OrderRequest& request)
   if (const auto rc = risk_manager_.CheckOrder(request); rc != ErrorCode::kSuccess) {
     return rc;
   }
+
+  // 2. 分配订单 ID 并做 E 段预占
   const std::string order_id = order_manager_.AllocateOrderId();
   if (account_risk_client_ != nullptr) {
     qtrade::account_risk::v1::ReserveOrderResponse response;
@@ -44,6 +52,8 @@ ErrorCode OrderPipeline::Submit(const qtrade_sdk::trader::OrderRequest& request)
       return rc == ErrorCode::kSuccess ? ErrorCode::kInternal : rc;
     }
   }
+
+  // 3. OMS 落单；失败则释放预占
   const auto order = order_manager_.CreateOrder(request, order_id);
   if (!order.has_value()) {
     if (account_risk_client_ != nullptr) {
@@ -53,6 +63,8 @@ ErrorCode OrderPipeline::Submit(const qtrade_sdk::trader::OrderRequest& request)
     }
     return ErrorCode::kNotInitialized;
   }
+
+  // 4. EMS 入队；失败则释放预占
   const auto rc = execution_manager_.Enqueue(*order);
   if (rc != ErrorCode::kSuccess && account_risk_client_ != nullptr) {
     qtrade::account_risk::v1::ReleaseOrderResponse ignored;

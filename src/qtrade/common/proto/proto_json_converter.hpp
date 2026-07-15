@@ -18,9 +18,12 @@ namespace qtrade::common {
 
 /// @brief Proto JSON 编解码选项
 struct ProtoJsonOptions {
-  bool always_print_primitive_fields = true;  ///< 序列化时输出零值 primitive 字段
-  bool preserve_proto_field_names = true;     ///< 序列化时保留 proto 字段名
-  bool case_insensitive_enum_parsing = true;  ///< 反序列化时枚举大小写不敏感
+  /// 序列化时输出零值 primitive 字段
+  bool always_print_primitive_fields = true;
+  /// 序列化时保留 proto 字段名
+  bool preserve_proto_field_names = true;
+  /// 反序列化时枚举大小写不敏感
+  bool case_insensitive_enum_parsing = true;
 };
 
 /// @brief 将 protobuf Message 序列化为 JSON 字符串

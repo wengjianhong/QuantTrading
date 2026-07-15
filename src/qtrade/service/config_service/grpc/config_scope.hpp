@@ -14,8 +14,10 @@ namespace qtrade::service {
 
 /// @brief 配置作用域（DB 主键：tenant_id + engine_id；gRPC 请求仅传 engine_id）
 struct ConfigScope {
-  std::string tenant_id = "default";  ///< 租户 ID
-  std::string engine_id = "default";  ///< 引擎实例 ID
+  /// 租户 ID
+  std::string tenant_id = "default";
+  /// 引擎实例 ID
+  std::string engine_id = "default";
 
   friend auto operator<=>(const ConfigScope&, const ConfigScope&) = default;
 };

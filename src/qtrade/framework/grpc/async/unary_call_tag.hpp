@@ -89,22 +89,36 @@ class UnaryCallTag final : public CallTagBase {
  private:
   /// @brief Unary CallTag 内部状态
   enum class CallStatus {
-    kCreate = 0,   ///< 初始：即将调用 RequestXxx
-    kProcess = 1,  ///< 已收到请求：执行业务并 Finish
-    kFinish = 2,   ///< Finish 完成：respawn 后销毁
+    /// 初始：即将调用 RequestXxx
+    kCreate = 0,
+    /// 已收到请求：执行业务并 Finish
+    kProcess = 1,
+    /// Finish 完成：respawn 后销毁
+    kFinish = 2,
   };
 
-  HandlerT* handler_;                                     ///< 业务处理器
-  AsyncServiceT* service_;                                ///< AsyncService
-  grpc::ServerCompletionQueue* cq_;                       ///< 服务端 CQ
-  RequestMethod request_method_;                          ///< RequestXxx 函数指针
-  HandlerFn handler_fn_;                                  ///< 业务回调
-  RespawnFn respawn_fn_;                                  ///< 结束后再挂起请求的回调
-  grpc::ServerContext ctx_;                               ///< 本请求上下文
-  RequestT request_;                                      ///< 请求消息
-  ResponseT response_;                                    ///< 响应消息
-  grpc::ServerAsyncResponseWriter<ResponseT> responder_;  ///< Unary 响应写端
-  CallStatus status_ = CallStatus::kCreate;               ///< 当前状态机状态
+  /// 业务处理器
+  HandlerT* handler_;
+  /// AsyncService
+  AsyncServiceT* service_;
+  /// 服务端 CQ
+  grpc::ServerCompletionQueue* cq_;
+  /// RequestXxx 函数指针
+  RequestMethod request_method_;
+  /// 业务回调
+  HandlerFn handler_fn_;
+  /// 结束后再挂起请求的回调
+  RespawnFn respawn_fn_;
+  /// 本请求上下文
+  grpc::ServerContext ctx_;
+  /// 请求消息
+  RequestT request_;
+  /// 响应消息
+  ResponseT response_;
+  /// Unary 响应写端
+  grpc::ServerAsyncResponseWriter<ResponseT> responder_;
+  /// 当前状态机状态
+  CallStatus status_ = CallStatus::kCreate;
 };
 
 }  // namespace qtrade::common::grpc_async

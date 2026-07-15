@@ -20,8 +20,10 @@
 
 namespace qtrade::framework::dao {
 
-using KeyValue = std::pair<std::string, std::string>;  ///< 列名与字符串值的键值对
-using KeyValues = std::vector<KeyValue>;               ///< 用于 INSERT/UPDATE/WHERE 的列值列表
+/// 列名与字符串值的键值对
+using KeyValue = std::pair<std::string, std::string>;
+/// 用于 INSERT/UPDATE/WHERE 的列值列表
+using KeyValues = std::vector<KeyValue>;
 
 /// @brief 注册当前进程使用的数据库连接
 /// @param connection 由 Repository 持有的 IConnection 指针；可为 nullptr 表示清除

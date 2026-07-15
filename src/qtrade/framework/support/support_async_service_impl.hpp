@@ -133,19 +133,30 @@ class SupportAsyncServiceImpl : public ISupportService {
   }
 
  protected:
-  std::string config_path_;     ///< 配置文件路径
-  std::string service_name_;    ///< 服务名
-  std::string listen_address_;  ///< gRPC 监听地址（host:port）
+  /// 配置文件路径
+  std::string config_path_;
+  /// 服务名
+  std::string service_name_;
+  /// gRPC 监听地址（host:port）
+  std::string listen_address_;
 
-  int default_port_ = -1;                                  ///< 默认监听端口
-  ErrorCode last_error_ = ErrorCode::kSuccess;             ///< 最近一次错误码
-  SupportServiceState state_ = SupportServiceState::kNew;  ///< 生命周期状态
+  /// 默认监听端口
+  int default_port_ = -1;
+  /// 最近一次错误码
+  ErrorCode last_error_ = ErrorCode::kSuccess;
+  /// 生命周期状态
+  SupportServiceState state_ = SupportServiceState::kNew;
 
-  mutable std::mutex mutex_;                                                ///< 保护启停与状态字段
-  AsyncServiceT async_service_;                                             ///< protobuf AsyncService 实例
-  std::unique_ptr<HandlerT> handler_;                                       ///< 异步 RPC Handler
-  std::unique_ptr<grpc_async::GrpcAsyncServer> grpc_server_;                ///< 异步 gRPC Server（含 CQ）
-  std::shared_ptr<qtrade::framework::dao::DbConnectionHolder> connection_;  ///< 数据库连接持有者
+  /// 保护启停与状态字段
+  mutable std::mutex mutex_;
+  /// protobuf AsyncService 实例
+  AsyncServiceT async_service_;
+  /// 异步 RPC Handler
+  std::unique_ptr<HandlerT> handler_;
+  /// 异步 gRPC Server（含 CQ）
+  std::unique_ptr<grpc_async::GrpcAsyncServer> grpc_server_;
+  /// 数据库连接持有者
+  std::shared_ptr<qtrade::framework::dao::DbConnectionHolder> connection_;
 };
 
 }  // namespace qtrade::common::support

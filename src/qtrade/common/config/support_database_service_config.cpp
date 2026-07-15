@@ -1,4 +1,8 @@
-/// @file support_database_service_config.cpp
+/// @file      support_database_service_config.cpp
+/// @brief     SupportDatabaseServiceConfig 解析实现
+/// @author    wengjianhong
+/// @date      2026-07-15
+/// @copyright CC BY-NC-SA 4.0
 #include "qtrade/common/config/support_database_service_config.hpp"
 
 #include "qtrade/common/json/json_util.hpp"
@@ -16,7 +20,7 @@ std::optional<SupportDatabaseServiceConfig> ParseSupportDatabaseServiceConfig(co
     return std::nullopt;
   }
   SupportDatabaseServiceConfig config;
-  config.grpc = *grpc;
+  config.grpc = grpc.value();
   config.database = ParseDatabaseConfigFromRoot(root_json);
   return config;
 }

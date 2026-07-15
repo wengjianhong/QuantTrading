@@ -12,7 +12,8 @@
 namespace qtrade::framework::dao {
 namespace {
 
-cpputils::database::IConnection* g_connection = nullptr;  ///< 由 SetConnection 注册的全局连接
+/// 由 SetConnection 注册的全局连接
+cpputils::database::IConnection* g_connection = nullptr;
 
 /// @brief 将 KeyValues 转为 UPDATE SET 赋值片段
 /// @param values SET 列值

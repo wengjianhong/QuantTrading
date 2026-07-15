@@ -18,10 +18,14 @@ namespace qtrade::engine::event_bus {
 
 /// @brief 事件类型枚举
 enum class EventType {
-  kTickData = 0,     ///< 市场 Tick 事件（Lane-M）
-  kBarData = 1,      ///< K 线 Bar 事件（Lane-M）
-  kOrderUpdate = 2,  ///< 订单回报事件（Lane-R）
-  kTradeUpdate = 3,  ///< 成交回报事件（Lane-R）
+  /// 市场 Tick 事件（Lane-M）
+  kTickData = 0,
+  /// K 线 Bar 事件（Lane-M）
+  kBarData = 1,
+  /// 订单回报事件（Lane-R）
+  kOrderUpdate = 2,
+  /// 成交回报事件（Lane-R）
+  kTradeUpdate = 3,
 };
 
 /// @brief 事件基类；Reactor 队列以 `EventPtr` 多态入队；时间见各子类载荷字段

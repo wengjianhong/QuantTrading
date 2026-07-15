@@ -18,8 +18,10 @@ using qtrade::framework::dao::TradingAccountRecord;
 
 /// @brief ListAccounts 管道内业务数据
 struct ListAccountsServerData {
-  std::string tenant_id;                       ///< 租户 ID（空表示不过滤）
-  std::vector<TradingAccountRecord> accounts;  ///< 查询结果列表
+  /// 租户 ID（空表示不过滤）
+  std::string tenant_id;
+  /// 查询结果列表
+  std::vector<TradingAccountRecord> accounts;
 };
 
 /// @brief 查询交易账户列表（password 均置空）

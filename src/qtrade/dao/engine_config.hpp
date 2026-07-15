@@ -19,10 +19,14 @@ namespace qtrade::framework::dao {
 
 /// @brief engine_config 表行记录
 struct EngineConfigRecord {
-  std::optional<std::string> tenant_id;  ///< 租户 ID
-  std::optional<std::string> engine_id;  ///< 引擎 ID
-  std::optional<std::uint64_t> version;  ///< 配置版本号
-  std::optional<std::string> payload;    ///< JSON 配置载荷
+  /// 租户 ID
+  std::optional<std::string> tenant_id;
+  /// 引擎 ID
+  std::optional<std::string> engine_id;
+  /// 配置版本号
+  std::optional<std::uint64_t> version;
+  /// JSON 配置载荷
+  std::optional<std::string> payload;
 };
 
 /// @brief engine_config 表 DAO（单例）

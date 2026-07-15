@@ -16,11 +16,16 @@ namespace qtrade::service {
 
 /// @brief GetCredential 管道内业务数据
 struct GetCredentialServerData {
-  std::string tenant_id;                                 ///< 租户 ID
-  std::string account_id;                                ///< 交易账户号
-  std::string engine_id;                                 ///< 引擎实例 ID（用于审计日志）
-  std::string password;                                  ///< 解密后的明文密码
-  qtrade::framework::dao::TradingAccountRecord account;  ///< 账户元数据
+  /// 租户 ID
+  std::string tenant_id;
+  /// 交易账户号
+  std::string account_id;
+  /// 引擎实例 ID（用于审计日志）
+  std::string engine_id;
+  /// 解密后的明文密码
+  std::string password;
+  /// 账户元数据
+  qtrade::framework::dao::TradingAccountRecord account;
 };
 
 /// @brief 获取登录凭证（含明文密码，供引擎冷启动/换密使用）

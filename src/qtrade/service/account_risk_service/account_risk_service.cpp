@@ -1,5 +1,8 @@
-/// @file account_risk_service.cpp
-/// @brief 账户硬风控服务生命周期实现
+/// @file      account_risk_service.cpp
+/// @brief     账户硬风控服务生命周期实现
+/// @author    wengjianhong
+/// @date      2026-07-15
+/// @copyright CC BY-NC-SA 4.0
 #include "qtrade/service/account_risk_service/account_risk_service.hpp"
 
 #include "qtrade/common/config/qtrade_account_risk_service_config.hpp"
@@ -9,6 +12,9 @@
 namespace qtrade::service {
 namespace {
 
+/// @brief 确保账户风控策略与预占表存在
+/// @param connection 数据库连接；不可为 nullptr
+/// @return ErrorCode::kSuccess 表示成功；连接为空或 DDL 失败返回 ErrorCode::kSystemError
 ErrorCode EnsureAccountRiskSchema(cpputils::database::IConnection* connection) {
   if (connection == nullptr) {
     return ErrorCode::kSystemError;
@@ -35,6 +41,7 @@ ErrorCode EnsureAccountRiskSchema(cpputils::database::IConnection* connection) {
 AccountRiskService::AccountRiskService() : SupportSyncServiceImpl("qtrade_account_risk_service", 50060) {}
 
 ErrorCode AccountRiskService::Initialize(const std::string& config_path) {
+  // 1. 校验生命周期并读取配置文本
   std::lock_guard lock(mutex_);
   if (state_ != qtrade::common::support::SupportServiceState::kNew &&
       state_ != qtrade::common::support::SupportServiceState::kTerminated) {
@@ -48,12 +55,16 @@ ErrorCode AccountRiskService::Initialize(const std::string& config_path) {
     state_ = qtrade::common::support::SupportServiceState::kFailed;
     return last_error_ = ErrorCode::kNotFound;
   }
+
+  // 2. 解析 L0 配置并解析监听地址
   const auto config = qtrade::common::config::ParseQtradeAccountRiskServiceConfig(*json_text);
   if (!config.has_value()) {
     state_ = qtrade::common::support::SupportServiceState::kFailed;
     return last_error_ = ErrorCode::kInternal;
   }
   listen_address_ = config->grpc.ListenAddress();
+
+  // 3. 引导数据库连接并确保表结构
   const auto context =
     qtrade::common::BootstrapDatabaseConnection(config->database, EnsureAccountRiskSchema, service_name_);
   if (!context.connection) {

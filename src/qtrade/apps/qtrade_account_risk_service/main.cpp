@@ -1,5 +1,8 @@
-/// @file main.cpp
-/// @brief 账户硬风控服务入口
+/// @file      main.cpp
+/// @brief     账户硬风控服务进程入口
+/// @author    wengjianhong
+/// @date      2026-07-15
+/// @copyright CC BY-NC-SA 4.0
 #include "qtrade/common/app/app_runner.hpp"
 #include "qtrade/common/app/support_service_main.hpp"
 #include "qtrade/service/account_risk_service/account_risk_service.hpp"

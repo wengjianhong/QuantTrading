@@ -50,8 +50,10 @@ class GrpcSyncServer {
   }
 
  private:
-  std::unique_ptr<grpc::Server> server_;  ///< gRPC Server 实例
-  bool running_ = false;                  ///< 是否正在运行
+  /// gRPC Server 实例
+  std::unique_ptr<grpc::Server> server_;
+  /// 是否正在运行
+  bool running_ = false;
 };
 
 }  // namespace qtrade::common::grpc_sync

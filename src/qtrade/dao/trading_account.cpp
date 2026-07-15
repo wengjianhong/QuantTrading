@@ -10,7 +10,8 @@
 namespace qtrade::framework::dao {
 namespace {
 
-TradingAccount* g_mock_instance = nullptr;  ///< 测试 Mock 实例指针
+/// 测试 Mock 实例指针
+TradingAccount* g_mock_instance = nullptr;
 
 constexpr const char* kCreateTableSql = R"(
 CREATE TABLE IF NOT EXISTS trading_account (

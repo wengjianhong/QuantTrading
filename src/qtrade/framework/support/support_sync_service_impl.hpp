@@ -122,18 +122,28 @@ class SupportSyncServiceImpl : public ISupportService {
   }
 
  protected:
-  std::string config_path_;     ///< 配置文件路径
-  std::string service_name_;    ///< 服务名
-  std::string listen_address_;  ///< gRPC 监听地址（host:port）
+  /// 配置文件路径
+  std::string config_path_;
+  /// 服务名
+  std::string service_name_;
+  /// gRPC 监听地址（host:port）
+  std::string listen_address_;
 
-  int default_port_ = -1;                                  ///< 默认监听端口
-  ErrorCode last_error_ = ErrorCode::kSuccess;             ///< 最近一次错误码
-  SupportServiceState state_ = SupportServiceState::kNew;  ///< 生命周期状态
+  /// 默认监听端口
+  int default_port_ = -1;
+  /// 最近一次错误码
+  ErrorCode last_error_ = ErrorCode::kSuccess;
+  /// 生命周期状态
+  SupportServiceState state_ = SupportServiceState::kNew;
 
-  mutable std::mutex mutex_;                                                ///< 保护启停与状态字段
-  std::unique_ptr<GrpcServiceT> grpc_service_;                              ///< 同步 gRPC Service 实现
-  std::unique_ptr<grpc_sync::GrpcSyncServer> grpc_server_;                  ///< 同步 gRPC Server
-  std::shared_ptr<qtrade::framework::dao::DbConnectionHolder> connection_;  ///< 数据库连接持有者
+  /// 保护启停与状态字段
+  mutable std::mutex mutex_;
+  /// 同步 gRPC Service 实现
+  std::unique_ptr<GrpcServiceT> grpc_service_;
+  /// 同步 gRPC Server
+  std::unique_ptr<grpc_sync::GrpcSyncServer> grpc_server_;
+  /// 数据库连接持有者
+  std::shared_ptr<qtrade::framework::dao::DbConnectionHolder> connection_;
 };
 
 }  // namespace qtrade::common::support

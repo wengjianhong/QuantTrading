@@ -1,5 +1,8 @@
-/// @file account_risk_grpc_service.cpp
-/// @brief 按账户串行的账户硬风控预占实现
+/// @file      account_risk_grpc_service.cpp
+/// @brief     按账户串行的账户硬风控预占实现（MVP 内存账簿）
+/// @author    wengjianhong
+/// @date      2026-07-15
+/// @copyright CC BY-NC-SA 4.0
 #include "qtrade/service/account_risk_service/grpc/account_risk_grpc_service.hpp"
 
 #include <grpcpp/grpcpp.h>
@@ -17,34 +20,57 @@ namespace {
 using AccountRiskPolicy = qtrade::account_risk::v1::AccountRiskPolicy;
 using Reservation = qtrade::account_risk::v1::Reservation;
 
+/// @brief 单笔预占状态
 struct ReservationState {
+  /// 预占 ID
   std::string reservation_id;
+  /// 状态字符串（reserved / released / expired 等）
   std::string status = "reserved";
+  /// 预占名义金额
   double notional = 0.0;
+  /// 预占保证金
   double margin = 0.0;
+  /// 过期时间（Unix 毫秒）
   std::int64_t expires_at_unix_ms = 0;
 };
 
+/// @brief 单账户内存账簿
 struct LedgerState {
+  /// 账户风控策略
   AccountRiskPolicy policy;
+  /// 已预占名义金额合计
   double reserved_notional = 0.0;
+  /// 已预占保证金合计
   double reserved_margin = 0.0;
+  /// 已预占未完成订单数
   std::uint64_t reserved_open_orders = 0;
+  /// order_id → 预占状态
   std::unordered_map<std::string, ReservationState> reservations;
 };
 
+/// 保护全局账簿
 std::mutex g_ledger_mutex;
+/// tenant+account → 账簿
 std::unordered_map<std::string, LedgerState> g_ledgers;
 
+/// @brief 生成账簿主键
+/// @param tenant_id 租户 ID
+/// @param account_id 账户 ID
+/// @return 组合键
 std::string AccountKey(const std::string& tenant_id, const std::string& account_id) {
   return tenant_id + "\n" + account_id;
 }
 
+/// @brief 当前 Unix 毫秒时间戳
+/// @return 毫秒时间戳
 std::int64_t NowUnixMs() {
   return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
     .count();
 }
 
+/// @brief 将已过期预占从账簿占用中扣除
+/// @param ledger 账户账簿
+/// @param now 当前 Unix 毫秒
 void ExpireReservations(LedgerState& ledger, std::int64_t now) {
   for (auto& [_, reservation] : ledger.reservations) {
     if (reservation.status == "reserved" && reservation.expires_at_unix_ms <= now) {
@@ -58,6 +84,9 @@ void ExpireReservations(LedgerState& ledger, std::int64_t now) {
   }
 }
 
+/// @brief 构造 INVALID_ARGUMENT 状态
+/// @param message 错误说明
+/// @return gRPC 状态
 grpc::Status InvalidArgument(const std::string& message) {
   return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, message);
 }

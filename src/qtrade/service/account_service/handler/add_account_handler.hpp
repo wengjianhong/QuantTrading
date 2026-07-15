@@ -16,9 +16,12 @@ namespace qtrade::service {
 
 /// @brief AddAccount 管道内业务数据
 struct AddAccountServerData {
-  bool account_inserted = false;                         ///< trading_account 是否已写入（用于回滚）
-  std::string password;                                  ///< 明文密码（写入 account_credential）
-  qtrade::framework::dao::TradingAccountRecord account;  ///< 待添加账户元数据
+  /// trading_account 是否已写入（用于回滚）
+  bool account_inserted = false;
+  /// 明文密码（写入 account_credential）
+  std::string password;
+  /// 待添加账户元数据
+  qtrade::framework::dao::TradingAccountRecord account;
 };
 
 /// @brief 添加交易账户（写入 trading_account + account_credential）

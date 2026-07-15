@@ -18,14 +18,22 @@
 namespace qtrade::client {
 
 struct ConfigClient::Impl {
-  ConfigClientOptions options;                                    ///< 连接参数
-  SnapshotHandler on_snapshot;                                    ///< 全量快照回调
-  std::shared_ptr<grpc::Channel> channel;                         ///< gRPC 通道
-  std::unique_ptr<qtrade::config::v1::ConfigService::Stub> stub;  ///< gRPC 存根
-  std::thread watch_thread;                                       ///< SubscribeConfig 控制线程
-  std::atomic<bool> watch_running{false};                         ///< Watch 线程运行标志
-  std::atomic<std::uint64_t> version{0};                          ///< 已应用配置版本
-  bool initialized = false;                                       ///< 是否已完成 Init
+  /// 连接参数
+  ConfigClientOptions options;
+  /// 全量快照回调
+  SnapshotHandler on_snapshot;
+  /// gRPC 通道
+  std::shared_ptr<grpc::Channel> channel;
+  /// gRPC 存根
+  std::unique_ptr<qtrade::config::v1::ConfigService::Stub> stub;
+  /// SubscribeConfig 控制线程
+  std::thread watch_thread;
+  /// Watch 线程运行标志
+  std::atomic<bool> watch_running{false};
+  /// 已应用配置版本
+  std::atomic<std::uint64_t> version{0};
+  /// 是否已完成 Init
+  bool initialized = false;
 };
 
 ConfigClient::ConfigClient() : impl_(std::make_unique<Impl>()) {}
