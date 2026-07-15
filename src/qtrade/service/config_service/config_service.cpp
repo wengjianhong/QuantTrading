@@ -5,10 +5,11 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/service/config_service/config_service.hpp"
 
+#include "qtrade/common/config/qtrade_config_service_config.hpp"
+#include "qtrade/common/file/text_file.hpp"
 #include "qtrade/dao/engine_config.hpp"
 #include "qtrade/framework/dao/ddl_utils.hpp"
 #include "qtrade/framework/database/database_service_bootstrap.hpp"
-#include "qtrade/framework/grpc/grpc_options.hpp"
 
 namespace qtrade::service {
 
@@ -32,9 +33,22 @@ ErrorCode ConfigService::Initialize(const std::string& config_path) {
 
   state_ = qtrade::common::support::SupportServiceState::kInitializing;
   config_path_ = config_path;
-  listen_address_ = qtrade::common::ParseGrpcOptions(config_path, default_port_).ListenAddress();
 
-  const auto context = qtrade::common::BootstrapDatabaseConnection(config_path, EnsureConfigSchema, service_name_);
+  const auto json_text = qtrade::common::ReadTextFile(config_path);
+  if (!json_text.has_value()) {
+    state_ = qtrade::common::support::SupportServiceState::kFailed;
+    last_error_ = ErrorCode::kNotFound;
+    return last_error_;
+  }
+  const auto config = qtrade::common::config::ParseQtradeConfigServiceConfig(*json_text);
+  if (!config.has_value()) {
+    state_ = qtrade::common::support::SupportServiceState::kFailed;
+    last_error_ = ErrorCode::kNotFound;
+    return last_error_;
+  }
+  listen_address_ = config->grpc.ListenAddress();
+
+  const auto context = qtrade::common::BootstrapDatabaseConnection(config->database, EnsureConfigSchema, service_name_);
   if (!context.connection) {
     connection_.reset();
     state_ = qtrade::common::support::SupportServiceState::kFailed;

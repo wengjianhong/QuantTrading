@@ -6,58 +6,14 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/engine/trading_engine.hpp"
 
+#include "qtrade/common/config/qtrade_engine_config.hpp"
+#include "qtrade/common/file/text_file.hpp"
+
 #include <qtrade/proto/config/v1/config.pb.h>
 
-#include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
-#include <fstream>
-
 namespace qtrade::engine {
-
-namespace {
-
-ErrorCode ParseEngineOptionsFromJson(const std::string& json_path, EngineOptions& options) {
-  std::ifstream ifs(json_path);
-  if (!ifs.is_open()) {
-    spdlog::error("[TradingEngine] cannot open config: {}", json_path);
-    return ErrorCode::kNotFound;
-  }
-
-  nlohmann::json root;
-  try {
-    ifs >> root;
-  } catch (const nlohmann::json::exception& ex) {
-    spdlog::error("[TradingEngine] invalid config JSON: {}", ex.what());
-    return ErrorCode::kInternal;
-  }
-
-  if (root.contains("config_service")) {
-    options.config_server_address = root["config_service"].get<std::string>();
-  }
-  if (root.contains("account_service")) {
-    options.account_server_address = root["account_service"].get<std::string>();
-  }
-  if (root.contains("tenant_id")) {
-    options.tenant_id = root["tenant_id"].get<std::string>();
-  }
-  if (root.contains("engine_id")) {
-    options.engine_id = root["engine_id"].get<std::string>();
-  }
-  if (root.contains("account_id")) {
-    options.account_id = root["account_id"].get<std::string>();
-  }
-  if (root.contains("log_topic")) {
-    options.log_topic = root["log_topic"].get<std::string>();
-  }
-  if (root.contains("monitor_endpoint")) {
-    options.monitor_endpoint = root["monitor_endpoint"].get<std::string>();
-  }
-
-  return ErrorCode::kSuccess;
-}
-
-}  // namespace
 
 TradingEngine::TradingEngine()
   : strategy_engine_(event_lanes_),
@@ -69,11 +25,15 @@ TradingEngine::~TradingEngine() {
 }
 
 ErrorCode TradingEngine::ReloadFromJson(const std::string& json_path) {
-  EngineOptions loaded;
-  if (const auto rc = ParseEngineOptionsFromJson(json_path, loaded); rc != ErrorCode::kSuccess) {
-    return rc;
+  const auto json_text = qtrade::common::ReadTextFile(json_path);
+  if (!json_text.has_value()) {
+    return ErrorCode::kNotFound;
   }
-  options_ = std::move(loaded);
+  const auto loaded = qtrade::common::config::ParseQtradeEngineConfig(*json_text);
+  if (!loaded.has_value()) {
+    return ErrorCode::kNotFound;
+  }
+  options_ = EngineOptions::FromConfig(*loaded);
   spdlog::info("[TradingEngine] config loaded from {}", json_path);
   return ErrorCode::kSuccess;
 }

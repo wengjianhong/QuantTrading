@@ -11,7 +11,7 @@
 
 namespace qtrade::framework::dao {
 
-DbConnectionHolder::DbConnectionHolder(const qtrade::common::DatabaseOptions& options) {
+DbConnectionHolder::DbConnectionHolder(const qtrade::common::config::DatabaseConfig& options) {
   // 1. 连接池模式：打开连接池并获取一条连接
   if (options.pool.has_value()) {
     pool_ = cpputils::database::CreateConnectionPool();

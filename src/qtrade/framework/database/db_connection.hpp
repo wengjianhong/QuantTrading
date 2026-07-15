@@ -6,7 +6,7 @@
 #ifndef QTRADE_COMMON_DATABASE_DB_CONNECTION_HPP_
 #define QTRADE_COMMON_DATABASE_DB_CONNECTION_HPP_
 
-#include "qtrade/framework/database/database_options.hpp"
+#include "qtrade/common/config/database_config.hpp"
 
 #include <cpputils/database/connection.hpp>
 #include <cpputils/database/connection_pool.hpp>
@@ -16,12 +16,12 @@
 namespace qtrade::framework::dao {
 
 /// @brief 数据库连接或连接池的 RAII 持有者
-/// @details 根据 DatabaseOptions 选择直连或连接池模式；析构时释放连接并关闭连接池
+/// @details 根据 DatabaseConfig 选择直连或连接池模式；析构时释放连接并关闭连接池
 class DbConnectionHolder {
  public:
   /// @brief 按配置建立数据库连接或连接池
-  /// @param options 数据库连接选项（含 pool 配置时走连接池）
-  explicit DbConnectionHolder(const qtrade::common::DatabaseOptions& options);
+  /// @param options 数据库连接配置（含 pool 时走连接池）
+  explicit DbConnectionHolder(const qtrade::common::config::DatabaseConfig& options);
 
   /// @brief 释放连接并关闭连接池
   ~DbConnectionHolder();

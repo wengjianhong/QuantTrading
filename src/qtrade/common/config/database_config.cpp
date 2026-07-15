@@ -1,23 +1,26 @@
-/// @file      database_options.cpp
-/// @brief     JSON database section parsing implementation
+/// @file      database_config.cpp
+/// @brief     DatabaseConfig 解析实现
 /// @author    wengjianhong
 /// @date      2026-07-03
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade/framework/database/database_options.hpp"
+#include "qtrade/common/config/database_config.hpp"
+
+#include "qtrade/common/json/json_util.hpp"
 
 #include <cpputils/database/config.hpp>
 #include <cpputils/database/database_types.hpp>
 
-#include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
-#include <fstream>
 #include <map>
 #include <utility>
 
-namespace qtrade::common {
+namespace qtrade::common::config {
 namespace {
 
+/// @brief 解析 soci_options 对象到字符串映射
+/// @param node 含可选 soci_options 字段的 JSON 对象
+/// @param out 输出键值对（追加写入）
 void ParseSociOptions(const nlohmann::json& node, std::map<std::string, std::string>& out) {
   if (!node.contains("soci_options") || !node["soci_options"].is_object()) {
     return;
@@ -27,6 +30,10 @@ void ParseSociOptions(const nlohmann::json& node, std::map<std::string, std::str
   }
 }
 
+/// @brief 读取整型秒字段并转为 time_t
+/// @param node JSON 对象
+/// @param key 字段名
+/// @return 秒数；字段缺失时返回 0
 time_t ParseSeconds(const nlohmann::json& node, const char* key) {
   if (!node.contains(key)) {
     return 0;
@@ -34,6 +41,10 @@ time_t ParseSeconds(const nlohmann::json& node, const char* key) {
   return static_cast<time_t>(node[key].get<std::int64_t>());
 }
 
+/// @brief 从遗留 conn_string 字段构建连接配置
+/// @param database database 段 JSON
+/// @param type 数据库类型
+/// @return 连接配置
 cpputils::database::ConnectionConfig BuildLegacyConnectionConfig(const nlohmann::json& database,
                                                                  cpputils::database::DatabaseType type) {
   cpputils::database::ConnectionConfig options;
@@ -43,6 +54,9 @@ cpputils::database::ConnectionConfig BuildLegacyConnectionConfig(const nlohmann:
   return options;
 }
 
+/// @brief 从 config 对象构建 SQLite 连接配置
+/// @param db_config database.config 对象
+/// @return 连接配置
 cpputils::database::ConnectionConfig BuildSqliteConnectionConfig(const nlohmann::json& db_config) {
   cpputils::database::SqliteConfig config;
   if (db_config.contains("database_path")) {
@@ -53,6 +67,9 @@ cpputils::database::ConnectionConfig BuildSqliteConnectionConfig(const nlohmann:
   return cpputils::database::ConnectionConfig{config};
 }
 
+/// @brief 从 config 对象构建 MySQL 连接配置
+/// @param db_config database.config 对象
+/// @return 连接配置
 cpputils::database::ConnectionConfig BuildMySqlConnectionConfig(const nlohmann::json& db_config) {
   cpputils::database::MySqlConfig config;
   if (db_config.contains("host")) {
@@ -75,6 +92,9 @@ cpputils::database::ConnectionConfig BuildMySqlConnectionConfig(const nlohmann::
   return cpputils::database::ConnectionConfig{config};
 }
 
+/// @brief 解析 PostgreSQL 连接类型字符串
+/// @param name "unix" 或其它（按 TCP）
+/// @return ConnectionType
 cpputils::database::ConnectionType ParsePostgreSqlConnectionType(const std::string& name) {
   if (name == "unix") {
     return cpputils::database::ConnectionType::kUnix;
@@ -82,6 +102,9 @@ cpputils::database::ConnectionType ParsePostgreSqlConnectionType(const std::stri
   return cpputils::database::ConnectionType::kTcp;
 }
 
+/// @brief 从 config 对象构建 PostgreSQL 连接配置
+/// @param db_config database.config 对象
+/// @return 连接配置
 cpputils::database::ConnectionConfig BuildPostgreSqlConnectionConfig(const nlohmann::json& db_config) {
   cpputils::database::PostgreSqlConfig config;
   if (db_config.contains("host")) {
@@ -113,6 +136,9 @@ cpputils::database::ConnectionConfig BuildPostgreSqlConnectionConfig(const nlohm
   return cpputils::database::ConnectionConfig{config};
 }
 
+/// @brief 从 config 对象构建 Oracle 连接配置
+/// @param db_config database.config 对象
+/// @return 连接配置
 cpputils::database::ConnectionConfig BuildOracleConnectionConfig(const nlohmann::json& db_config) {
   cpputils::database::OracleConfig config;
   if (db_config.contains("host")) {
@@ -135,6 +161,9 @@ cpputils::database::ConnectionConfig BuildOracleConnectionConfig(const nlohmann:
   return cpputils::database::ConnectionConfig{config};
 }
 
+/// @brief 取得 database.config 子对象；缺失时返回空对象
+/// @param database database 段 JSON
+/// @return config 对象引用或静态空对象
 const nlohmann::json& DbConfigNode(const nlohmann::json& database) {
   static const nlohmann::json kEmpty = nlohmann::json::object();
   if (database.contains("config") && database["config"].is_object()) {
@@ -143,6 +172,9 @@ const nlohmann::json& DbConfigNode(const nlohmann::json& database) {
   return kEmpty;
 }
 
+/// @brief 按 type / conn_string / config 构建连接配置
+/// @param database database 段 JSON
+/// @return 连接配置
 cpputils::database::ConnectionConfig BuildConnectionConfig(const nlohmann::json& database) {
   const auto type = cpputils::database::GetDatabaseTypeByName(database.value("type", ""));
 
@@ -165,7 +197,10 @@ cpputils::database::ConnectionConfig BuildConnectionConfig(const nlohmann::json&
   }
 }
 
-void ParsePoolOptions(const nlohmann::json& database, DatabaseOptions& options) {
+/// @brief 解析 pool 段并写入 options.pool
+/// @param database database 段 JSON
+/// @param options 已含 connection 的配置输出
+void ParsePoolOptions(const nlohmann::json& database, DatabaseConfig& options) {
   if (!database.contains("pool") || !database["pool"].is_object()) {
     return;
   }
@@ -183,27 +218,12 @@ void ParsePoolOptions(const nlohmann::json& database, DatabaseOptions& options) 
 
 }  // namespace
 
-DatabaseOptions ParseDatabaseOptions(const std::string& json_path) {
-  DatabaseOptions options;
-
-  std::ifstream ifs(json_path);
-  if (!ifs.is_open()) {
+DatabaseConfig ParseDatabaseConfigFromSection(const nlohmann::json& database) {
+  DatabaseConfig options;
+  if (!database.is_object()) {
     return options;
   }
 
-  nlohmann::json root;
-  try {
-    ifs >> root;
-  } catch (const nlohmann::json::exception& ex) {
-    spdlog::warn("[DatabaseOptions] invalid JSON in {}: {}", json_path, ex.what());
-    return options;
-  }
-
-  if (!root.contains("database") || !root["database"].is_object()) {
-    return options;
-  }
-
-  const auto& database = root["database"];
   options.enabled = database.value("enabled", false);
   if (!options.enabled) {
     return options;
@@ -214,4 +234,20 @@ DatabaseOptions ParseDatabaseOptions(const std::string& json_path) {
   return options;
 }
 
-}  // namespace qtrade::common
+DatabaseConfig ParseDatabaseConfigFromRoot(const nlohmann::json& root) {
+  if (!root.contains("database") || !root["database"].is_object()) {
+    return DatabaseConfig{};
+  }
+  return ParseDatabaseConfigFromSection(root["database"]);
+}
+
+bool ParseDatabaseConfig(const std::string& json, DatabaseConfig& out) {
+  const auto root = ParseJsonString(json);
+  if (!root.has_value()) {
+    return false;
+  }
+  out = ParseDatabaseConfigFromRoot(*root);
+  return true;
+}
+
+}  // namespace qtrade::common::config
