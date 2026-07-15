@@ -21,7 +21,9 @@ std::optional<QtradeMonitorServiceConfig> ParseQtradeMonitorServiceConfig(const 
   out.retention_days = metrics.value("retention_days", 0);
   out.alert_enabled = alert.value("enabled", false);
   out.alert_webhook = alert.value("webhook", "");
-  return out.scrape_interval_sec > 0 && out.retention_days > 0 ? std::optional<QtradeMonitorServiceConfig>(out)
-                                                               : std::nullopt;
+  if (out.scrape_interval_sec < 1 || out.retention_days < 1) {
+    return std::nullopt;
+  }
+  return out;
 }
 }  // namespace qtrade::common::config

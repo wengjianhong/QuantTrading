@@ -22,8 +22,9 @@ std::optional<QtradeLogServiceConfig> ParseQtradeLogServiceConfig(const std::str
   out.retention_days = storage.value("retention_days", 0);
   out.batch_size = ingest.value("batch_size", 0);
   out.flush_interval_ms = ingest.value("flush_interval_ms", 0);
-  return out.storage_type.empty() || out.retention_days < 1 || out.batch_size < 1 || out.flush_interval_ms < 1
-           ? std::nullopt
-           : std::optional<QtradeLogServiceConfig>(out);
+  if (out.storage_type.empty() || out.retention_days < 1 || out.batch_size < 1 || out.flush_interval_ms < 1) {
+    return std::nullopt;
+  }
+  return out;
 }
 }  // namespace qtrade::common::config

@@ -201,16 +201,19 @@ cpputils::database::ConnectionConfig BuildConnectionConfig(const nlohmann::json&
 /// @param database database 段 JSON
 /// @param options 已含 connection 的配置输出
 void ParsePoolOptions(const nlohmann::json& database, DatabaseConfig& options) {
-  if (!database.contains("pool") || !database["pool"].is_object()) {
+  if (!database.contains("pool") || !database.at("pool").is_object()) {
     return;
   }
 
-  const auto& pool = database["pool"];
+  const auto& pool = database.at("pool");
   if (!pool.value("enabled", false)) {
     return;
   }
 
-  const std::size_t pool_size = pool.contains("size") ? pool["size"].get<std::size_t>() : 4;
+  std::size_t pool_size = 4;
+  if (pool.contains("size")) {
+    pool_size = pool.at("size").get<std::size_t>();
+  }
   cpputils::database::ConnectionPoolConfig pool_opts{options.connection, pool_size};
   pool_opts.lease_timeout = ParseSeconds(pool, "lease_timeout");
   options.pool = std::move(pool_opts);
