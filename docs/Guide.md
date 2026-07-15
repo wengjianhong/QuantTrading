@@ -87,7 +87,10 @@ qtrade/
 │   │   │   ├── support/            # SupportSyncServiceImpl / SupportAsyncServiceImpl
 │   │   │   ├── database/           # 连接选项、DbConnectionHolder、bootstrap
 │   │   │   ├── dao/                # dml_utils、ddl_utils、sql_utils（DAO 基建，非表级 DAO）
-│   │   │   ├── grpc/               # 同步/异步 gRPC Server、CallTag、CQ 循环
+│   │   │   ├── grpc/               # gRPC 传输层
+│   │   │   │   ├── grpc_options.*  # 共用：解析配置 grpc 段
+│   │   │   │   ├── sync/           # GrpcSyncServer
+│   │   │   │   └── async/          # GrpcAsyncServer、CallTag、CQ 循环
 │   │   │   └── error_code/         # include/qtrade/error_code/ 的实现（如 code_message.cpp）
 │   └── qtrade_sdk/                 # 【SDK 接口实现】对应 include/qtrade_sdk/
 │       ├── mock/quote|trader/      # Mock 开发/测试适配

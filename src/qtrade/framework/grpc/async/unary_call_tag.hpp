@@ -1,12 +1,13 @@
 /// @file      unary_call_tag.hpp
 /// @brief     Unary RPC 通用 CallTag（Server Async API）
+/// @details   实现 Create → Request* → 业务处理 → Finish → respawn 状态机；Streaming 请自定义 CallTagBase 派生类
 /// @author    wengjianhong
 /// @date      2026-07-08
 /// @copyright CC BY-NC-SA 4.0
 #ifndef QTRADE_COMMON_GRPC_UNARY_CALL_TAG_HPP_
 #define QTRADE_COMMON_GRPC_UNARY_CALL_TAG_HPP_
 
-#include "qtrade/framework/grpc/call_tag_base.hpp"
+#include "qtrade/framework/grpc/async/call_tag_base.hpp"
 
 #include <grpcpp/grpcpp.h>
 
@@ -22,15 +23,25 @@ namespace qtrade::common::grpc_async {
 template <typename AsyncServiceT, typename HandlerT, typename RequestT, typename ResponseT>
 class UnaryCallTag final : public CallTagBase {
  public:
+  /// @brief AsyncService::RequestXxx 成员函数指针类型
   using RequestMethod = void (AsyncServiceT::*)(grpc::ServerContext*,
                                                 RequestT*,
                                                 grpc::ServerAsyncResponseWriter<ResponseT>*,
                                                 grpc::CompletionQueue*,
                                                 grpc::ServerCompletionQueue*,
                                                 void*);
+  /// @brief 业务处理回调：填充 response 并返回 Status
   using HandlerFn = std::function<grpc::Status(HandlerT*, const RequestT&, ResponseT*)>;
+  /// @brief 本请求结束后用于再挂起一个同类 CallTag 的回调
   using RespawnFn = std::function<void(HandlerT*)>;
 
+  /// @brief 构造 Unary CallTag 并立即进入 Create/Request 流程
+  /// @param handler 业务处理器（不可为 nullptr；生命周期须覆盖本 tag）
+  /// @param service AsyncService 实例（不可为 nullptr）
+  /// @param cq 服务端 CompletionQueue（不可为 nullptr）
+  /// @param request_method AsyncService::RequestXxx 成员函数
+  /// @param handler_fn 收到请求后的业务回调
+  /// @param respawn_fn Finish 后再次 Spawn 同类请求的回调
   UnaryCallTag(HandlerT* handler,
                AsyncServiceT* service,
                grpc::ServerCompletionQueue* cq,
@@ -47,18 +58,22 @@ class UnaryCallTag final : public CallTagBase {
     Proceed(true);
   }
 
+  /// @brief 推进 Unary 状态机
+  /// @param ok CQ 事件是否成功；Create 之后失败则自删
   void Proceed(bool ok) override {
     if (!ok) {
       delete this;
       return;
     }
 
+    // 1. CREATE：挂起 RequestXxx，等待下一事件进入 PROCESS
     if (status_ == CallStatus::kCreate) {
       status_ = CallStatus::kProcess;
       (service_->*request_method_)(&ctx_, &request_, &responder_, cq_, cq_, this);
       return;
     }
 
+    // 2. PROCESS：执行业务并 Finish
     if (status_ == CallStatus::kProcess) {
       status_ = CallStatus::kFinish;
       const grpc::Status status = handler_fn_(handler_, request_, &response_);
@@ -66,24 +81,30 @@ class UnaryCallTag final : public CallTagBase {
       return;
     }
 
+    // 3. FINISH：respawn 下一个 CallTag 并自删
     respawn_fn_(handler_);
     delete this;
   }
 
  private:
-  enum class CallStatus { kCreate, kProcess, kFinish };
+  /// @brief Unary CallTag 内部状态
+  enum class CallStatus {
+    kCreate = 0,   ///< 初始：即将调用 RequestXxx
+    kProcess = 1,  ///< 已收到请求：执行业务并 Finish
+    kFinish = 2,   ///< Finish 完成：respawn 后销毁
+  };
 
-  HandlerT* handler_;
-  AsyncServiceT* service_;
-  grpc::ServerCompletionQueue* cq_;
-  RequestMethod request_method_;
-  HandlerFn handler_fn_;
-  RespawnFn respawn_fn_;
-  grpc::ServerContext ctx_;
-  RequestT request_;
-  ResponseT response_;
-  grpc::ServerAsyncResponseWriter<ResponseT> responder_;
-  CallStatus status_ = CallStatus::kCreate;
+  HandlerT* handler_;                                     ///< 业务处理器
+  AsyncServiceT* service_;                                ///< AsyncService
+  grpc::ServerCompletionQueue* cq_;                       ///< 服务端 CQ
+  RequestMethod request_method_;                          ///< RequestXxx 函数指针
+  HandlerFn handler_fn_;                                  ///< 业务回调
+  RespawnFn respawn_fn_;                                  ///< 结束后再挂起请求的回调
+  grpc::ServerContext ctx_;                               ///< 本请求上下文
+  RequestT request_;                                      ///< 请求消息
+  ResponseT response_;                                    ///< 响应消息
+  grpc::ServerAsyncResponseWriter<ResponseT> responder_;  ///< Unary 响应写端
+  CallStatus status_ = CallStatus::kCreate;               ///< 当前状态机状态
 };
 
 }  // namespace qtrade::common::grpc_async

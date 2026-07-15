@@ -1,13 +1,14 @@
-/// @file      support_service_impl.hpp
+/// @file      support_async_service_impl.hpp
 /// @brief     gRPC 异步支撑服务通用基类（AsyncService + CQ）
+/// @details   直接持有 GrpcAsyncServer、AsyncService 与 Handler；适用于含 Streaming 的支撑服务
 /// @author    wengjianhong
 /// @date      2026-07-08
 /// @copyright CC BY-NC-SA 4.0
-#ifndef QTRADE_COMMON_SUPPORT_SUPPORT_SERVICE_IMPL_HPP_
-#define QTRADE_COMMON_SUPPORT_SUPPORT_SERVICE_IMPL_HPP_
+#ifndef QTRADE_COMMON_SUPPORT_SUPPORT_ASYNC_SERVICE_IMPL_HPP_
+#define QTRADE_COMMON_SUPPORT_SUPPORT_ASYNC_SERVICE_IMPL_HPP_
 
 #include "qtrade/framework/database/db_connection.hpp"
-#include "qtrade/framework/grpc/grpc_async_server.hpp"
+#include "qtrade/framework/grpc/async/grpc_async_server.hpp"
 
 #include <qtrade/error_code/error_codes.hpp>
 #include <qtrade_framework/support/support_service.hpp>
@@ -21,15 +22,19 @@
 
 namespace qtrade::common::support {
 
-/// @brief gRPC 异步支撑服务通用基类（AsyncService + CQ；适用于 Streaming 等场景）
+/// @brief gRPC 异步支撑服务基类（AsyncService + CQ）
 /// @tparam AsyncServiceT protobuf 生成的 gRPC AsyncService 类型
 /// @tparam HandlerT RPC 异步处理器，需提供 Init / Start / Shutdown
 template <typename AsyncServiceT, typename HandlerT>
 class SupportAsyncServiceImpl : public ISupportService {
  public:
+  /// @brief 构造异步支撑服务基类
+  /// @param service_name 服务名（日志与状态快照）
+  /// @param default_port 未配置端口时的默认监听端口
   SupportAsyncServiceImpl(std::string service_name, int default_port)
     : service_name_(std::move(service_name)), default_port_(default_port) {}
 
+  /// @brief 析构时调用 Stop 释放 Handler、Server 与连接资源
   ~SupportAsyncServiceImpl() override {
     Stop();
   }
@@ -37,11 +42,18 @@ class SupportAsyncServiceImpl : public ISupportService {
   SupportAsyncServiceImpl(const SupportAsyncServiceImpl&) = delete;
   SupportAsyncServiceImpl& operator=(const SupportAsyncServiceImpl&) = delete;
 
+  /// @brief 读取配置并初始化依赖（由子类实现）
+  /// @param config_path 配置文件路径
+  /// @return 成功返回 ErrorCode::kSuccess；失败返回对应错误码
   ErrorCode Initialize(const std::string& config_path) override = 0;
 
+  /// @brief 启动 Async Server、注入 Handler 并开始接受请求
+  /// @return 成功返回 ErrorCode::kSuccess；状态非法、DB 未就绪或监听失败返回错误码
+  /// @details 要求状态为 kInitializing 且 connection_ 已就绪；失败时写入 last_error_ 并置为 kFailed
   ErrorCode Start() override {
     std::lock_guard lock(mutex_);
 
+    // 1. 校验生命周期状态与数据库连接
     if (state_ != SupportServiceState::kInitializing || !connection_ || !connection_->IsReady()) {
       return ErrorCode::kSystemError;
     }
@@ -50,6 +62,7 @@ class SupportAsyncServiceImpl : public ISupportService {
       return ErrorCode::kSystemError;
     }
 
+    // 2. 创建 Async Server 与 Handler，并启动监听
     grpc_server_ = std::make_unique<grpc_async::GrpcAsyncServer>();
     handler_ = std::make_unique<HandlerT>();
 
@@ -65,6 +78,7 @@ class SupportAsyncServiceImpl : public ISupportService {
       return rc;
     }
 
+    // 3. 绑定 CQ / 连接后启动 Handler，并标记就绪
     handler_->Init(&async_service_, grpc_server_->CompletionQueue(), connection_);
     handler_->Start();
 
@@ -74,6 +88,8 @@ class SupportAsyncServiceImpl : public ISupportService {
     return ErrorCode::kSuccess;
   }
 
+  /// @brief 优雅停止 Handler 与 gRPC 服务（不阻塞 Wait）
+  /// @details Shutdown 后保留 grpc_server_ 供 Wait 阻塞；若尚未 Start 则仅清理初始化阶段资源
   void Stop() override {
     std::lock_guard lock(mutex_);
     if (!grpc_server_ || !grpc_server_->IsRunning()) {
@@ -94,6 +110,7 @@ class SupportAsyncServiceImpl : public ISupportService {
     state_ = SupportServiceState::kTerminated;
   }
 
+  /// @brief 阻塞直至 gRPC Server 完全退出
   void Wait() override {
     if (grpc_server_) {
       grpc_server_->Wait();
@@ -101,6 +118,8 @@ class SupportAsyncServiceImpl : public ISupportService {
     }
   }
 
+  /// @brief 获取当前运行状态快照
+  /// @return 含服务名、配置路径、监听地址、错误码与生命周期状态
   [[nodiscard]] SupportServiceStatus GetStatus() const override {
     std::lock_guard lock(mutex_);
     return SupportServiceStatus{
@@ -114,19 +133,21 @@ class SupportAsyncServiceImpl : public ISupportService {
   }
 
  protected:
-  std::string service_name_;
-  int default_port_;
-  std::string config_path_;
-  std::string listen_address_;
-  ErrorCode last_error_ = ErrorCode::kSuccess;
-  SupportServiceState state_ = SupportServiceState::kNew;
-  mutable std::mutex mutex_;
-  std::shared_ptr<qtrade::framework::dao::DbConnectionHolder> connection_;
-  AsyncServiceT async_service_;
-  std::unique_ptr<HandlerT> handler_;
-  std::unique_ptr<grpc_async::GrpcAsyncServer> grpc_server_;
+  std::string config_path_;     ///< 配置文件路径
+  std::string service_name_;    ///< 服务名
+  std::string listen_address_;  ///< gRPC 监听地址（host:port）
+
+  int default_port_ = -1;                                        ///< 默认监听端口
+  ErrorCode last_error_ = ErrorCode::kSuccess;                   ///< 最近一次错误码
+  SupportServiceState state_ = SupportServiceState::kNew;        ///< 生命周期状态
+
+  mutable std::mutex mutex_;                                                    ///< 保护启停与状态字段
+  AsyncServiceT async_service_;                                                 ///< protobuf AsyncService 实例
+  std::unique_ptr<HandlerT> handler_;                                           ///< 异步 RPC Handler
+  std::unique_ptr<grpc_async::GrpcAsyncServer> grpc_server_;                    ///< 异步 gRPC Server（含 CQ）
+  std::shared_ptr<qtrade::framework::dao::DbConnectionHolder> connection_;  ///< 数据库连接持有者
 };
 
 }  // namespace qtrade::common::support
 
-#endif  // QTRADE_COMMON_SUPPORT_SUPPORT_SERVICE_IMPL_HPP_
+#endif  // QTRADE_COMMON_SUPPORT_SUPPORT_ASYNC_SERVICE_IMPL_HPP_

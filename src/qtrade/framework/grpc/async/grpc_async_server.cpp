@@ -3,9 +3,9 @@
 /// @author    wengjianhong
 /// @date      2026-06-28
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade/framework/grpc/grpc_async_server.hpp"
+#include "qtrade/framework/grpc/async/grpc_async_server.hpp"
 
-#include "qtrade/framework/grpc/completion_queue_loop.hpp"
+#include "qtrade/framework/grpc/async/completion_queue_loop.hpp"
 
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/health_check_service_interface.h>
@@ -22,6 +22,7 @@ GrpcAsyncServer::~GrpcAsyncServer() {
 }
 
 ErrorCode GrpcAsyncServer::Start(const Options& options, grpc::Service* async_service) {
+  // 1. 校验运行状态与入参
   if (running_) {
     return ErrorCode::kSystemError;
   }
@@ -29,6 +30,7 @@ ErrorCode GrpcAsyncServer::Start(const Options& options, grpc::Service* async_se
     return ErrorCode::kInternal;
   }
 
+  // 2. 构建 Server、注册 Service 并创建 CQ
   grpc::EnableDefaultHealthCheckService(true);
 
   grpc::ServerBuilder builder;
@@ -42,6 +44,7 @@ ErrorCode GrpcAsyncServer::Start(const Options& options, grpc::Service* async_se
     return ErrorCode::kInternal;
   }
 
+  // 3. 启动 CQ 轮询线程
   loop_ = std::make_unique<CompletionQueueLoop>();
   loop_->Start(cq_.get(), options.cq_thread_count);
 
@@ -56,6 +59,7 @@ void GrpcAsyncServer::Shutdown() {
     return;
   }
 
+  // 1. 先关 Server 与 CQ，再停轮询线程
   if (server_) {
     server_->Shutdown();
   }

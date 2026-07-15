@@ -2,7 +2,7 @@
 # qtrade_common: product common, framework infra, table DAO
 # ---------------------------------------------------------------------------
 
-file(GLOB QTRADE_FRAMEWORK_SRC CONFIGURE_DEPENDS ${QTRADE_SRC_QTRADE_FRAMEWORK_DIR}/*/*.cpp)
+file(GLOB_RECURSE QTRADE_FRAMEWORK_SRC CONFIGURE_DEPENDS ${QTRADE_SRC_QTRADE_FRAMEWORK_DIR}/*.cpp)
 file(GLOB_RECURSE QTRADE_PRODUCT_COMMON_SRC CONFIGURE_DEPENDS ${QTRADE_SRC_QTRADE_DIR}/common/*/*.cpp)
 file(GLOB_RECURSE DAO_SRC CONFIGURE_DEPENDS ${QTRADE_SRC_QTRADE_DIR}/dao/*.cpp)
 

@@ -3,7 +3,7 @@
 /// @author    wengjianhong
 /// @date      2026-07-13
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade/framework/grpc/grpc_sync_server.hpp"
+#include "qtrade/framework/grpc/sync/grpc_sync_server.hpp"
 
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/health_check_service_interface.h>
@@ -19,6 +19,7 @@ GrpcSyncServer::~GrpcSyncServer() {
 }
 
 ErrorCode GrpcSyncServer::Start(const std::string& listen_address, grpc::Service* sync_service) {
+  // 1. 校验运行状态与入参
   if (running_) {
     return ErrorCode::kSystemError;
   }
@@ -26,6 +27,7 @@ ErrorCode GrpcSyncServer::Start(const std::string& listen_address, grpc::Service
     return ErrorCode::kInternal;
   }
 
+  // 2. 构建并启动 Server
   grpc::EnableDefaultHealthCheckService(true);
 
   grpc::ServerBuilder builder;
@@ -36,6 +38,7 @@ ErrorCode GrpcSyncServer::Start(const std::string& listen_address, grpc::Service
     return ErrorCode::kInternal;
   }
 
+  // 3. 标记运行并记录日志
   running_ = true;
   spdlog::info("[GrpcSyncServer] listening on {} (sync)", listen_address);
   return ErrorCode::kSuccess;

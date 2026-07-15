@@ -3,9 +3,9 @@
 /// @author    wengjianhong
 /// @date      2026-06-28
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade/framework/grpc/completion_queue_loop.hpp"
+#include "qtrade/framework/grpc/async/completion_queue_loop.hpp"
 
-#include "qtrade/framework/grpc/call_tag_base.hpp"
+#include "qtrade/framework/grpc/async/call_tag_base.hpp"
 
 #include <grpcpp/completion_queue.h>
 #include <spdlog/spdlog.h>
@@ -17,6 +17,7 @@ CompletionQueueLoop::~CompletionQueueLoop() {
 }
 
 void CompletionQueueLoop::Start(grpc::ServerCompletionQueue* cq, std::size_t thread_count) {
+  // 1. 校验状态与参数
   if (running_ || cq == nullptr) {
     return;
   }
@@ -24,6 +25,7 @@ void CompletionQueueLoop::Start(grpc::ServerCompletionQueue* cq, std::size_t thr
     thread_count = 1;
   }
 
+  // 2. 启动轮询线程
   cq_ = cq;
   running_ = true;
   threads_.reserve(thread_count);
