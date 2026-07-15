@@ -6,7 +6,6 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/engine/trading_engine.hpp"
 
-#include "qtrade/common/config/qtrade_engine_config.hpp"
 #include "qtrade/common/file/text_file.hpp"
 
 #include <qtrade/proto/config/v1/config.pb.h>
@@ -33,40 +32,40 @@ ErrorCode TradingEngine::ReloadFromJson(const std::string& json_path) {
   if (!loaded.has_value()) {
     return ErrorCode::kNotFound;
   }
-  options_ = EngineOptions::FromConfig(*loaded);
+  config_ = *loaded;
   spdlog::info("[TradingEngine] config loaded from {}", json_path);
   return ErrorCode::kSuccess;
 }
 
 ErrorCode TradingEngine::Init() {
-  return Init(options_);
+  return Init(config_);
 }
 
-ErrorCode TradingEngine::Init(const EngineOptions& options) {
+ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineConfig& config) {
   if (initialized_) {
     return ErrorCode::kSystemError;
   }
 
-  options_ = options;
+  config_ = config;
 
-  if (const auto rc = log_client_.Init(options_.log_topic); rc != ErrorCode::kSuccess) {
+  if (const auto rc = log_client_.Init(config_.log_topic); rc != ErrorCode::kSuccess) {
     spdlog::warn("[TradingEngine] log_client init failed, code={}", static_cast<int>(rc));
     return rc;
   }
 
-  const std::string monitor_endpoint = options_.monitor_endpoint.empty() ? "stub://local" : options_.monitor_endpoint;
+  const std::string monitor_endpoint = config_.monitor_endpoint.empty() ? "stub://local" : config_.monitor_endpoint;
   if (const auto rc = monitor_client_.Init(monitor_endpoint); rc != ErrorCode::kSuccess) {
     spdlog::warn("[TradingEngine] monitor_client init failed, code={}", static_cast<int>(rc));
     log_client_.Shutdown();
     return rc;
   }
 
-  if (!options_.config_server_address.empty()) {
-    if (const auto rc = InitConfigClient(options_); rc != ErrorCode::kSuccess) {
+  if (!config_.config_service.empty()) {
+    if (const auto rc = InitConfigClient(config_); rc != ErrorCode::kSuccess) {
       spdlog::warn("[TradingEngine] config_client init failed, code={} (using local defaults)", static_cast<int>(rc));
     }
   } else {
-    spdlog::info("[TradingEngine] config_server_address empty, skipping config_client");
+    spdlog::info("[TradingEngine] config_service empty, skipping config_client");
   }
 
   initialized_ = true;
@@ -74,11 +73,11 @@ ErrorCode TradingEngine::Init(const EngineOptions& options) {
   return ErrorCode::kSuccess;
 }
 
-ErrorCode TradingEngine::InitConfigClient(const EngineOptions& options) {
+ErrorCode TradingEngine::InitConfigClient(const qtrade::common::config::QtradeEngineConfig& config) {
   client::ConfigClientOptions client_opts;
-  client_opts.server_address = options.config_server_address;
-  client_opts.tenant_id = options.tenant_id;
-  client_opts.engine_id = options.engine_id;
+  client_opts.server_address = config.config_service;
+  client_opts.tenant_id = config.tenant_id;
+  client_opts.engine_id = config.engine_id;
 
   if (const auto rc = config_client_.Init(client_opts); rc != ErrorCode::kSuccess) {
     return rc;
@@ -105,14 +104,14 @@ void TradingEngine::OnConfigSnapshot(const qtrade::config::v1::ConfigSnapshot& s
   }
 
   const auto& engine = snapshot.engine();
-  if (!engine.engine_id().empty() && engine.engine_id() != options_.engine_id) {
-    spdlog::warn("[TradingEngine] engine_id mismatch: snapshot={} local={}", engine.engine_id(), options_.engine_id);
+  if (!engine.engine_id().empty() && engine.engine_id() != config_.engine_id) {
+    spdlog::warn("[TradingEngine] engine_id mismatch: snapshot={} local={}", engine.engine_id(), config_.engine_id);
   }
 
   runtime_config_ = engine;
   spdlog::info("[TradingEngine] config snapshot version={}, account={}, quote_source={}, strategies={}",
                snapshot.version(),
-               options_.account_id,
+               config_.account_id,
                engine.quote_source(),
                engine.strategies_size());
 

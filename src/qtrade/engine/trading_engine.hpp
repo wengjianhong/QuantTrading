@@ -9,10 +9,10 @@
 #include "qtrade/client/config_client/config_client.hpp"
 #include "qtrade/client/log_client/log_client.hpp"
 #include "qtrade/client/monitor_client/monitor_client.hpp"
+#include "qtrade/common/config/qtrade_engine_config.hpp"
 #include "qtrade/engine/account/account_manager.hpp"
 #include "qtrade/engine/cms/compliance_manager.hpp"
 #include "qtrade/engine/ems/execution_manager.hpp"
-#include "qtrade/engine/engine_options.hpp"
 #include "qtrade/engine/event_bus/event_lanes.hpp"
 #include "qtrade/engine/normalizer/quote_normalizer.hpp"
 #include "qtrade/engine/normalizer/trader_normalizer.hpp"
@@ -39,11 +39,11 @@ class TradingEngine {
   TradingEngine& operator=(const TradingEngine&) = delete;
 
   /// @brief 初始化控制面 gRPC 与 D 段 client（须在 Start 之前调用）
-  /// @param options 引擎启动选项（config 地址、tenant、log/monitor 等）
+  /// @param config 进程引导配置（config/account 地址、tenant、log/monitor 等）
   /// @return ErrorCode::kSuccess 表示成功
-  ErrorCode Init(const EngineOptions& options);
+  ErrorCode Init(const qtrade::common::config::QtradeEngineConfig& config);
 
-  /// @brief 使用已加载的 options_ 初始化（须先 ReloadFromJson 或手动设置 options）
+  /// @brief 使用已加载的 config_ 初始化（须先 ReloadFromJson 或手动设置 config）
   /// @return ErrorCode::kSuccess 表示成功
   ErrorCode Init();
 
@@ -52,9 +52,9 @@ class TradingEngine {
   /// @return ErrorCode::kSuccess 表示成功；文件不存在返回 ErrorCode::kNotFound
   ErrorCode ReloadFromJson(const std::string& json_path);
 
-  /// @brief 返回当前引擎配置快照
-  [[nodiscard]] const EngineOptions& GetOptions() const {
-    return options_;
+  /// @brief 返回当前进程引导配置快照
+  [[nodiscard]] const qtrade::common::config::QtradeEngineConfig& GetConfig() const {
+    return config_;
   }
 
   /// @brief 停止所有子模块与 client
@@ -105,31 +105,31 @@ class TradingEngine {
 
  private:
   /// @brief 初始化并连接 config_client（GetConfig + SubscribeConfig）
-  /// @param options 引擎启动选项
+  /// @param config 进程引导配置
   /// @return ErrorCode::kSuccess 表示成功
-  ErrorCode InitConfigClient(const EngineOptions& options);
+  ErrorCode InitConfigClient(const qtrade::common::config::QtradeEngineConfig& config);
 
   /// @brief 配置全量快照回调：应用 EngineConfig 并旁路日志
   /// @param snapshot 含 version 与 engine 的全量快照
   void OnConfigSnapshot(const qtrade::config::v1::ConfigSnapshot& snapshot);
 
-  bool initialized_ = false;                         ///< 是否已完成 Init
-  bool running_ = false;                             ///< 是否已 Start
-  EngineOptions options_;                            ///< 进程引导选项
-  qtrade::config::v1::EngineConfig runtime_config_;  ///< config-service 下发的业务配置
-  event_bus::EventLanes event_lanes_;                ///< Lane-M / Lane-R 事件通道
-  strategy::StrategyEngine strategy_engine_;         ///< 策略引擎
-  normalizer::QuoteNormalizer quote_normalizer_;     ///< 行情标准化（QuoteNormalizer）
-  normalizer::TraderNormalizer trader_normalizer_;   ///< 交易标准化（TraderNormalizer）
-  cms::ComplianceManager compliance_;                ///< 合规模块
-  ems::ExecutionManager execution_manager_;          ///< 执行管理模块
-  oms::OrderManager order_manager_;                  ///< 订单管理模块
-  account::AccountManager account_manager_;          ///< 账户管理模块
-  position::PositionManager position_manager_;       ///< 持仓管理模块
-  risk::RiskManager risk_manager_;                   ///< 风险管理模块
-  client::ConfigClient config_client_;               ///< 控制面 gRPC 客户端
-  client::LogClient log_client_;                     ///< D 段日志旁路客户端
-  client::MonitorClient monitor_client_;             ///< D 段监控旁路客户端
+  bool initialized_ = false;                            ///< 是否已完成 Init
+  bool running_ = false;                                ///< 是否已 Start
+  qtrade::common::config::QtradeEngineConfig config_;   ///< 进程引导配置（qtrade_engine.json）
+  qtrade::config::v1::EngineConfig runtime_config_;     ///< config-service 下发的业务配置
+  event_bus::EventLanes event_lanes_;                   ///< Lane-M / Lane-R 事件通道
+  strategy::StrategyEngine strategy_engine_;            ///< 策略引擎
+  normalizer::QuoteNormalizer quote_normalizer_;        ///< 行情标准化（QuoteNormalizer）
+  normalizer::TraderNormalizer trader_normalizer_;      ///< 交易标准化（TraderNormalizer）
+  cms::ComplianceManager compliance_;                   ///< 合规模块
+  ems::ExecutionManager execution_manager_;             ///< 执行管理模块
+  oms::OrderManager order_manager_;                     ///< 订单管理模块
+  account::AccountManager account_manager_;             ///< 账户管理模块
+  position::PositionManager position_manager_;          ///< 持仓管理模块
+  risk::RiskManager risk_manager_;                      ///< 风险管理模块
+  client::ConfigClient config_client_;                  ///< 控制面 gRPC 客户端
+  client::LogClient log_client_;                        ///< D 段日志旁路客户端
+  client::MonitorClient monitor_client_;                ///< D 段监控旁路客户端
 };
 
 }  // namespace qtrade::engine
