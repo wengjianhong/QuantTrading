@@ -78,6 +78,10 @@ void LogClient::EmitAudit(std::string_view message) {
   worker_->Enqueue(ReportPriority::kP0Audit, std::string(message));
 }
 
+bool LogClient::IsAuditHalted() const {
+  return worker_ != nullptr && worker_->IsAuditHalted();
+}
+
 ReportPriority LogClient::LevelToPriority(std::string_view level) {
   if (level == "audit") {
     return ReportPriority::kP0Audit;

@@ -235,10 +235,10 @@ DatabaseConfig ParseDatabaseConfigFromSection(const nlohmann::json& database) {
 }
 
 DatabaseConfig ParseDatabaseConfigFromRoot(const nlohmann::json& root) {
-  if (!root.contains("database") || !root["database"].is_object()) {
+  if (!root.contains("database") || !root.at("database").is_object()) {
     return DatabaseConfig{};
   }
-  return ParseDatabaseConfigFromSection(root["database"]);
+  return ParseDatabaseConfigFromSection(root.at("database"));
 }
 
 bool ParseDatabaseConfig(const std::string& json, DatabaseConfig& out) {
@@ -246,7 +246,8 @@ bool ParseDatabaseConfig(const std::string& json, DatabaseConfig& out) {
   if (!root.has_value()) {
     return false;
   }
-  out = ParseDatabaseConfigFromRoot(*root);
+  const auto& root_json = root.value();
+  out = ParseDatabaseConfigFromRoot(root_json);
   return true;
 }
 

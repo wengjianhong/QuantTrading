@@ -68,6 +68,11 @@ class OutboundWorker {
     return running_.load(std::memory_order_acquire);
   }
 
+  /// @brief P0 审计 spool 已满时为 true；发单准入层必须拒绝新单。
+  [[nodiscard]] bool IsAuditHalted() const {
+    return audit_halted_.load(std::memory_order_acquire);
+  }
+
  private:
   /// @brief Outbound 线程主循环
   void WorkerLoop();
@@ -89,6 +94,7 @@ class OutboundWorker {
   std::deque<std::string> p0_spool_;                     ///< P0 审计本地 spool
   std::thread worker_;                                   ///< Outbound 专用线程
   std::atomic<bool> running_{false};                     ///< worker 运行标志
+  std::atomic<bool> audit_halted_{false};                ///< P0 审计无法保底时的交易门禁状态
   SinkFn sink_;                                          ///< 实际上报回调
   std::size_t max_queue_size_ = 4096;                    ///< 内存队列容量上限
   static constexpr std::size_t kP0SpoolCapacity = 1024;  ///< P0 spool 容量上限

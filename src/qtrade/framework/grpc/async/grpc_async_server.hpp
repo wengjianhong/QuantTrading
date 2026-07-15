@@ -66,10 +66,10 @@ class GrpcAsyncServer {
   }
 
  private:
-  bool running_ = false;                                    ///< 是否正在运行
-  std::unique_ptr<grpc::Server> server_;                    ///< gRPC Server 实例
-  std::unique_ptr<CompletionQueueLoop> loop_;               ///< CQ 轮询线程
-  std::unique_ptr<grpc::ServerCompletionQueue> cq_;         ///< 服务端 CompletionQueue
+  bool running_ = false;                             ///< 是否正在运行
+  std::unique_ptr<grpc::Server> server_;             ///< gRPC Server 实例
+  std::unique_ptr<CompletionQueueLoop> loop_;        ///< CQ 轮询线程
+  std::unique_ptr<grpc::ServerCompletionQueue> cq_;  ///< 服务端 CompletionQueue
 };
 
 }  // namespace qtrade::common::grpc_async

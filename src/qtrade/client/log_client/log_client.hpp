@@ -51,6 +51,9 @@ class LogClient {
   /// @param message 审计流水正文
   void EmitAudit(std::string_view message);
 
+  /// @brief P0 审计无法继续保底时返回 true，准入链路必须拒绝新单。
+  [[nodiscard]] bool IsAuditHalted() const;
+
  private:
   /// @brief 将日志级别映射为旁路优先级
   /// @param level 日志级别字符串

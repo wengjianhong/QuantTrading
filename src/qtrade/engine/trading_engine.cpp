@@ -8,6 +8,7 @@
 
 #include "qtrade/common/file/text_file.hpp"
 
+#include <qtrade/proto/account_risk/v1/account_risk.pb.h>
 #include <qtrade/proto/config/v1/config.pb.h>
 
 #include <spdlog/spdlog.h>
@@ -21,11 +22,22 @@ TradingEngine::TradingEngine()
   event_lanes_.Return().SubscribeOrder([this](const qtrade_sdk::trader::Order& order) {
     order_manager_.ApplyOrderReport(order);
     account_manager_.ApplyOrder(order);
+    if (account_risk_client_.IsInitialized() && (order.status == qtrade_sdk::trader::OrderStatusType::kRejected ||
+                                                 order.status == qtrade_sdk::trader::OrderStatusType::kCanceled)) {
+      qtrade::account_risk::v1::ReleaseOrderResponse ignored;
+      (void)account_risk_client_.ReleaseOrder(
+        order.order_id, qtrade::account_risk::v1::ReleaseOrderRequest::REJECTED_BY_VENUE, ignored);
+    }
   });
   event_lanes_.Return().SubscribeTrade([this](const qtrade_sdk::trader::Trade& trade) {
     order_manager_.ApplyTradeReport(trade);
     account_manager_.ApplyTrade(trade);
     position_manager_.ApplyTrade(trade);
+    if (account_risk_client_.IsInitialized() && trade.order_id.size() > 0) {
+      qtrade::account_risk::v1::ReleaseOrderResponse ignored;
+      (void)account_risk_client_.ReleaseOrder(
+        trade.order_id, qtrade::account_risk::v1::ReleaseOrderRequest::SETTLED, ignored);
+    }
   });
 }
 
@@ -62,6 +74,7 @@ ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineConfig& 
     spdlog::warn("[TradingEngine] log_client init failed, code={}", static_cast<int>(rc));
     return rc;
   }
+  order_pipeline_.SetLogClient(&log_client_);
 
   const std::string monitor_endpoint = config_.monitor_endpoint.empty() ? "stub://local" : config_.monitor_endpoint;
   if (const auto rc = monitor_client_.Init(monitor_endpoint); rc != ErrorCode::kSuccess) {
@@ -76,6 +89,15 @@ ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineConfig& 
     }
   } else {
     spdlog::info("[TradingEngine] config_service empty, skipping config_client");
+  }
+
+  if (config_.account_risk_enabled) {
+    if (const auto rc = InitAccountRiskClient(config_); rc != ErrorCode::kSuccess) {
+      monitor_client_.Shutdown();
+      log_client_.Shutdown();
+      return rc;
+    }
+    order_pipeline_.SetAccountRiskClient(&account_risk_client_);
   }
 
   initialized_ = true;
@@ -105,6 +127,16 @@ ErrorCode TradingEngine::InitConfigClient(const qtrade::common::config::QtradeEn
   }
 
   return ErrorCode::kSuccess;
+}
+
+ErrorCode TradingEngine::InitAccountRiskClient(const qtrade::common::config::QtradeEngineConfig& config) {
+  client::AccountRiskClientOptions options;
+  options.server_address = config.account_risk_service;
+  options.tenant_id = config.tenant_id;
+  options.account_id = config.account_id;
+  options.engine_id = config.engine_id;
+  options.timeout_ms = config.account_risk_timeout_ms;
+  return account_risk_client_.Init(options);
 }
 
 void TradingEngine::OnConfigSnapshot(const qtrade::config::v1::ConfigSnapshot& snapshot) {
@@ -165,6 +197,7 @@ ErrorCode TradingEngine::Stop() {
   if (!running_) {
     if (initialized_) {
       config_client_.Shutdown();
+      account_risk_client_.Shutdown();
       log_client_.Shutdown();
       monitor_client_.Shutdown();
       initialized_ = false;
@@ -186,6 +219,7 @@ ErrorCode TradingEngine::Stop() {
   event_lanes_.Stop();
 
   config_client_.Shutdown();
+  account_risk_client_.Shutdown();
   log_client_.Shutdown();
   monitor_client_.Shutdown();
 

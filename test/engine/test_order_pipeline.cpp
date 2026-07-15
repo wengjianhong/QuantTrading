@@ -45,11 +45,11 @@ TEST(OrderPipeline, MockOrderFlowsThroughOmsAndReturnLane) {
   ASSERT_EQ(engine.SubmitOrder(request), qtrade::ErrorCode::kSuccess);
 
   WaitUntil([&] {
-    const auto order = engine.GetOrderManager().GetOrder("ORD-1");
+    const auto order = engine.GetOrderManager().GetOrderByClientId(request.client_order_id);
     return order.has_value() && order->status == qtrade_sdk::trader::OrderStatusType::kFilled;
   });
 
-  const auto order = engine.GetOrderManager().GetOrder("ORD-1");
+  const auto order = engine.GetOrderManager().GetOrderByClientId(request.client_order_id);
   ASSERT_TRUE(order.has_value());
   EXPECT_EQ(order->traded_volume, 2);
   EXPECT_EQ(order->left_volume, 0);

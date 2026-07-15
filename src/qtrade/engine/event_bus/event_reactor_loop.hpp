@@ -82,13 +82,16 @@ class EventReactorLoop {
     {
       std::lock_guard<std::mutex> lock(mutex_);
       if (!accepting_.load(std::memory_order_acquire)) {
+        ++rejected_;
         return false;
       }
       if (queue_.size() >= Policy::kCapacity) {
         if constexpr (Policy::kDropOldestOnFull) {
           queue_.pop_front();
+          ++dropped_;
           spdlog::warn("[{}] queue full, dropped oldest event", name_);
         } else {
+          ++rejected_;
           spdlog::error("[{}] queue full, rejected publish", name_);
           return false;
         }
@@ -127,6 +130,14 @@ class EventReactorLoop {
     return queue_.size();
   }
 
+  [[nodiscard]] std::uint64_t DroppedCount() const {
+    return dropped_.load(std::memory_order_relaxed);
+  }
+
+  [[nodiscard]] std::uint64_t RejectedCount() const {
+    return rejected_.load(std::memory_order_relaxed);
+  }
+
  private:
   void RunLoop(const std::function<void(const Event&)>& handle_event) {
     while (true) {
@@ -148,6 +159,8 @@ class EventReactorLoop {
   std::thread reactor_thread_;
   std::atomic<bool> running_{false};
   std::atomic<bool> accepting_{false};
+  std::atomic<std::uint64_t> dropped_{0};
+  std::atomic<std::uint64_t> rejected_{0};
 };
 
 }  // namespace qtrade::engine::event_bus

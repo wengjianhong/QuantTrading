@@ -1,6 +1,17 @@
 {
   "engine_id": "engine-1",
+  "tenant_id": "default",
+  "account_id": "acc_001",
   "quote_source": "mock-primary",
+  "quote_failover": "mock-backup",
+  "activation_epoch": 1,
+  "risk_budget": {
+    "version": 1,
+    "max_notional": 500000.0,
+    "max_margin": 100000.0,
+    "max_open_orders": 50,
+    "safety_buffer": 5000.0
+  },
   "strategies": [
     {
       "strategy_id": "mean_reversion_01",

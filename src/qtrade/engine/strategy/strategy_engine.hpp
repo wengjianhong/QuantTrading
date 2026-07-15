@@ -13,6 +13,9 @@
 
 #include <functional>
 #include <mutex>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace qtrade::engine::strategy {
 
@@ -27,11 +30,15 @@ class StrategyEngine {
   void Stop();
 
   void RegisterStrategy(std::unique_ptr<qtrade::strategy::IStrategy> strategy);
+  /// @brief 注册策略并绑定唯一品种；重复绑定返回错误，不进入运行期。
+  ErrorCode RegisterStrategy(std::unique_ptr<qtrade::strategy::IStrategy> strategy,
+                             const std::vector<std::string>& instruments);
   void SetOrderSender(OrderSender sender);
 
  private:
   event_bus::EventLanes& event_lanes_;
   std::vector<std::unique_ptr<qtrade::strategy::IStrategy>> strategies_;
+  std::unordered_map<std::string, qtrade::strategy::IStrategy*> instrument_routes_;
   /// Market / Return 双线程回调共用此锁，串行进入策略（最小锁；OMS 另有 mutex_）
   std::mutex mutex_;
   bool running_;

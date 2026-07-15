@@ -1,0 +1,235 @@
+/// @file account_risk_grpc_service.cpp
+/// @brief 按账户串行的账户硬风控预占实现
+#include "qtrade/service/account_risk_service/grpc/account_risk_grpc_service.hpp"
+
+#include <grpcpp/grpcpp.h>
+
+#include <algorithm>
+#include <chrono>
+#include <cstdint>
+#include <mutex>
+#include <string>
+#include <unordered_map>
+
+namespace qtrade::service {
+namespace {
+
+using AccountRiskPolicy = qtrade::account_risk::v1::AccountRiskPolicy;
+using Reservation = qtrade::account_risk::v1::Reservation;
+
+struct ReservationState {
+  std::string reservation_id;
+  std::string status = "reserved";
+  double notional = 0.0;
+  double margin = 0.0;
+  std::int64_t expires_at_unix_ms = 0;
+};
+
+struct LedgerState {
+  AccountRiskPolicy policy;
+  double reserved_notional = 0.0;
+  double reserved_margin = 0.0;
+  std::uint64_t reserved_open_orders = 0;
+  std::unordered_map<std::string, ReservationState> reservations;
+};
+
+std::mutex g_ledger_mutex;
+std::unordered_map<std::string, LedgerState> g_ledgers;
+
+std::string AccountKey(const std::string& tenant_id, const std::string& account_id) {
+  return tenant_id + "\n" + account_id;
+}
+
+std::int64_t NowUnixMs() {
+  return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
+    .count();
+}
+
+void ExpireReservations(LedgerState& ledger, std::int64_t now) {
+  for (auto& [_, reservation] : ledger.reservations) {
+    if (reservation.status == "reserved" && reservation.expires_at_unix_ms <= now) {
+      reservation.status = "expired";
+      ledger.reserved_notional = std::max(0.0, ledger.reserved_notional - reservation.notional);
+      ledger.reserved_margin = std::max(0.0, ledger.reserved_margin - reservation.margin);
+      if (ledger.reserved_open_orders > 0) {
+        --ledger.reserved_open_orders;
+      }
+    }
+  }
+}
+
+grpc::Status InvalidArgument(const std::string& message) {
+  return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, message);
+}
+
+}  // namespace
+
+AccountRiskGrpcService::AccountRiskGrpcService(std::shared_ptr<qtrade::framework::dao::DbConnectionHolder> connection)
+  : connection_(std::move(connection)) {}
+
+grpc::Status AccountRiskGrpcService::ReserveOrder(grpc::ServerContext*,
+                                                  const qtrade::account_risk::v1::ReserveOrderRequest* request,
+                                                  qtrade::account_risk::v1::ReserveOrderResponse* response) {
+  if (request->tenant_id().empty() || request->account_id().empty() || request->intent().order_id().empty()) {
+    return InvalidArgument("tenant_id, account_id and intent.order_id are required");
+  }
+
+  const std::int64_t now = NowUnixMs();
+  std::lock_guard lock(g_ledger_mutex);
+  auto ledger_it = g_ledgers.find(AccountKey(request->tenant_id(), request->account_id()));
+  if (ledger_it == g_ledgers.end()) {
+    response->set_decision(qtrade::account_risk::v1::ReserveOrderResponse::REJECTED);
+    response->set_reject_reason("ACCOUNT_RISK_POLICY_NOT_FOUND");
+    return grpc::Status::OK;
+  }
+  LedgerState& ledger = ledger_it->second;
+  ExpireReservations(ledger, now);
+
+  const AccountRiskPolicy& policy = ledger.policy;
+  response->set_policy_version(policy.version());
+  if (!policy.enabled() || (policy.valid_until_unix_ms() > 0 && now > policy.valid_until_unix_ms())) {
+    response->set_decision(qtrade::account_risk::v1::ReserveOrderResponse::REJECTED);
+    response->set_reject_reason(policy.enabled() ? "ACCOUNT_RISK_POLICY_EXPIRED" : "ACCOUNT_RISK_DISABLED");
+    return grpc::Status::OK;
+  }
+  if (request->risk_config_version() != 0 && request->risk_config_version() != policy.version()) {
+    response->set_decision(qtrade::account_risk::v1::ReserveOrderResponse::REJECTED);
+    response->set_reject_reason("RISK_POLICY_VERSION_MISMATCH");
+    return grpc::Status::OK;
+  }
+
+  const std::string& order_id = request->intent().order_id();
+  if (const auto existing = ledger.reservations.find(order_id); existing != ledger.reservations.end()) {
+    response->set_decision(existing->second.status == "reserved"
+                             ? qtrade::account_risk::v1::ReserveOrderResponse::APPROVED
+                             : qtrade::account_risk::v1::ReserveOrderResponse::REJECTED);
+    response->set_reservation_id(existing->second.reservation_id);
+    response->set_expires_at_unix_ms(existing->second.expires_at_unix_ms);
+    if (existing->second.status != "reserved") {
+      response->set_reject_reason("ORDER_ID_ALREADY_TERMINAL");
+    }
+    return grpc::Status::OK;
+  }
+
+  const double notional = request->intent().estimated_notional() > 0.0
+                            ? request->intent().estimated_notional()
+                            : request->intent().price() * static_cast<double>(request->intent().quantity());
+  const double margin = request->intent().estimated_margin();
+  const bool notional_exceeded =
+    policy.max_notional() > 0.0 && ledger.reserved_notional + notional > policy.max_notional() - policy.safety_buffer();
+  const bool margin_exceeded =
+    policy.max_margin() > 0.0 && ledger.reserved_margin + margin > policy.max_margin() - policy.safety_buffer();
+  const bool orders_exceeded =
+    policy.max_open_orders() > 0 && ledger.reserved_open_orders + 1 > policy.max_open_orders();
+  if (notional_exceeded || margin_exceeded || orders_exceeded) {
+    response->set_decision(qtrade::account_risk::v1::ReserveOrderResponse::REJECTED);
+    response->set_reject_reason(notional_exceeded ? "MAX_NOTIONAL_EXCEEDED"
+                                : margin_exceeded ? "MAX_MARGIN_EXCEEDED"
+                                                  : "MAX_OPEN_ORDERS_EXCEEDED");
+    return grpc::Status::OK;
+  }
+
+  const std::int64_t ttl_ms = request->reservation_ttl_ms() > 0 ? request->reservation_ttl_ms() : 300000;
+  ReservationState reservation;
+  reservation.reservation_id = "RSV-" + order_id;
+  reservation.notional = notional;
+  reservation.margin = margin;
+  reservation.expires_at_unix_ms = now + ttl_ms;
+  ledger.reserved_notional += notional;
+  ledger.reserved_margin += margin;
+  ++ledger.reserved_open_orders;
+  ledger.reservations.emplace(order_id, reservation);
+
+  response->set_decision(qtrade::account_risk::v1::ReserveOrderResponse::APPROVED);
+  response->set_reservation_id(reservation.reservation_id);
+  response->set_expires_at_unix_ms(reservation.expires_at_unix_ms);
+  return grpc::Status::OK;
+}
+
+grpc::Status AccountRiskGrpcService::ReleaseOrder(grpc::ServerContext*,
+                                                  const qtrade::account_risk::v1::ReleaseOrderRequest* request,
+                                                  qtrade::account_risk::v1::ReleaseOrderResponse* response) {
+  if (request->tenant_id().empty() || request->account_id().empty() || request->order_id().empty()) {
+    return InvalidArgument("tenant_id, account_id and order_id are required");
+  }
+  std::lock_guard lock(g_ledger_mutex);
+  const auto ledger_it = g_ledgers.find(AccountKey(request->tenant_id(), request->account_id()));
+  if (ledger_it == g_ledgers.end()) {
+    response->set_released(false);
+    response->set_reject_reason("ACCOUNT_RISK_POLICY_NOT_FOUND");
+    return grpc::Status::OK;
+  }
+  LedgerState& ledger = ledger_it->second;
+  const auto reservation_it = ledger.reservations.find(request->order_id());
+  if (reservation_it == ledger.reservations.end()) {
+    response->set_released(true);
+    return grpc::Status::OK;
+  }
+  ReservationState& reservation = reservation_it->second;
+  if (reservation.status == "reserved") {
+    reservation.status =
+      request->reason() == qtrade::account_risk::v1::ReleaseOrderRequest::SETTLED ? "settled" : "released";
+    ledger.reserved_notional = std::max(0.0, ledger.reserved_notional - reservation.notional);
+    ledger.reserved_margin = std::max(0.0, ledger.reserved_margin - reservation.margin);
+    if (ledger.reserved_open_orders > 0) {
+      --ledger.reserved_open_orders;
+    }
+  }
+  response->set_released(true);
+  return grpc::Status::OK;
+}
+
+grpc::Status AccountRiskGrpcService::ListActiveReservations(
+  grpc::ServerContext*,
+  const qtrade::account_risk::v1::ListActiveReservationsRequest* request,
+  qtrade::account_risk::v1::ListActiveReservationsResponse* response) {
+  std::lock_guard lock(g_ledger_mutex);
+  const auto ledger_it = g_ledgers.find(AccountKey(request->tenant_id(), request->account_id()));
+  if (ledger_it == g_ledgers.end()) {
+    return grpc::Status::OK;
+  }
+  ExpireReservations(ledger_it->second, NowUnixMs());
+  for (const auto& [order_id, state] : ledger_it->second.reservations) {
+    if (state.status != "reserved") {
+      continue;
+    }
+    Reservation* out = response->add_reservations();
+    out->set_order_id(order_id);
+    out->set_reservation_id(state.reservation_id);
+    out->set_status(state.status);
+    out->set_expires_at_unix_ms(state.expires_at_unix_ms);
+  }
+  return grpc::Status::OK;
+}
+
+grpc::Status AccountRiskGrpcService::GetAccountRiskPolicy(
+  grpc::ServerContext*,
+  const qtrade::account_risk::v1::GetAccountRiskPolicyRequest* request,
+  qtrade::account_risk::v1::AccountRiskPolicy* response) {
+  std::lock_guard lock(g_ledger_mutex);
+  const auto ledger_it = g_ledgers.find(AccountKey(request->tenant_id(), request->account_id()));
+  if (ledger_it == g_ledgers.end()) {
+    return grpc::Status(grpc::StatusCode::NOT_FOUND, "account risk policy not found");
+  }
+  *response = ledger_it->second.policy;
+  return grpc::Status::OK;
+}
+
+grpc::Status AccountRiskGrpcService::UpsertAccountRiskPolicy(
+  grpc::ServerContext*,
+  const qtrade::account_risk::v1::UpsertAccountRiskPolicyRequest* request,
+  qtrade::account_risk::v1::Empty*) {
+  const AccountRiskPolicy& policy = request->policy();
+  if (policy.tenant_id().empty() || policy.account_id().empty() || policy.version() == 0) {
+    return InvalidArgument("tenant_id, account_id and non-zero version are required");
+  }
+  std::lock_guard lock(g_ledger_mutex);
+  LedgerState& ledger = g_ledgers[AccountKey(policy.tenant_id(), policy.account_id())];
+  if (ledger.policy.version() > policy.version()) {
+    return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION, "risk policy version cannot decrease");
+  }
+  ledger.policy = policy;
+  return grpc::Status::OK;
+}
+
+}  // namespace qtrade::service

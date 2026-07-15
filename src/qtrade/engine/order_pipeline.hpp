@@ -9,15 +9,25 @@
 #include <qtrade/error_code/error_codes.hpp>
 #include <qtrade_sdk/trader/trader_struct.hpp>
 
-namespace qtrade::engine {
+#include <memory>
 
-/// @brief A 段发单编排：CMS → Risk → OMS → EMS。
+namespace qtrade::client {
+class AccountRiskClient;
+class LogClient;
+}  // namespace qtrade::client
+
+namespace qtrade::engine {
+/// @brief A 段后准入编排：CMS → Risk → E 段账户预占 → OMS → EMS。
 class OrderPipeline {
  public:
   OrderPipeline(cms::ComplianceManager& compliance,
                 risk::RiskManager& risk_manager,
                 oms::OrderManager& order_manager,
-                ems::ExecutionManager& execution_manager);
+                ems::ExecutionManager& execution_manager,
+                qtrade::client::AccountRiskClient* account_risk_client = nullptr);
+
+  void SetAccountRiskClient(qtrade::client::AccountRiskClient* account_risk_client);
+  void SetLogClient(qtrade::client::LogClient* log_client);
 
   ErrorCode Submit(const qtrade_sdk::trader::OrderRequest& request);
 
@@ -26,6 +36,8 @@ class OrderPipeline {
   risk::RiskManager& risk_manager_;
   oms::OrderManager& order_manager_;
   ems::ExecutionManager& execution_manager_;
+  qtrade::client::AccountRiskClient* account_risk_client_ = nullptr;
+  qtrade::client::LogClient* log_client_ = nullptr;
 };
 
 }  // namespace qtrade::engine

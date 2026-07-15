@@ -80,10 +80,20 @@ message GetCredentialRequest {
     string engine_id = 3;
 }
 
+// 仅供已授权引擎建立柜台连接使用的短生命周期凭证材料。
+// 不用于账户查询、列表或配置接口。
+message CredentialMaterial {
+    string tenant_id = 1;
+    string account_id = 2;
+    string broker_id = 3;
+    string connection_string = 4;
+    string password = 5;
+}
+
 // 获取登录凭证信息响应
 message GetCredentialResponse {
-    // 账户信息
-    TradingAccount account = 1;
+    // 仅返回建立柜台连接所需材料；调用方不得记录或转发 password。
+    CredentialMaterial credential = 1;
 }
 
 // 交易账户 gRPC 服务

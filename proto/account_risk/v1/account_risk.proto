@@ -1,0 +1,111 @@
+// @file      account_risk.proto
+// @brief     账户级硬风控与订单预占 gRPC 契约
+syntax = "proto3";
+
+package qtrade.account_risk.v1;
+
+option cc_enable_arenas = true;
+
+message AccountRiskPolicy {
+    string tenant_id = 1;
+    string account_id = 2;
+    uint64 version = 3;
+    int64 valid_until_unix_ms = 4;
+    double max_notional = 5;
+    double max_margin = 6;
+    double max_gross_exposure = 7;
+    uint64 max_open_orders = 8;
+    double safety_buffer = 9;
+    bool enabled = 10;
+}
+
+message OrderIntent {
+    string order_id = 1;
+    string engine_id = 2;
+    string strategy_id = 3;
+    string instrument_id = 4;
+    string side = 5;
+    double price = 6;
+    uint64 quantity = 7;
+    double estimated_notional = 8;
+    double estimated_margin = 9;
+}
+
+message ReserveOrderRequest {
+    string tenant_id = 1;
+    string account_id = 2;
+    OrderIntent intent = 3;
+    uint64 risk_config_version = 4;
+    int64 reservation_ttl_ms = 5;
+}
+
+message ReserveOrderResponse {
+    enum Decision {
+        DECISION_UNSPECIFIED = 0;
+        APPROVED = 1;
+        REJECTED = 2;
+        UNKNOWN = 3;
+    }
+    Decision decision = 1;
+    string reject_reason = 2;
+    uint64 policy_version = 3;
+    string reservation_id = 4;
+    int64 expires_at_unix_ms = 5;
+}
+
+message ReleaseOrderRequest {
+    enum Reason {
+        REASON_UNSPECIFIED = 0;
+        EMS_ENQUEUE_FAILED = 1;
+        REJECTED_BY_VENUE = 2;
+        CANCELED = 3;
+        SETTLED = 4;
+        EXPIRED = 5;
+    }
+    string tenant_id = 1;
+    string account_id = 2;
+    string order_id = 3;
+    Reason reason = 4;
+    double settled_notional = 5;
+    double settled_margin = 6;
+}
+
+message ReleaseOrderResponse {
+    bool released = 1;
+    string reject_reason = 2;
+}
+
+message ListActiveReservationsRequest {
+    string tenant_id = 1;
+    string account_id = 2;
+}
+
+message Reservation {
+    string order_id = 1;
+    string reservation_id = 2;
+    string status = 3;
+    int64 expires_at_unix_ms = 4;
+}
+
+message ListActiveReservationsResponse {
+    repeated Reservation reservations = 1;
+}
+
+message GetAccountRiskPolicyRequest {
+    string tenant_id = 1;
+    string account_id = 2;
+}
+
+message UpsertAccountRiskPolicyRequest {
+    AccountRiskPolicy policy = 1;
+}
+
+message Empty {}
+
+service AccountRiskService {
+    rpc ReserveOrder(ReserveOrderRequest) returns (ReserveOrderResponse);
+    rpc ReleaseOrder(ReleaseOrderRequest) returns (ReleaseOrderResponse);
+    rpc ListActiveReservations(ListActiveReservationsRequest) returns (ListActiveReservationsResponse);
+    rpc GetAccountRiskPolicy(GetAccountRiskPolicyRequest) returns (AccountRiskPolicy);
+    rpc UpsertAccountRiskPolicy(UpsertAccountRiskPolicyRequest) returns (Empty);
+}

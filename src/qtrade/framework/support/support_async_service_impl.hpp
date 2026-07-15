@@ -137,14 +137,14 @@ class SupportAsyncServiceImpl : public ISupportService {
   std::string service_name_;    ///< 服务名
   std::string listen_address_;  ///< gRPC 监听地址（host:port）
 
-  int default_port_ = -1;                                        ///< 默认监听端口
-  ErrorCode last_error_ = ErrorCode::kSuccess;                   ///< 最近一次错误码
-  SupportServiceState state_ = SupportServiceState::kNew;        ///< 生命周期状态
+  int default_port_ = -1;                                  ///< 默认监听端口
+  ErrorCode last_error_ = ErrorCode::kSuccess;             ///< 最近一次错误码
+  SupportServiceState state_ = SupportServiceState::kNew;  ///< 生命周期状态
 
-  mutable std::mutex mutex_;                                                    ///< 保护启停与状态字段
-  AsyncServiceT async_service_;                                                 ///< protobuf AsyncService 实例
-  std::unique_ptr<HandlerT> handler_;                                           ///< 异步 RPC Handler
-  std::unique_ptr<grpc_async::GrpcAsyncServer> grpc_server_;                    ///< 异步 gRPC Server（含 CQ）
+  mutable std::mutex mutex_;                                                ///< 保护启停与状态字段
+  AsyncServiceT async_service_;                                             ///< protobuf AsyncService 实例
+  std::unique_ptr<HandlerT> handler_;                                       ///< 异步 RPC Handler
+  std::unique_ptr<grpc_async::GrpcAsyncServer> grpc_server_;                ///< 异步 gRPC Server（含 CQ）
   std::shared_ptr<qtrade::framework::dao::DbConnectionHolder> connection_;  ///< 数据库连接持有者
 };
 

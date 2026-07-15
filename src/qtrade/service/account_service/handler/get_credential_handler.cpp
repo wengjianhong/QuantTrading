@@ -8,7 +8,6 @@
 #include "qtrade/dao/account_credential.hpp"
 #include "qtrade/dao/trading_account.hpp"
 #include "qtrade/service/account_service/logic/credential_codec.hpp"
-#include "qtrade/service/account_service/logic/trading_account_converter.hpp"
 
 #include <spdlog/spdlog.h>
 
@@ -109,10 +108,12 @@ Result<void> GetCredentialHandler::NotifyService(GetCredentialServerData& server
 
 Result<void> GetCredentialHandler::BuildResponse(GetCredentialServerData& server_data,
                                                  qtrade::account::v1::GetCredentialResponse* response) {
-  qtrade::account::v1::TradingAccount account_proto;
-  ToTradingAccountProto(server_data.account, account_proto);
-  account_proto.set_password(server_data.password);
-  *response->mutable_account() = std::move(account_proto);
+  auto* credential = response->mutable_credential();
+  credential->set_tenant_id(server_data.tenant_id);
+  credential->set_account_id(server_data.account_id);
+  credential->set_broker_id(server_data.account.broker_id.value_or(""));
+  credential->set_connection_string(server_data.account.connection_string.value_or(""));
+  credential->set_password(server_data.password);
   return OkResult();
 }
 

@@ -18,12 +18,22 @@ struct QtradeEngineConfig {
   std::string config_service;
   /// account-service gRPC 地址；空则跳过
   std::string account_service;
+  /// account-risk-service gRPC 地址；账户硬风控启用时必填
+  std::string account_risk_service;
+  /// 是否启用账户级 E 段硬风控
+  bool account_risk_enabled = false;
+  /// E 段 RPC 截止时间（毫秒）
+  int account_risk_timeout_ms = 3;
   /// 租户 ID
   std::string tenant_id = "default";
   /// 引擎实例 ID
   std::string engine_id = "default";
   /// 交易账户号
   std::string account_id;
+  /// config-service 不可用时加载的只读 L1 快照路径
+  std::string fallback_engine_config_path;
+  /// 日志服务地址；MVP 本地 sink 可为空
+  std::string log_service;
   /// log_client 主题
   std::string log_topic = "engine";
   /// monitor 端点；空则 stub://local

@@ -29,10 +29,16 @@ class OrderManager {
 
   /// @brief 创建订单；同 client_order_id 重复请求返回原订单快照。
   std::optional<qtrade_sdk::trader::Order> CreateOrder(const qtrade_sdk::trader::OrderRequest& request);
+  /// @brief 在账户预占前分配全局订单 ID。
+  [[nodiscard]] std::string AllocateOrderId();
+  /// @brief 使用已预分配的订单 ID 创建 OMS 订单。
+  std::optional<qtrade_sdk::trader::Order> CreateOrder(const qtrade_sdk::trader::OrderRequest& request,
+                                                       const std::string& order_id);
   ErrorCode SendOrder(const qtrade_sdk::trader::OrderRequest& request);
   ErrorCode CancelOrder(const std::string& order_id);
 
   std::optional<qtrade_sdk::trader::Order> GetOrder(const std::string& order_id) const;
+  std::optional<qtrade_sdk::trader::Order> GetOrderByClientId(std::uint32_t client_order_id) const;
   void UpdateOrderStatus(const std::string& order_id, qtrade_sdk::trader::OrderStatusType status);
   void ApplyOrderReport(const qtrade_sdk::trader::Order& report);
   void ApplyTradeReport(const qtrade_sdk::trader::Trade& report);
