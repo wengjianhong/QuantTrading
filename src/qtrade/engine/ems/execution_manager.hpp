@@ -8,12 +8,34 @@
 #ifndef QTRADE_TRADING_ENGINE_EXECUTION_MANAGER_HPP_
 #define QTRADE_TRADING_ENGINE_EXECUTION_MANAGER_HPP_
 
+#include <qtrade/error_code/error_codes.hpp>
+#include <qtrade_sdk/trader/trader_api.hpp>
+
+#include <condition_variable>
+#include <deque>
+#include <mutex>
+#include <thread>
+
 namespace qtrade::engine::ems {
 
 class ExecutionManager {
  public:
+  ~ExecutionManager();
+
   void Start();
   void Stop();
+  void SetTraderApi(qtrade_sdk::trader::TraderApi* trader_api);
+  ErrorCode Enqueue(const qtrade_sdk::trader::Order& order);
+
+ private:
+  void Run();
+
+  qtrade_sdk::trader::TraderApi* trader_api_ = nullptr;
+  std::deque<qtrade_sdk::trader::Order> pending_orders_;
+  std::mutex mutex_;
+  std::condition_variable cv_;
+  std::thread worker_;
+  bool running_ = false;
 };
 
 }  // namespace qtrade::engine::ems

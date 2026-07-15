@@ -17,7 +17,17 @@ namespace qtrade::engine {
 TradingEngine::TradingEngine()
   : strategy_engine_(event_lanes_),
     quote_normalizer_(event_lanes_.Market()),
-    trader_normalizer_(event_lanes_.Return()) {}
+    trader_normalizer_(event_lanes_.Return()) {
+  event_lanes_.Return().SubscribeOrder([this](const qtrade_sdk::trader::Order& order) {
+    order_manager_.ApplyOrderReport(order);
+    account_manager_.ApplyOrder(order);
+  });
+  event_lanes_.Return().SubscribeTrade([this](const qtrade_sdk::trader::Trade& trade) {
+    order_manager_.ApplyTradeReport(trade);
+    account_manager_.ApplyTrade(trade);
+    position_manager_.ApplyTrade(trade);
+  });
+}
 
 TradingEngine::~TradingEngine() {
   Stop();
@@ -141,6 +151,7 @@ ErrorCode TradingEngine::Start() {
   account_manager_.Start();
   position_manager_.Start();
   risk_manager_.Start();
+  execution_manager_.SetTraderApi(trader_normalizer_.GetTraderApi());
   execution_manager_.Start();
 
   running_ = true;
@@ -186,6 +197,10 @@ ErrorCode TradingEngine::Stop() {
 
 bool TradingEngine::IsRunning() const {
   return running_;
+}
+
+ErrorCode TradingEngine::SubmitOrder(const qtrade_sdk::trader::OrderRequest& request) {
+  return order_pipeline_.Submit(request);
 }
 
 }  // namespace qtrade::engine

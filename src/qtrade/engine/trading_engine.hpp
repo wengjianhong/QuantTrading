@@ -16,6 +16,7 @@
 #include "qtrade/engine/event_bus/event_lanes.hpp"
 #include "qtrade/engine/normalizer/quote_normalizer.hpp"
 #include "qtrade/engine/normalizer/trader_normalizer.hpp"
+#include "qtrade/engine/order_pipeline.hpp"
 #include "qtrade/engine/oms/order_manager.hpp"
 #include "qtrade/engine/position/position_manager.hpp"
 #include "qtrade/engine/risk/risk_manager.hpp"
@@ -103,6 +104,19 @@ class TradingEngine {
     return config_client_;
   }
 
+  /// @brief 将策略请求送入 CMS → Risk → OMS → EMS 发单链。
+  ErrorCode SubmitOrder(const qtrade_sdk::trader::OrderRequest& request);
+
+  oms::OrderManager& GetOrderManager() {
+    return order_manager_;
+  }
+  account::AccountManager& GetAccountManager() {
+    return account_manager_;
+  }
+  position::PositionManager& GetPositionManager() {
+    return position_manager_;
+  }
+
  private:
   /// @brief 初始化并连接 config_client（GetConfig + SubscribeConfig）
   /// @param config 进程引导配置
@@ -127,6 +141,7 @@ class TradingEngine {
   account::AccountManager account_manager_;             ///< 账户管理模块
   position::PositionManager position_manager_;          ///< 持仓管理模块
   risk::RiskManager risk_manager_;                      ///< 风险管理模块
+  OrderPipeline order_pipeline_{compliance_, risk_manager_, order_manager_, execution_manager_};
   client::ConfigClient config_client_;                  ///< 控制面 gRPC 客户端
   client::LogClient log_client_;                        ///< D 段日志旁路客户端
   client::MonitorClient monitor_client_;                ///< D 段监控旁路客户端

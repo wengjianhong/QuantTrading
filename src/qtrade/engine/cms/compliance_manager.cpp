@@ -8,8 +8,22 @@
 
 namespace qtrade::engine::cms {
 
-void ComplianceManager::Start() {}
+void ComplianceManager::Start() {
+  running_.store(true, std::memory_order_release);
+}
 
-void ComplianceManager::Stop() {}
+void ComplianceManager::Stop() {
+  running_.store(false, std::memory_order_release);
+}
+
+ErrorCode ComplianceManager::CheckOrder(const qtrade_sdk::trader::OrderRequest& request) const {
+  if (!running_.load(std::memory_order_acquire)) {
+    return ErrorCode::kNotInitialized;
+  }
+  if (request.instrument.empty() || request.volume <= 0 || request.price < 0.0) {
+    return ErrorCode::kSystemError;
+  }
+  return ErrorCode::kSuccess;
+}
 
 }  // namespace qtrade::engine::cms

@@ -8,6 +8,7 @@
 #include "qtrade/common/logging/logger.hpp"
 #include "qtrade/engine/trading_engine.hpp"
 #include "qtrade_sdk/mock/quote/mock_quote_api.hpp"
+#include "qtrade_sdk/mock/trader/mock_trader_api.hpp"
 #include "strategy/example_strategy.hpp"
 
 #include <spdlog/spdlog.h>
@@ -56,10 +57,18 @@ int main(int argc, char** argv) {
 
   /// 挂载 demo：Mock 行情源 + 示例策略 + 打日志发单
   auto& quote_normalizer = engine.GetQuoteNormalizer();
+  auto& trader_normalizer = engine.GetTraderNormalizer();
   auto& strategy_engine = engine.GetStrategyEngine();
 
   auto quote_api = qtrade::adapter::mock::quote::CreateMockQuoteApi();
   quote_normalizer.SetQuoteApi(std::move(quote_api));
+  trader_normalizer.SetTraderApi(qtrade::adapter::mock::trader::CreateMockTraderApi());
+  if (auto* trader_api = trader_normalizer.GetTraderApi()) {
+    qtrade_sdk::trader::ConnectRequest trader_config;
+    trader_config.broker_id = "mock";
+    trader_config.connection_string = "mock://localhost";
+    trader_api->Connect(trader_config);
+  }
 
   auto strategy = qtrade::demo::CreateExampleStrategy();
   qtrade::strategy::StrategyConfig strategy_cfg;
@@ -67,13 +76,8 @@ int main(int argc, char** argv) {
   strategy->Init(strategy_cfg);
 
   auto* example_strategy = static_cast<qtrade::demo::ExampleStrategy*>(strategy.get());
-  auto order_sender = [](const qtrade_sdk::trader::OrderRequest& request) {
-    spdlog::info("[OrderSender] {} {} {} @ {}",
-                 request.instrument,
-                 request.side == qtrade_sdk::trader::SideType::kBuy ? "BUY" : "SELL",
-                 request.volume,
-                 request.price);
-    return qtrade::ErrorCode::kSuccess;
+  auto order_sender = [&engine](const qtrade_sdk::trader::OrderRequest& request) {
+    return engine.SubmitOrder(request);
   };
   example_strategy->SetOrderSender(order_sender);
   strategy_engine.RegisterStrategy(std::move(strategy));

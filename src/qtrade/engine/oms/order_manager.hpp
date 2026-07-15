@@ -13,6 +13,7 @@
 
 #include <atomic>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_map>
 
@@ -26,15 +27,20 @@ class OrderManager {
   void Start();
   void Stop();
 
+  /// @brief 创建订单；同 client_order_id 重复请求返回原订单快照。
+  std::optional<qtrade_sdk::trader::Order> CreateOrder(const qtrade_sdk::trader::OrderRequest& request);
   ErrorCode SendOrder(const qtrade_sdk::trader::OrderRequest& request);
   ErrorCode CancelOrder(const std::string& order_id);
 
-  qtrade_sdk::trader::Order* GetOrder(const std::string& order_id);
+  std::optional<qtrade_sdk::trader::Order> GetOrder(const std::string& order_id) const;
   void UpdateOrderStatus(const std::string& order_id, qtrade_sdk::trader::OrderStatusType status);
+  void ApplyOrderReport(const qtrade_sdk::trader::Order& report);
+  void ApplyTradeReport(const qtrade_sdk::trader::Trade& report);
 
  private:
   std::unordered_map<std::string, qtrade_sdk::trader::Order> orders_;
-  std::mutex mutex_;
+  std::unordered_map<std::uint32_t, std::string> client_order_index_;
+  mutable std::mutex mutex_;
   bool running_;
   std::atomic<uint64_t> order_id_counter_;
 };

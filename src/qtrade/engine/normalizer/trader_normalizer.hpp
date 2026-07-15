@@ -10,6 +10,10 @@
 
 #include "qtrade/engine/event_bus/event_lanes.hpp"
 
+#include <qtrade_sdk/trader/trader_api.hpp>
+
+#include <memory>
+
 namespace qtrade::engine::normalizer {
 
 class TraderNormalizer {
@@ -19,9 +23,15 @@ class TraderNormalizer {
 
   void Start();
   void Stop();
+  void SetTraderApi(std::unique_ptr<qtrade_sdk::trader::TraderApi> trader_api);
+  qtrade_sdk::trader::TraderApi* GetTraderApi();
 
  private:
+  void OnOrder(const qtrade_sdk::trader::Order& order);
+  void OnTrade(const qtrade_sdk::trader::Trade& trade);
+
   event_bus::ReturnEventReactor& return_event_reactor_;
+  std::unique_ptr<qtrade_sdk::trader::TraderApi> trader_api_;
   bool running_;
 };
 

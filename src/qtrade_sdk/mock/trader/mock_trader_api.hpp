@@ -141,6 +141,8 @@ class MockTraderApi final : public qtrade_sdk::trader::TraderApi {
   std::string software_version_;
   bool connected_ = false;
   std::uint64_t session_id_ = 0;
+  std::uint64_t next_order_emt_id_ = 1;
+  std::uint64_t next_trade_id_ = 1;
 };
 
 /// @brief 创建 Mock 交易 Api，供 demo 与测试使用。

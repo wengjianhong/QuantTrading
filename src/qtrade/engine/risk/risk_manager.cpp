@@ -8,8 +8,23 @@
 
 namespace qtrade::engine::risk {
 
-void RiskManager::Start() {}
+void RiskManager::Start() {
+  running_.store(true, std::memory_order_release);
+}
 
-void RiskManager::Stop() {}
+void RiskManager::Stop() {
+  running_.store(false, std::memory_order_release);
+}
+
+ErrorCode RiskManager::CheckOrder(const qtrade_sdk::trader::OrderRequest& request) const {
+  if (!running_.load(std::memory_order_acquire)) {
+    return ErrorCode::kNotInitialized;
+  }
+  if (request.instrument.empty() || request.volume <= 0 || request.price < 0.0 ||
+      request.volume > kDefaultMaxOrderVolume) {
+    return ErrorCode::kSystemError;
+  }
+  return ErrorCode::kSuccess;
+}
 
 }  // namespace qtrade::engine::risk
