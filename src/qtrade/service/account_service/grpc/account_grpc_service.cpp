@@ -39,7 +39,7 @@ grpc::Status AccountGrpcService::AddAccount(grpc::ServerContext* context,
   if (!DatabaseReady()) {
     return ToGrpcStatus(ErrorCode::kSystemError);
   }
-  /// Run Handler → 写回 grpc::Status
+
   AddAccountHandler handler("AddAccount");
   const Result<void> result = handler.Run(context, request, response);
   if (result.error_code != ErrorCode::kSuccess) {
@@ -54,7 +54,7 @@ grpc::Status AccountGrpcService::GetAccount(grpc::ServerContext* context,
   if (!DatabaseReady()) {
     return ToGrpcStatus(ErrorCode::kSystemError);
   }
-  /// Run Handler → 写回 grpc::Status
+
   GetAccountHandler handler("GetAccount");
   const Result<void> result = handler.Run(context, request, response);
   if (result.error_code != ErrorCode::kSuccess) {
@@ -69,7 +69,7 @@ grpc::Status AccountGrpcService::ListAccounts(grpc::ServerContext* context,
   if (!DatabaseReady()) {
     return ToGrpcStatus(ErrorCode::kSystemError);
   }
-  /// Run Handler → 写回 grpc::Status
+
   ListAccountsHandler handler("ListAccounts");
   const Result<void> result = handler.Run(context, request, response);
   if (result.error_code != ErrorCode::kSuccess) {
@@ -84,7 +84,7 @@ grpc::Status AccountGrpcService::UpdateAccount(grpc::ServerContext* context,
   if (!DatabaseReady()) {
     return ToGrpcStatus(ErrorCode::kSystemError);
   }
-  /// Run Handler → 写回 grpc::Status
+
   UpdateAccountHandler handler("UpdateAccount");
   const Result<void> result = handler.Run(context, request, response);
   if (result.error_code != ErrorCode::kSuccess) {
@@ -99,7 +99,7 @@ grpc::Status AccountGrpcService::GetCredential(grpc::ServerContext* context,
   if (!DatabaseReady()) {
     return ToGrpcStatus(ErrorCode::kSystemError);
   }
-  /// Run Handler → 写回 grpc::Status
+
   GetCredentialHandler handler("GetCredential");
   const Result<void> result = handler.Run(context, request, response);
   if (result.error_code != ErrorCode::kSuccess) {

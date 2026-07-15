@@ -14,11 +14,11 @@ TradingAccount* g_mock_instance = nullptr;  ///< 测试 Mock 实例指针
 
 constexpr const char* kCreateTableSql = R"(
 CREATE TABLE IF NOT EXISTS trading_account (
-  tenant_id TEXT NOT NULL,
-  account_id TEXT NOT NULL,
-  broker_id TEXT NOT NULL,
-  connection_string TEXT NOT NULL,
-  status TEXT NOT NULL,
+  tenant_id TEXT NOT NULL COMMENT '租户 ID',
+  account_id TEXT NOT NULL COMMENT '交易账户 ID',
+  broker_id TEXT NOT NULL COMMENT '券商 ID',
+  connection_string TEXT NOT NULL COMMENT '交易通道连接串',
+  status TEXT NOT NULL COMMENT '账户状态（如 active / disabled）',
   PRIMARY KEY (tenant_id, account_id)
 );
 )";

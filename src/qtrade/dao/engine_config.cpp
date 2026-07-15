@@ -14,10 +14,10 @@ EngineConfig* g_mock_instance = nullptr;  ///< 测试 Mock 实例指针
 
 constexpr const char* kCreateTableSql = R"(
 CREATE TABLE IF NOT EXISTS engine_config (
-  tenant_id TEXT NOT NULL,
-  engine_id TEXT NOT NULL,
-  version INTEGER NOT NULL,
-  payload TEXT NOT NULL,
+  tenant_id TEXT NOT NULL COMMENT '租户 ID',
+  engine_id TEXT NOT NULL COMMENT '引擎 ID',
+  version INTEGER NOT NULL COMMENT '配置版本号',
+  payload TEXT NOT NULL COMMENT 'JSON 配置载荷',
   PRIMARY KEY (tenant_id, engine_id)
 );
 )";

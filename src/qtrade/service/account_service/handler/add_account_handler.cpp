@@ -81,9 +81,9 @@ Result<void> AddAccountHandler::ExecuteBusiness(AddAccountServerData& server_dat
   qtrade::framework::dao::AccountCredentialRecord credential_row;
   credential_row.tenant_id = server_data.account.tenant_id;
   credential_row.account_id = server_data.account.account_id;
+  credential_row.credential_type = qtrade::framework::dao::CredentialType::kPassword;
   credential_row.key_id = key_id;
   credential_row.ciphertext = ciphertext;
-  credential_row.version = 1;
 
   if (const auto insert_credential = credential_dao.Insert({credential_row});
       insert_credential.error_code != ErrorCode::kSuccess) {

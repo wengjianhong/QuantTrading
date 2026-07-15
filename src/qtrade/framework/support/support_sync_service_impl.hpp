@@ -7,10 +7,12 @@
 #define QTRADE_COMMON_SUPPORT_SUPPORT_SYNC_SERVICE_IMPL_HPP_
 
 #include "qtrade/framework/database/db_connection.hpp"
-#include "qtrade/framework/grpc/grpc_sync_service_host.hpp"
+#include "qtrade/framework/grpc/grpc_sync_server.hpp"
 
 #include <qtrade/error_code/error_codes.hpp>
 #include <qtrade_framework/support/support_service.hpp>
+
+#include <spdlog/spdlog.h>
 
 #include <memory>
 #include <mutex>
@@ -43,13 +45,14 @@ class SupportSyncServiceImpl : public ISupportService {
       return ErrorCode::kSystemError;
     }
 
-    if (grpc_host_.IsRunning()) {
+    if (grpc_server_ && grpc_server_->IsRunning()) {
       return ErrorCode::kSystemError;
     }
 
     grpc_service_ = std::make_unique<GrpcServiceT>(connection_);
-    if (const auto rc = grpc_host_.Start(listen_address_, grpc_service_.get(), service_name_);
-        rc != ErrorCode::kSuccess) {
+    grpc_server_ = std::make_unique<grpc_sync::GrpcSyncServer>();
+    if (const auto rc = grpc_server_->Start(listen_address_, grpc_service_.get()); rc != ErrorCode::kSuccess) {
+      grpc_server_.reset();
       grpc_service_.reset();
       state_ = SupportServiceState::kFailed;
       last_error_ = rc;
@@ -58,12 +61,13 @@ class SupportSyncServiceImpl : public ISupportService {
 
     state_ = SupportServiceState::kReady;
     last_error_ = ErrorCode::kSuccess;
+    spdlog::info("[{}] listening on {} (sync)", service_name_, listen_address_);
     return ErrorCode::kSuccess;
   }
 
   void Stop() override {
     std::lock_guard lock(mutex_);
-    if (!grpc_host_.IsRunning()) {
+    if (!grpc_server_ || !grpc_server_->IsRunning()) {
       if (state_ == SupportServiceState::kInitializing) {
         grpc_service_.reset();
         connection_.reset();
@@ -73,14 +77,17 @@ class SupportSyncServiceImpl : public ISupportService {
     }
 
     state_ = SupportServiceState::kStopping;
-    grpc_host_.Shutdown();
+    grpc_server_->Shutdown();
     grpc_service_.reset();
     connection_.reset();
     state_ = SupportServiceState::kTerminated;
   }
 
   void Wait() override {
-    grpc_host_.Wait();
+    if (grpc_server_) {
+      grpc_server_->Wait();
+      grpc_server_.reset();
+    }
   }
 
   [[nodiscard]] SupportServiceStatus GetStatus() const override {
@@ -104,8 +111,8 @@ class SupportSyncServiceImpl : public ISupportService {
   SupportServiceState state_ = SupportServiceState::kNew;
   mutable std::mutex mutex_;
   std::shared_ptr<qtrade::framework::dao::DbConnectionHolder> connection_;
+  std::unique_ptr<grpc_sync::GrpcSyncServer> grpc_server_;
   std::unique_ptr<GrpcServiceT> grpc_service_;
-  grpc_sync::GrpcSyncServiceHost grpc_host_;
 };
 
 }  // namespace qtrade::common::support

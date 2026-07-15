@@ -7,10 +7,12 @@
 #define QTRADE_COMMON_SUPPORT_SUPPORT_SERVICE_IMPL_HPP_
 
 #include "qtrade/framework/database/db_connection.hpp"
-#include "qtrade/framework/grpc/grpc_service_host.hpp"
+#include "qtrade/framework/grpc/grpc_async_server.hpp"
 
 #include <qtrade/error_code/error_codes.hpp>
 #include <qtrade_framework/support/support_service.hpp>
+
+#include <spdlog/spdlog.h>
 
 #include <memory>
 #include <mutex>
@@ -20,6 +22,8 @@
 namespace qtrade::common::support {
 
 /// @brief gRPC 异步支撑服务通用基类（AsyncService + CQ；适用于 Streaming 等场景）
+/// @tparam AsyncServiceT protobuf 生成的 gRPC AsyncService 类型
+/// @tparam HandlerT RPC 异步处理器，需提供 Init / Start / Shutdown
 template <typename AsyncServiceT, typename HandlerT>
 class SupportAsyncServiceImpl : public ISupportService {
  public:
@@ -42,24 +46,37 @@ class SupportAsyncServiceImpl : public ISupportService {
       return ErrorCode::kSystemError;
     }
 
-    if (grpc_host_.IsRunning()) {
+    if (grpc_server_ && grpc_server_->IsRunning()) {
       return ErrorCode::kSystemError;
     }
 
-    if (const auto rc = grpc_host_.Start(listen_address_, connection_, service_name_); rc != ErrorCode::kSuccess) {
+    grpc_server_ = std::make_unique<grpc_async::GrpcAsyncServer>();
+    handler_ = std::make_unique<HandlerT>();
+
+    grpc_async::GrpcAsyncServer::Options opts;
+    opts.listen_address = listen_address_;
+    opts.cq_thread_count = 1;
+
+    if (const auto rc = grpc_server_->Start(opts, &async_service_); rc != ErrorCode::kSuccess) {
+      handler_.reset();
+      grpc_server_.reset();
       state_ = SupportServiceState::kFailed;
       last_error_ = rc;
       return rc;
     }
 
+    handler_->Init(&async_service_, grpc_server_->CompletionQueue(), connection_);
+    handler_->Start();
+
     state_ = SupportServiceState::kReady;
     last_error_ = ErrorCode::kSuccess;
+    spdlog::info("[{}] listening on {} (async+cq)", service_name_, listen_address_);
     return ErrorCode::kSuccess;
   }
 
   void Stop() override {
     std::lock_guard lock(mutex_);
-    if (!grpc_host_.IsRunning()) {
+    if (!grpc_server_ || !grpc_server_->IsRunning()) {
       if (state_ == SupportServiceState::kInitializing) {
         connection_.reset();
         state_ = SupportServiceState::kTerminated;
@@ -68,13 +85,20 @@ class SupportAsyncServiceImpl : public ISupportService {
     }
 
     state_ = SupportServiceState::kStopping;
-    grpc_host_.Shutdown();
+    if (handler_) {
+      handler_->Shutdown();
+      handler_.reset();
+    }
+    grpc_server_->Shutdown();
     connection_.reset();
     state_ = SupportServiceState::kTerminated;
   }
 
   void Wait() override {
-    grpc_host_.Wait();
+    if (grpc_server_) {
+      grpc_server_->Wait();
+      grpc_server_.reset();
+    }
   }
 
   [[nodiscard]] SupportServiceStatus GetStatus() const override {
@@ -90,8 +114,6 @@ class SupportAsyncServiceImpl : public ISupportService {
   }
 
  protected:
-  using GrpcHost = grpc_async::GrpcServiceHost<AsyncServiceT, HandlerT>;
-
   std::string service_name_;
   int default_port_;
   std::string config_path_;
@@ -100,7 +122,9 @@ class SupportAsyncServiceImpl : public ISupportService {
   SupportServiceState state_ = SupportServiceState::kNew;
   mutable std::mutex mutex_;
   std::shared_ptr<qtrade::framework::dao::DbConnectionHolder> connection_;
-  GrpcHost grpc_host_;
+  AsyncServiceT async_service_;
+  std::unique_ptr<HandlerT> handler_;
+  std::unique_ptr<grpc_async::GrpcAsyncServer> grpc_server_;
 };
 
 }  // namespace qtrade::common::support

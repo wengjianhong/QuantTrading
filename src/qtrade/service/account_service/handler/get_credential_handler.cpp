@@ -64,10 +64,11 @@ Result<void> GetCredentialHandler::ExecuteBusiness(GetCredentialServerData& serv
     return ErrResult(ErrorCode::kInternal, "account is disabled");
   }
 
-  /// 查询并解密 account_credential
+  /// 查询并解密 account_credential（默认取交易密码）
   qtrade::framework::dao::AccountCredentialRecord cred_where;
   cred_where.tenant_id = server_data.tenant_id;
   cred_where.account_id = server_data.account_id;
+  cred_where.credential_type = qtrade::framework::dao::CredentialType::kPassword;
   const auto cred_result = qtrade::framework::dao::AccountCredential::Instance().Select(cred_where);
   if (cred_result.error_code != ErrorCode::kSuccess) {
     return ErrResult(cred_result.error_code, cred_result.error_message);

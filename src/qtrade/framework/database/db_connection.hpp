@@ -38,8 +38,10 @@ class DbConnectionHolder {
   [[nodiscard]] cpputils::database::IConnection* Connection() const;
 
  private:
-  std::unique_ptr<cpputils::database::IConnectionPool> pool_;    ///< 连接池（pool 模式时使用）
-  std::unique_ptr<cpputils::database::IConnection> connection_;  ///< 当前持有的连接
+  ///< 连接池（pool 模式时使用）
+  std::unique_ptr<cpputils::database::IConnectionPool> pool_;
+  ///< 当前持有的连接
+  std::unique_ptr<cpputils::database::IConnection> connection_;
 };
 
 }  // namespace qtrade::framework::dao

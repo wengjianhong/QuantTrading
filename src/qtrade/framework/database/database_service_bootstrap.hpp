@@ -25,7 +25,8 @@ namespace qtrade::common {
 
 /// @brief 数据库连接启动上下文
 struct DatabaseConnectionContext {
-  std::shared_ptr<qtrade::framework::dao::DbConnectionHolder> connection;  ///< 未启用或连接失败时为 nullptr
+  ///< 未启用或连接失败时为 nullptr
+  std::shared_ptr<qtrade::framework::dao::DbConnectionHolder> connection;
 };
 
 /// @brief 连接数据库、注册 DAO 连接并确保表结构

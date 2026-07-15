@@ -14,12 +14,12 @@ AccountCredential* g_mock_instance = nullptr;  ///< 测试 Mock 实例指针
 
 constexpr const char* kCreateTableSql = R"(
 CREATE TABLE IF NOT EXISTS account_credential (
-  tenant_id TEXT NOT NULL,
-  account_id TEXT NOT NULL,
-  key_id TEXT NOT NULL,
-  ciphertext TEXT NOT NULL,
-  version INTEGER NOT NULL,
-  PRIMARY KEY (tenant_id, account_id)
+  tenant_id TEXT NOT NULL COMMENT '租户 ID（与 trading_account 对齐）',
+  account_id TEXT NOT NULL COMMENT '交易账户 ID（与 trading_account 对齐）',
+  key_id TEXT NOT NULL COMMENT '加密密钥标识（解密选钥/轮换；与凭证内容版本无关）',
+  credential_type INTEGER NOT NULL COMMENT '凭证类型（0=default, 1=password, 2=auth_code）',
+  ciphertext TEXT NOT NULL COMMENT '凭证密文（可逆加密；勿存明文）',
+  PRIMARY KEY (tenant_id, account_id, credential_type)
 );
 )";
 
@@ -60,9 +60,11 @@ KeyValues BuildAccountCredentialValues(const AccountCredentialRecord& record) {
   KeyValues values;
   AddTextValue(values, "tenant_id", record.tenant_id);
   AddTextValue(values, "account_id", record.account_id);
+  if (record.credential_type.has_value()) {
+    AddInt64Value(values, "credential_type", static_cast<std::int64_t>(record.credential_type.value()));
+  }
   AddTextValue(values, "key_id", record.key_id);
   AddTextValue(values, "ciphertext", record.ciphertext);
-  AddInt64Value(values, "version", record.version);
   return values;
 }
 

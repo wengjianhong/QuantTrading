@@ -7,7 +7,6 @@
 #define QTRADE_COMMON_GRPC_COMPLETION_QUEUE_LOOP_HPP_
 
 #include <cstddef>
-#include <memory>
 #include <thread>
 #include <vector>
 

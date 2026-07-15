@@ -80,19 +80,18 @@ Result<void> UpdateAccountHandler::ExecuteBusiness(UpdateAccountServerData& serv
   qtrade::framework::dao::AccountCredentialRecord credential_key;
   credential_key.tenant_id = server_data.account.tenant_id;
   credential_key.account_id = server_data.account.account_id;
+  credential_key.credential_type = qtrade::framework::dao::CredentialType::kPassword;
   const auto existing = credential_dao.Select(credential_key);
   if (existing.error_code != ErrorCode::kSuccess || !existing.data.has_value() || existing.data->empty()) {
     return ErrResult(ErrorCode::kNotFound, "credential not found");
   }
 
-  server_data.previous_credential_version = existing.data->front().version.value_or(0);
-
   qtrade::framework::dao::AccountCredentialRecord credential_row;
   credential_row.tenant_id = server_data.account.tenant_id;
   credential_row.account_id = server_data.account.account_id;
+  credential_row.credential_type = qtrade::framework::dao::CredentialType::kPassword;
   credential_row.key_id = key_id;
   credential_row.ciphertext = ciphertext;
-  credential_row.version = server_data.previous_credential_version + 1;
 
   const auto update_credential = credential_dao.Update(credential_row, credential_key);
   if (update_credential.error_code != ErrorCode::kSuccess) {

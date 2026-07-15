@@ -18,13 +18,20 @@
 
 namespace qtrade::framework::dao {
 
+/// @brief 凭证类型
+enum class CredentialType {
+  kDefault = 0,
+  kPassword = 1,
+  kAuthCode = 2,
+};
+
 /// @brief account_credential 表行记录
 struct AccountCredentialRecord {
-  std::optional<std::string> tenant_id;   ///< 租户 ID
-  std::optional<std::string> account_id;  ///< 账户 ID
-  std::optional<std::string> key_id;      ///< 加密密钥 ID
-  std::optional<std::string> ciphertext;  ///< 密文凭证
-  std::optional<std::int64_t> version;    ///< 凭证版本（更新密码时递增）
+  std::optional<std::string> tenant_id;           ///< 租户 ID
+  std::optional<std::string> account_id;          ///< 账户 ID
+  std::optional<std::string> key_id;              ///< 加密密钥标识
+  std::optional<CredentialType> credential_type;  ///< 凭证类型（同账户可多行）
+  std::optional<std::string> ciphertext;          ///< 凭证密文
 };
 
 /// @brief account_credential 表 DAO（单例）
@@ -109,9 +116,13 @@ AccountCredentialRecord BuildAccountCredentialRecord(const RowT& row) {
   AccountCredentialRecord record;
   AssignTextField(row, "tenant_id", record.tenant_id);
   AssignTextField(row, "account_id", record.account_id);
+  std::optional<std::int64_t> credential_type;
+  AssignInt64Field(row, "credential_type", credential_type);
+  if (credential_type.has_value()) {
+    record.credential_type = static_cast<CredentialType>(credential_type.value());
+  }
   AssignTextField(row, "key_id", record.key_id);
   AssignTextField(row, "ciphertext", record.ciphertext);
-  AssignInt64Field(row, "version", record.version);
   return record;
 }
 

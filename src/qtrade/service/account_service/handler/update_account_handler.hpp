@@ -18,7 +18,6 @@ namespace qtrade::service {
 struct UpdateAccountServerData {
   bool update_password = false;                          ///< 是否同步更新密码
   bool credential_updated = false;                       ///< 凭证是否已更新（预留回滚）
-  int previous_credential_version = 0;                   ///< 更新前凭证版本号（预留回滚）
   std::string password;                                  ///< 新明文密码（空表示不更新凭证）
   qtrade::framework::dao::TradingAccountRecord account;  ///< 待更新账户元数据
 };
