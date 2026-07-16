@@ -33,33 +33,16 @@ struct ServiceConfig {
   /// @return 地址字符串，示例："127.0.0.1:50051"
   [[nodiscard]] std::string Address() const;
 
-  /// @brief 同 Address（兼容旧 ListenAddress 调用）
-  /// @return 地址字符串
-  [[nodiscard]] std::string ListenAddress() const {
-    return Address();
-  }
-
   /// @brief 读取扩展字段
   /// @param key 扩展键名
   /// @return 存在时返回值，否则 nullopt
   [[nodiscard]] std::optional<std::string> Extension(const std::string& key) const;
-
-  /// @brief 端点是否已配置有效 host/port
-  /// @return true 表示可连接或可监听
-  [[nodiscard]] bool IsConfigured() const {
-    return !host.empty() && port > 0;
-  }
 };
 
 /// @brief 从端点 JSON 对象解析
 /// @param endpoint 形如 { "host", "port", "enabled", "timeout_ms", ... } 的对象
 /// @return 解析结果；非对象或 host/port 非法时返回 nullopt
 [[nodiscard]] std::optional<ServiceConfig> ParseServiceEndpoint(const nlohmann::json& endpoint);
-
-/// @brief 从配置根对象解析 "grpc" 监听段
-/// @param root 配置根对象
-/// @return 解析结果；无 grpc 段时返回 nullopt
-[[nodiscard]] std::optional<ServiceConfig> ParseServiceConfig(const nlohmann::json& root);
 
 }  // namespace qtrade::common::config
 

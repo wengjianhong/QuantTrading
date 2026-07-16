@@ -6,7 +6,7 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/engine/trading_engine.hpp"
 
-#include "qtrade/common/file/text_file.hpp"
+#include "qtrade/common/json/json_util.hpp"
 
 #include <qtrade/proto/account_risk/v1/account_risk.pb.h>
 #include <qtrade/proto/config/v1/config.pb.h>
@@ -46,11 +46,11 @@ TradingEngine::~TradingEngine() {
 }
 
 ErrorCode TradingEngine::ReloadFromJson(const std::string& json_path) {
-  const auto json_text = qtrade::common::ReadTextFile(json_path);
-  if (!json_text.has_value()) {
+  const auto config_node = qtrade::common::LoadJsonFile(json_path);
+  if (!config_node.has_value()) {
     return ErrorCode::kNotFound;
   }
-  const auto loaded = qtrade::common::config::ParseQtradeEngineConfig(*json_text);
+  const auto loaded = qtrade::common::config::ParseQtradeEngineConfig(*config_node);
   if (!loaded.has_value()) {
     return ErrorCode::kNotFound;
   }
@@ -110,12 +110,13 @@ ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineConfig& 
 }
 
 ErrorCode TradingEngine::InitConfigClient(const qtrade::common::config::QtradeEngineConfig& config) {
-  if (!config.support_services.config_service.enabled || !config.support_services.config_service.IsConfigured()) {
+  const auto& config_service = config.support_services.config_service;
+  if (!config_service.enabled || config_service.host.empty() || config_service.port <= 0) {
     return ErrorCode::kNotInitialized;
   }
 
   client::ConfigClientOptions client_opts;
-  client_opts.server_address = config.support_services.config_service.Address();
+  client_opts.server_address = config_service.Address();
   client_opts.tenant_id = config.identity.tenant_id;
   client_opts.engine_id = config.identity.engine_id;
 

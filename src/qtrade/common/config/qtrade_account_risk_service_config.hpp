@@ -10,7 +10,6 @@
 #include "qtrade/common/config/service_config.hpp"
 
 #include <optional>
-#include <string>
 
 namespace qtrade::common::config {
 
@@ -32,11 +31,11 @@ struct QtradeAccountRiskServiceConfig {
   AccountRiskReservationConfig reservation;
 };
 
-/// @brief 从 JSON 字符串解析账户硬风控服务配置
-/// @param json JSON 文本
-/// @return 解析结果；非法或缺必填段时返回 nullopt
+/// @brief 从账户硬风控服务配置 JSON 对象解析
+/// @param config_node 形如 { "grpc", "database", "reservation" } 的对象
+/// @return 解析结果；非对象或缺必填段时返回 nullopt
 [[nodiscard]] std::optional<QtradeAccountRiskServiceConfig> ParseQtradeAccountRiskServiceConfig(
-  const std::string& json);
+  const nlohmann::json& config_node);
 
 }  // namespace qtrade::common::config
 

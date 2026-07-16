@@ -6,7 +6,7 @@
 #include "qtrade/service/account_risk_service/account_risk_service.hpp"
 
 #include "qtrade/common/config/qtrade_account_risk_service_config.hpp"
-#include "qtrade/common/file/text_file.hpp"
+#include "qtrade/common/json/json_util.hpp"
 #include "qtrade/dao/account_risk_service/account_risk_ledger.hpp"
 #include "qtrade/dao/account_risk_service/account_risk_policy.hpp"
 #include "qtrade/dao/account_risk_service/order_reservation.hpp"
@@ -52,19 +52,19 @@ ErrorCode AccountRiskService::Initialize(const std::string& config_path) {
   state_ = qtrade::common::support::SupportServiceState::kInitializing;
   config_path_ = config_path;
 
-  const auto json_text = qtrade::common::ReadTextFile(config_path);
-  if (!json_text.has_value()) {
+  const auto config_node = qtrade::common::LoadJsonFile(config_path);
+  if (!config_node.has_value()) {
     state_ = qtrade::common::support::SupportServiceState::kFailed;
     return last_error_ = ErrorCode::kNotFound;
   }
 
   // 2. 解析 L0 配置并解析监听地址
-  const auto config = qtrade::common::config::ParseQtradeAccountRiskServiceConfig(*json_text);
+  const auto config = qtrade::common::config::ParseQtradeAccountRiskServiceConfig(*config_node);
   if (!config.has_value()) {
     state_ = qtrade::common::support::SupportServiceState::kFailed;
     return last_error_ = ErrorCode::kInternal;
   }
-  listen_address_ = config->grpc.ListenAddress();
+  listen_address_ = config->grpc.Address();
 
   // 3. 引导数据库连接并确保表结构
   const auto context =

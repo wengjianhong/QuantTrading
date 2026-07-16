@@ -29,10 +29,11 @@ struct QtradeLogServiceConfig {
   int flush_interval_ms = 0;
 };
 
-/// @brief 从 JSON 字符串解析日志服务配置
-/// @param json JSON 文本
-/// @return 解析结果；JSON 非法或必填字段无效时返回 nullopt
-[[nodiscard]] std::optional<QtradeLogServiceConfig> ParseQtradeLogServiceConfig(const std::string& json);
+/// @brief 从日志服务配置 JSON 对象解析
+/// @param config_node 形如 { "grpc", "storage", "ingest" } 的对象
+/// @return 解析结果；非对象或必填字段无效时返回 nullopt
+[[nodiscard]] std::optional<QtradeLogServiceConfig> ParseQtradeLogServiceConfig(
+  const nlohmann::json& config_node);
 
 }  // namespace qtrade::common::config
 

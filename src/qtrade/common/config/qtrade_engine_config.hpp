@@ -44,10 +44,10 @@ struct QtradeEngineConfig {
   QtradeEngineSupportServices support_services;
 };
 
-/// @brief 从 JSON 字符串解析引擎进程配置
-/// @param json JSON 文本
-/// @return 解析结果；JSON 非法或必填段缺失时返回 nullopt
-[[nodiscard]] std::optional<QtradeEngineConfig> ParseQtradeEngineConfig(const std::string& json);
+/// @brief 从引擎进程配置 JSON 对象解析
+/// @param config_node 形如 { "identity", "support_services" } 的对象
+/// @return 解析结果；非对象或必填段缺失时返回 nullopt
+[[nodiscard]] std::optional<QtradeEngineConfig> ParseQtradeEngineConfig(const nlohmann::json& config_node);
 
 }  // namespace qtrade::common::config
 

@@ -7,7 +7,6 @@
 #define QTRADE_COMMON_DATABASE_DATABASE_SERVICE_BOOTSTRAP_HPP_
 
 #include "qtrade/common/config/database_config.hpp"
-#include "qtrade/common/file/text_file.hpp"
 #include "qtrade/framework/dao/dml_utils.hpp"
 #include "qtrade/framework/database/db_connection.hpp"
 
@@ -18,7 +17,6 @@
 #include <spdlog/spdlog.h>
 
 #include <memory>
-#include <string>
 #include <string_view>
 #include <utility>
 
@@ -60,27 +58,6 @@ template <typename EnsureSchemaFn>
   context.connection = std::move(connection);
   spdlog::info("[{}] database ready", log_tag);
   return context;
-}
-
-/// @brief 从配置文件解析 database 段后启动连接
-/// @param json_path 服务配置文件路径
-/// @param ensure_schema 建表回调，接收底层 IConnection*
-/// @param log_tag 日志标识
-template <typename EnsureSchemaFn>
-[[nodiscard]] DatabaseConnectionContext BootstrapDatabaseConnection(const std::string& json_path,
-                                                                    EnsureSchemaFn&& ensure_schema,
-                                                                    const std::string_view log_tag) {
-  const auto json_text = ReadTextFile(json_path);
-  if (!json_text.has_value()) {
-    spdlog::error("[{}] load database config failed", log_tag);
-    return DatabaseConnectionContext{};
-  }
-  config::DatabaseConfig database_config;
-  if (!config::ParseDatabaseConfig(*json_text, database_config)) {
-    spdlog::error("[{}] load database config failed", log_tag);
-    return DatabaseConnectionContext{};
-  }
-  return BootstrapDatabaseConnection(database_config, std::forward<EnsureSchemaFn>(ensure_schema), log_tag);
 }
 
 }  // namespace qtrade::common

@@ -5,8 +5,6 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/common/config/qtrade_engine_config.hpp"
 
-#include "qtrade/common/json/json_util.hpp"
-
 #include "spdlog/spdlog.h"
 
 namespace qtrade::common::config {
@@ -27,24 +25,22 @@ namespace {
 
 }  // namespace
 
-std::optional<QtradeEngineConfig> ParseQtradeEngineConfig(const std::string& json) {
-  const auto root = ParseJsonString(json);
-  if (!root.has_value()) {
-    spdlog::error("parse engine json failed");
+std::optional<QtradeEngineConfig> ParseQtradeEngineConfig(const nlohmann::json& config_node) {
+  if (!config_node.is_object()) {
+    spdlog::error("engine config must be an object");
     return std::nullopt;
   }
-  const auto& root_json = root.value();
-  if (!root_json.contains("identity") || !root_json.at("identity").is_object()) {
+  if (!config_node.contains("identity") || !config_node.at("identity").is_object()) {
     spdlog::error("identity missing");
     return std::nullopt;
   }
-  if (!root_json.contains("support_services") || !root_json.at("support_services").is_object()) {
+  if (!config_node.contains("support_services") || !config_node.at("support_services").is_object()) {
     spdlog::error("support_services missing");
     return std::nullopt;
   }
 
-  const auto& identity = root_json.at("identity");
-  const auto& support_services = root_json.at("support_services");
+  const auto& identity = config_node.at("identity");
+  const auto& support_services = config_node.at("support_services");
 
   QtradeEngineConfig config;
   config.identity.tenant_id = identity.value("tenant_id", "");

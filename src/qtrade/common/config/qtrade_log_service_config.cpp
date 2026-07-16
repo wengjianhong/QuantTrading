@@ -5,23 +5,22 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/common/config/qtrade_log_service_config.hpp"
 
-#include "qtrade/common/json/json_util.hpp"
-
 namespace qtrade::common::config {
 
-std::optional<QtradeLogServiceConfig> ParseQtradeLogServiceConfig(const std::string& text) {
-  const auto root = ParseJsonString(text);
-  if (!root.has_value()) {
+std::optional<QtradeLogServiceConfig> ParseQtradeLogServiceConfig(const nlohmann::json& config_node) {
+  if (!config_node.is_object()) {
     return std::nullopt;
   }
-  const auto& root_json = root.value();
-  const auto grpc = ParseServiceConfig(root_json);
-  if (!grpc.has_value() || !root_json.contains("storage") || !root_json.contains("ingest")) {
+  if (!config_node.contains("grpc") || !config_node.at("grpc").is_object()) {
+    return std::nullopt;
+  }
+  const auto grpc = ParseServiceEndpoint(config_node.at("grpc"));
+  if (!grpc.has_value() || !config_node.contains("storage") || !config_node.contains("ingest")) {
     return std::nullopt;
   }
 
-  const auto& storage = root_json.at("storage");
-  const auto& ingest = root_json.at("ingest");
+  const auto& storage = config_node.at("storage");
+  const auto& ingest = config_node.at("ingest");
   QtradeLogServiceConfig out;
   out.grpc = grpc.value();
   out.storage_type = storage.value("type", "");

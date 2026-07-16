@@ -106,19 +106,11 @@ std::optional<ServiceConfig> ParseServiceEndpoint(const nlohmann::json& endpoint
     config.extensions.emplace(key, text.value());
   }
 
-  if (!config.IsConfigured()) {
+  if (config.host.empty() || config.port <= 0) {
     spdlog::error("service endpoint host/port invalid");
     return std::nullopt;
   }
   return config;
-}
-
-std::optional<ServiceConfig> ParseServiceConfig(const nlohmann::json& root) {
-  if (!root.contains("grpc") || !root.at("grpc").is_object()) {
-    spdlog::error("grpc listen config not found");
-    return std::nullopt;
-  }
-  return ParseServiceEndpoint(root.at("grpc"));
 }
 
 }  // namespace qtrade::common::config

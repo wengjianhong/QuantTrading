@@ -6,7 +6,7 @@
 #include "qtrade/service/config_service/config_service.hpp"
 
 #include "qtrade/common/config/qtrade_config_service_config.hpp"
-#include "qtrade/common/file/text_file.hpp"
+#include "qtrade/common/json/json_util.hpp"
 #include "qtrade/dao/config_service/engine/engine_config.hpp"
 #include "qtrade/dao/config_service/risk/instance_risk_policy.hpp"
 #include "qtrade/dao/config_service/risk/instrument_risk_policy.hpp"
@@ -65,19 +65,19 @@ ErrorCode ConfigService::Initialize(const std::string& config_path) {
   state_ = qtrade::common::support::SupportServiceState::kInitializing;
   config_path_ = config_path;
 
-  const auto json_text = qtrade::common::ReadTextFile(config_path);
-  if (!json_text.has_value()) {
+  const auto config_node = qtrade::common::LoadJsonFile(config_path);
+  if (!config_node.has_value()) {
     state_ = qtrade::common::support::SupportServiceState::kFailed;
     last_error_ = ErrorCode::kNotFound;
     return last_error_;
   }
-  const auto config = qtrade::common::config::ParseQtradeConfigServiceConfig(*json_text);
+  const auto config = qtrade::common::config::ParseQtradeConfigServiceConfig(*config_node);
   if (!config.has_value()) {
     state_ = qtrade::common::support::SupportServiceState::kFailed;
     last_error_ = ErrorCode::kNotFound;
     return last_error_;
   }
-  listen_address_ = config->grpc.ListenAddress();
+  listen_address_ = config->grpc.Address();
 
   const auto context = qtrade::common::BootstrapDatabaseConnection(config->database, EnsureConfigSchema, service_name_);
   if (!context.connection) {

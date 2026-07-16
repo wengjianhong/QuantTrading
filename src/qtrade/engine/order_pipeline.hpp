@@ -14,8 +14,6 @@
 #include <qtrade/error_code/error_codes.hpp>
 #include <qtrade_sdk/trader/trader_struct.hpp>
 
-#include <memory>
-
 namespace qtrade::client {
 class AccountRiskClient;
 class LogClient;

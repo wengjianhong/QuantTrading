@@ -5,8 +5,6 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/common/config/database_config.hpp"
 
-#include "qtrade/common/json/json_util.hpp"
-
 #include <cpputils/database/config.hpp>
 #include <cpputils/database/database_types.hpp>
 
@@ -235,23 +233,6 @@ DatabaseConfig ParseDatabaseConfigFromSection(const nlohmann::json& database) {
   options.connection = BuildConnectionConfig(database);
   ParsePoolOptions(database, options);
   return options;
-}
-
-DatabaseConfig ParseDatabaseConfigFromRoot(const nlohmann::json& root) {
-  if (!root.contains("database") || !root.at("database").is_object()) {
-    return DatabaseConfig{};
-  }
-  return ParseDatabaseConfigFromSection(root.at("database"));
-}
-
-bool ParseDatabaseConfig(const std::string& json, DatabaseConfig& out) {
-  const auto root = ParseJsonString(json);
-  if (!root.has_value()) {
-    return false;
-  }
-  const auto& root_json = root.value();
-  out = ParseDatabaseConfigFromRoot(root_json);
-  return true;
 }
 
 }  // namespace qtrade::common::config
