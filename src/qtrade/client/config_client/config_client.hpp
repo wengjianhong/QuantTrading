@@ -8,15 +8,12 @@
 #define QTRADE_TRADING_CLIENT_CONFIG_CLIENT_HPP_
 
 #include <qtrade/error_code/error_codes.hpp>
+#include <qtrade/proto/config/v1/config.pb.h>
 
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
-
-namespace qtrade::config::v1 {
-class ConfigSnapshot;
-}
 
 namespace qtrade::client {
 

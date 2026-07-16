@@ -7,6 +7,8 @@
 #ifndef QTRADE_COMMON_APP_APP_RUNNER_HPP_
 #define QTRADE_COMMON_APP_APP_RUNNER_HPP_
 
+#include <qtrade_framework/support/support_service.hpp>
+
 #include <atomic>
 #include <string>
 
@@ -51,6 +53,17 @@ bool ParseConfigPath(int argc, char** argv, std::string& config_path);
 /// @param log_filename 日志文件名（写入 logs/ 目录）
 /// @return 正常退出返回 EXIT_SUCCESS，参数或初始化失败返回 EXIT_FAILURE
 int RunServiceMain(int argc, char** argv, const std::string& service_name, const std::string& log_filename);
+
+/// @brief 运行支撑服务独立进程
+/// @param config_path 已解析的配置文件路径
+/// @param log_dir 日志目录
+/// @param log_filename 日志文件名
+/// @param service 支撑服务实例
+/// @return 正常退出返回 EXIT_SUCCESS，初始化或启动失败返回 EXIT_FAILURE
+int RunSupportServiceMain(const std::string& config_path,
+                          const std::string& log_dir,
+                          const std::string& log_filename,
+                          support::ISupportService& service);
 
 }  // namespace qtrade::common
 

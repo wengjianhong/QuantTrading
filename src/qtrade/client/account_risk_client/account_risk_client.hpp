@@ -8,18 +8,12 @@
 #define QTRADE_CLIENT_ACCOUNT_RISK_CLIENT_HPP_
 
 #include <qtrade/error_code/error_codes.hpp>
+#include <qtrade/proto/account_risk/v1/account_risk.pb.h>
+#include <qtrade_sdk/trader/trader_struct.hpp>
 
 #include <cstdint>
 #include <memory>
 #include <string>
-
-namespace qtrade::account_risk::v1 {
-class ReserveOrderResponse;
-class ReleaseOrderResponse;
-}  // namespace qtrade::account_risk::v1
-namespace qtrade_sdk::trader {
-struct OrderRequest;
-}
 
 namespace qtrade::client {
 

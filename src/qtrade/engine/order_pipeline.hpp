@@ -6,6 +6,8 @@
 #ifndef QTRADE_TRADING_ENGINE_ORDER_PIPELINE_HPP_
 #define QTRADE_TRADING_ENGINE_ORDER_PIPELINE_HPP_
 
+#include "qtrade/client/account_risk_client/account_risk_client.hpp"
+#include "qtrade/client/log_client/log_client.hpp"
 #include "qtrade/engine/cms/compliance_manager.hpp"
 #include "qtrade/engine/ems/execution_manager.hpp"
 #include "qtrade/engine/oms/order_manager.hpp"
@@ -13,11 +15,6 @@
 
 #include <qtrade/error_code/error_codes.hpp>
 #include <qtrade_sdk/trader/trader_struct.hpp>
-
-namespace qtrade::client {
-class AccountRiskClient;
-class LogClient;
-}  // namespace qtrade::client
 
 namespace qtrade::engine {
 

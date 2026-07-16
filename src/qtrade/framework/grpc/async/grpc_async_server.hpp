@@ -7,21 +7,17 @@
 #ifndef QTRADE_COMMON_GRPC_GRPC_ASYNC_SERVER_HPP_
 #define QTRADE_COMMON_GRPC_GRPC_ASYNC_SERVER_HPP_
 
+#include "qtrade/framework/grpc/async/completion_queue_loop.hpp"
+
 #include <qtrade/error_code/error_codes.hpp>
+
+#include <grpcpp/grpcpp.h>
 
 #include <cstddef>
 #include <memory>
 #include <string>
 
-namespace grpc {
-class Server;
-class ServerCompletionQueue;
-class Service;
-}  // namespace grpc
-
 namespace qtrade::common::grpc_async {
-
-class CompletionQueueLoop;
 
 /// @brief 支撑服务侧 gRPC Async + CQ 运行时
 class GrpcAsyncServer {

@@ -5,7 +5,6 @@
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/common/app/app_runner.hpp"
-#include "qtrade/common/app/support_service_main.hpp"
 #include "qtrade/service/config_service/config_service.hpp"
 
 #include <cstdlib>

@@ -13,10 +13,6 @@
 
 #include <memory>
 
-namespace grpc {
-class ServerCompletionQueue;
-}
-
 namespace qtrade::service {
 
 /// @brief 管理 GetConfig / SubscribeConfig 的 Async CallTag 生命周期

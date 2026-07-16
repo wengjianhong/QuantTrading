@@ -9,13 +9,10 @@
 
 #include <qtrade/error_code/error_codes.hpp>
 
+#include <grpcpp/grpcpp.h>
+
 #include <memory>
 #include <string>
-
-namespace grpc {
-class Server;
-class Service;
-}  // namespace grpc
 
 namespace qtrade::common::grpc_sync {
 

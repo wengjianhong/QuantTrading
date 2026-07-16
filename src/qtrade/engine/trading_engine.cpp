@@ -45,6 +45,50 @@ TradingEngine::~TradingEngine() {
   Stop();
 }
 
+const qtrade::common::config::QtradeEngineConfig& TradingEngine::GetConfig() const {
+  return config_;
+}
+
+event_bus::EventLanes& TradingEngine::GetEventLanes() {
+  return event_lanes_;
+}
+
+normalizer::QuoteNormalizer& TradingEngine::GetQuoteNormalizer() {
+  return quote_normalizer_;
+}
+
+normalizer::TraderNormalizer& TradingEngine::GetTraderNormalizer() {
+  return trader_normalizer_;
+}
+
+strategy::StrategyEngine& TradingEngine::GetStrategyEngine() {
+  return strategy_engine_;
+}
+
+client::LogClient& TradingEngine::GetLogClient() {
+  return log_client_;
+}
+
+client::MonitorClient& TradingEngine::GetMonitorClient() {
+  return monitor_client_;
+}
+
+client::ConfigClient& TradingEngine::GetConfigClient() {
+  return config_client_;
+}
+
+oms::OrderManager& TradingEngine::GetOrderManager() {
+  return order_manager_;
+}
+
+account::AccountManager& TradingEngine::GetAccountManager() {
+  return account_manager_;
+}
+
+position::PositionManager& TradingEngine::GetPositionManager() {
+  return position_manager_;
+}
+
 ErrorCode TradingEngine::ReloadFromJson(const std::string& json_path) {
   const auto config_node = qtrade::common::LoadJsonFile(json_path);
   if (!config_node.has_value()) {
@@ -156,9 +200,8 @@ void TradingEngine::OnConfigSnapshot(const qtrade::config::v1::ConfigSnapshot& s
 
   const auto& engine = snapshot.engine();
   if (!engine.engine_id().empty() && engine.engine_id() != config_.identity.engine_id) {
-    spdlog::warn("[TradingEngine] engine_id mismatch: snapshot={} local={}",
-                 engine.engine_id(),
-                 config_.identity.engine_id);
+    spdlog::warn(
+      "[TradingEngine] engine_id mismatch: snapshot={} local={}", engine.engine_id(), config_.identity.engine_id);
   }
 
   runtime_config_ = engine;

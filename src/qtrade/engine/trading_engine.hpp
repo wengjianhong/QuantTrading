@@ -56,9 +56,7 @@ class TradingEngine {
 
   /// @brief 返回当前进程引导配置快照
   /// @return 配置只读引用
-  [[nodiscard]] const qtrade::common::config::QtradeEngineConfig& GetConfig() const {
-    return config_;
-  }
+  [[nodiscard]] const qtrade::common::config::QtradeEngineConfig& GetConfig() const;
 
   /// @brief 停止所有子模块与 client
   /// @return ErrorCode::kSuccess 表示成功；未运行返回 ErrorCode::kSystemError
@@ -74,45 +72,31 @@ class TradingEngine {
 
   /// @brief 获取事件通道门面（Lane-M + Lane-R）
   /// @return 事件通道引用
-  event_bus::EventLanes& GetEventLanes() {
-    return event_lanes_;
-  }
+  event_bus::EventLanes& GetEventLanes();
 
   /// @brief 获取行情标准化模块引用
   /// @return QuoteNormalizer 引用
-  normalizer::QuoteNormalizer& GetQuoteNormalizer() {
-    return quote_normalizer_;
-  }
+  normalizer::QuoteNormalizer& GetQuoteNormalizer();
 
   /// @brief 获取交易标准化模块引用
   /// @return TraderNormalizer 引用
-  normalizer::TraderNormalizer& GetTraderNormalizer() {
-    return trader_normalizer_;
-  }
+  normalizer::TraderNormalizer& GetTraderNormalizer();
 
   /// @brief 获取策略引擎引用
   /// @return StrategyEngine 引用
-  strategy::StrategyEngine& GetStrategyEngine() {
-    return strategy_engine_;
-  }
+  strategy::StrategyEngine& GetStrategyEngine();
 
   /// @brief 获取日志客户端引用
   /// @return LogClient 引用
-  client::LogClient& GetLogClient() {
-    return log_client_;
-  }
+  client::LogClient& GetLogClient();
 
   /// @brief 获取监控客户端引用
   /// @return MonitorClient 引用
-  client::MonitorClient& GetMonitorClient() {
-    return monitor_client_;
-  }
+  client::MonitorClient& GetMonitorClient();
 
   /// @brief 获取配置客户端引用
   /// @return ConfigClient 引用
-  client::ConfigClient& GetConfigClient() {
-    return config_client_;
-  }
+  client::ConfigClient& GetConfigClient();
 
   /// @brief 将策略请求送入 CMS → Risk → OMS → EMS 发单链
   /// @param request 策略下单请求
@@ -121,21 +105,15 @@ class TradingEngine {
 
   /// @brief 获取订单管理模块引用
   /// @return OrderManager 引用
-  oms::OrderManager& GetOrderManager() {
-    return order_manager_;
-  }
+  oms::OrderManager& GetOrderManager();
 
   /// @brief 获取账户管理模块引用
   /// @return AccountManager 引用
-  account::AccountManager& GetAccountManager() {
-    return account_manager_;
-  }
+  account::AccountManager& GetAccountManager();
 
   /// @brief 获取持仓管理模块引用
   /// @return PositionManager 引用
-  position::PositionManager& GetPositionManager() {
-    return position_manager_;
-  }
+  position::PositionManager& GetPositionManager();
 
  private:
   /// @brief 初始化并连接 config_client（GetConfig + SubscribeConfig）

@@ -8,6 +8,10 @@
 
 #include "qtrade/common/logging/logger.hpp"
 
+#include <qtrade/error_code/code_message.hpp>
+#include <qtrade/error_code/error_codes.hpp>
+#include <qtrade_framework/support/support_service.hpp>
+
 #include <spdlog/spdlog.h>
 
 #include <cerrno>
@@ -117,6 +121,52 @@ int RunServiceMain(int argc, char** argv, const std::string& service_name, const
 
   RunUntilStop(stop_flag);
 
+  spdlog::info("[{}] stopped cleanly", service_name);
+  return EXIT_SUCCESS;
+}
+
+int RunSupportServiceMain(const std::string& config_path,
+                          const std::string& log_dir,
+                          const std::string& log_filename,
+                          support::ISupportService& service) {
+  const std::string service_name = service.GetStatus().service_name;
+  if (!init_spdlog_logger(log_dir, log_filename)) {
+    std::cerr << "failed to initialize logger, service_name=" << service_name << std::endl;
+    return EXIT_FAILURE;
+  }
+
+  spdlog::info("======================= Starting =========================");
+  spdlog::info("service_name={}", service_name);
+  spdlog::info("config_path={}", config_path);
+  spdlog::info("service_pid={}", getpid());
+
+  if (const ErrorCode error_code = service.Initialize(config_path); error_code != ErrorCode::kSuccess) {
+    spdlog::error("[{}] initialize failed: {}", service_name, qtrade::GetErrorCodeMessage(error_code));
+    return EXIT_FAILURE;
+  }
+
+  if (const ErrorCode error_code = service.Start(); error_code != ErrorCode::kSuccess) {
+    spdlog::error("[{}] start failed: {}", service_name, qtrade::GetErrorCodeMessage(error_code));
+    service.Stop();
+    return EXIT_FAILURE;
+  }
+
+  std::atomic<bool> stop_flag{false};
+  InstallShutdownHandler(stop_flag);
+  std::thread service_thread([&service] { service.Wait(); });
+
+  UnblockShutdownSignals();
+  spdlog::info("[{}] running until SIGINT/SIGTERM...", service_name);
+  RunUntilStop(stop_flag);
+
+  service.Stop();
+  if (service_thread.joinable()) {
+    service_thread.join();
+  }
+
+  spdlog::info("service_pid={}", getpid());
+  spdlog::info("service_name={}", service_name);
+  spdlog::info("======================= Stopped =========================");
   spdlog::info("[{}] stopped cleanly", service_name);
   return EXIT_SUCCESS;
 }
