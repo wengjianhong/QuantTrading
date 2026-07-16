@@ -17,7 +17,7 @@ std::optional<QtradeConfigServiceConfig> ParseQtradeConfigServiceConfig(const st
     return std::nullopt;
   }
   const auto& root_json = root.value();
-  const auto grpc = ParseGrpcConfig(root_json);
+  const auto grpc = ParseServiceConfig(root_json);
   if (!grpc.has_value()) {
     spdlog::error("parse grpc config failed");
     return std::nullopt;

@@ -7,8 +7,8 @@
     "enabled": true,
     "type": "mysql",
     "config": {
-      "port": 3306,
       "host": "127.0.0.1",
+      "port": 3306,
       "user": "account",
       "password": "account",
       "database_name": "account",

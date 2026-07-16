@@ -15,7 +15,7 @@ std::optional<QtradeLogServiceConfig> ParseQtradeLogServiceConfig(const std::str
     return std::nullopt;
   }
   const auto& root_json = root.value();
-  const auto grpc = ParseGrpcConfig(root_json);
+  const auto grpc = ParseServiceConfig(root_json);
   if (!grpc.has_value() || !root_json.contains("storage") || !root_json.contains("ingest")) {
     return std::nullopt;
   }

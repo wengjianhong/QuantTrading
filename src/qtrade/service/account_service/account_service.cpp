@@ -7,8 +7,8 @@
 
 #include "qtrade/common/config/qtrade_account_service_config.hpp"
 #include "qtrade/common/file/text_file.hpp"
-#include "qtrade/dao/account_credential.hpp"
-#include "qtrade/dao/trading_account.hpp"
+#include "qtrade/dao/account_service/account_credential.hpp"
+#include "qtrade/dao/account_service/trading_account.hpp"
 #include "qtrade/framework/dao/ddl_utils.hpp"
 #include "qtrade/framework/database/database_service_bootstrap.hpp"
 

@@ -13,7 +13,7 @@
 |支撑服务客户端|`src/qtrade/client/`（轻量级异步客户端：日志、配置、**账户凭证**、监控、服务发现）|
 |支撑服务层|`src/qtrade/service/<名称>/`（独立进程 / 镜像部署；与引擎经 gRPC 控制面与 `client/` 旁路接口交互）|
 |内部框架基建|`src/qtrade/framework/`（gRPC、数据库 bootstrap、支撑服务生命周期等共享实现；**不 install**）|
-|表级 DAO|`src/qtrade/dao/`（`trading_account`、`account_credential`、`engine_config` 等；接口见 `include/qtrade/dao/`）|
+|表级 DAO|`src/qtrade/dao/<service>/`（按服务分子目录：`account_service/`、`config_service/`、`account_risk_service/`；接口见 `include/qtrade/dao/`）|
 |接入层（外部独立项目）|不在本仓库；北向 HTTP REST，南向调 QTrade 支撑服务 gRPC|见《架构》§五|
 |外部企业基础服务|由机构平台提供；QTrade 仅集成身份、数据安全、运维和合规能力，不负责其实现或部署|
 
@@ -82,7 +82,13 @@ qtrade/
 │   │   │   │   └── logic/          # 可复用业务工具（converter、codec）
 │   │   │   ├── log_service/
 │   │   │   └── ...
-│   │   ├── dao/                    # 【表级 DAO 实现】.hpp + .cpp（命名空间 qtrade::framework::dao）
+│   │   ├── dao/                    # 【表级 DAO 实现】按服务分子目录（命名空间 qtrade::framework::dao）
+│   │   │   ├── account_service/    # trading_account、account_credential
+│   │   │   ├── config_service/
+│   │   │   │   ├── engine/          # engine_config
+│   │   │   │   └── risk/            # A 段风险策略（含 instance_risk_policy）
+│   │   │   ├── account_risk_service/ # E 段账户硬限制 policy/ledger/reservation
+│   │   │   └── risk_tables.hpp     # 风控表总览 include
 │   │   ├── framework/              # 【内部框架实现】实现头在 src；公开接口头在 include/qtrade_framework/
 │   │   │   ├── support/            # SupportSyncServiceImpl / SupportAsyncServiceImpl
 │   │   │   ├── database/           # 连接选项、DbConnectionHolder、bootstrap
@@ -206,7 +212,7 @@ qtrade/
 }
 ```
 
-对应的业务配置样例位于 `config/examples/engine_config_engine-1.json`。同一账户的两个策略若均交易 `IF2506`，必须分别创建 `engine-03` 和 `engine-04` 两份业务配置；每份配置中 `IF2506` 只能绑定一个策略。两个实例共享账户时，实例预算各自维护，资金、保证金和总敞口硬限制由 account-risk-service 在 E 段原子预占。
+业务配置由 config-service 下发（`GetConfig` / `SubscribeConfig`）；config-service 或 account-risk-service 不可用时引擎应直接失败、不允许依赖本地 fallback 运行。同一账户的两个策略若均交易 `IF2506`，必须分别创建 `engine-03` 和 `engine-04` 两份业务配置；每份配置中 `IF2506` 只能绑定一个策略。两个实例共享账户时，实例预算各自维护，资金、保证金和总敞口硬限制由 account-risk-service 在 E 段原子预占。
 
 ```json
 {
@@ -308,7 +314,7 @@ Api 适配器实现 QTrade 的稳定接口并转发调用；Spi 适配器继承�
 - 模块内部头文件与 `.cpp` 同目录放在 `src/` 下，不放入 `include/`；**`src/` 内部引用**统一以 `src/` 为 include 根，路径带层前缀，例如：
   - `#include "qtrade/service/account_service/account_service.hpp"`
   - `#include <qtrade_framework/grpc/grpc_handler_interface.hpp>`（`include/qtrade_framework/`，不 install）
-  - `#include "qtrade/dao/trading_account.hpp"`
+  - `#include "qtrade/dao/account_service/trading_account.hpp"`
   - `#include "qtrade_sdk/mock/quote/mock_quote_api.hpp"`
   （CMake 对实现库使用 `target_include_directories(... PRIVATE ${QTRADE_SRC_DIR})`；公共头使用 `${QTRADE_INCLUDE_DIR}`）
 - **Handler 管道内业务数据（ServerData）**使用 DAO 记录或内部 struct，**不直接持有 proto**；proto ↔ 内部结构在 `ConvertToServerData` / `BuildResponse` 边界转换（参考 `account_service/handler/`）

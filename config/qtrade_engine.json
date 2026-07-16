@@ -1,14 +1,31 @@
 {
-  "config_service": "127.0.0.1:50051",
-  "account_service": "127.0.0.1:50052",
-  "account_risk_service": "127.0.0.1:50060",
-  "account_risk_enabled": true,
-  "account_risk_timeout_ms": 3,
-  "tenant_id": "default",
-  "engine_id": "engine-1",
-  "account_id": "acc_001",
-  "fallback_engine_config_path": "config/examples/engine_config_engine-1.json",
-  "log_service": "127.0.0.1:50053",
-  "log_topic": "qtrade_engine",
-  "monitor_endpoint": "127.0.0.1:50061"
+  "identity": {
+    "tenant_id": "default",
+    "engine_id": "engine-1",
+    "account_id": "acc_001"
+  },
+  "support_services": {
+    "config_service": {
+      "host": "127.0.0.1",
+      "port": 50051,
+      "timeout_ms": 1000
+    },
+    "account_service": {
+      "host": "127.0.0.1",
+      "port": 50052,
+      "timeout_ms": 1000
+    },
+    "account_risk_service": {
+      "host": "127.0.0.1",
+      "port": 50060,
+      "enabled": true,
+      "timeout_ms": 3
+    },
+    "log_service": {
+      "host": "127.0.0.1",
+      "port": 50053,
+      "timeout_ms": 2000,
+      "topic": "qtrade_engine"
+    }
+  }
 }

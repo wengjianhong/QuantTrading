@@ -6,7 +6,7 @@
 #ifndef QTRADE_SERVICE_ACCOUNT_TRADING_ACCOUNT_CONVERTER_HPP_
 #define QTRADE_SERVICE_ACCOUNT_TRADING_ACCOUNT_CONVERTER_HPP_
 
-#include "qtrade/dao/trading_account.hpp"
+#include "qtrade/dao/account_service/trading_account.hpp"
 
 #include <qtrade/proto/account/v1/account.pb.h>
 

@@ -5,8 +5,8 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/service/account_service/handler/add_account_handler.hpp"
 
-#include "qtrade/dao/account_credential.hpp"
-#include "qtrade/dao/trading_account.hpp"
+#include "qtrade/dao/account_service/account_credential.hpp"
+#include "qtrade/dao/account_service/trading_account.hpp"
 #include "qtrade/service/account_service/logic/credential_codec.hpp"
 #include "qtrade/service/account_service/logic/trading_account_converter.hpp"
 

@@ -7,30 +7,32 @@
 
 #include "qtrade/common/config/qtrade_account_risk_service_config.hpp"
 #include "qtrade/common/file/text_file.hpp"
+#include "qtrade/dao/account_risk_service/account_risk_ledger.hpp"
+#include "qtrade/dao/account_risk_service/account_risk_policy.hpp"
+#include "qtrade/dao/account_risk_service/order_reservation.hpp"
+#include "qtrade/framework/dao/ddl_utils.hpp"
 #include "qtrade/framework/database/database_service_bootstrap.hpp"
 
 namespace qtrade::service {
 namespace {
 
-/// @brief 确保账户风控策略与预占表存在
+/// @brief 确保 E 段账户风控相关表存在
 /// @param connection 数据库连接；不可为 nullptr
 /// @return ErrorCode::kSuccess 表示成功；连接为空或 DDL 失败返回 ErrorCode::kSystemError
 ErrorCode EnsureAccountRiskSchema(cpputils::database::IConnection* connection) {
   if (connection == nullptr) {
     return ErrorCode::kSystemError;
   }
-  constexpr const char* kPolicySql =
-    "CREATE TABLE IF NOT EXISTS account_risk_policy ("
-    "tenant_id TEXT NOT NULL, account_id TEXT NOT NULL, version BIGINT NOT NULL, "
-    "valid_until_unix_ms BIGINT NOT NULL, max_notional DOUBLE NOT NULL, max_margin DOUBLE NOT NULL, "
-    "max_gross_exposure DOUBLE NOT NULL, max_open_orders BIGINT NOT NULL, safety_buffer DOUBLE NOT NULL, "
-    "enabled BOOLEAN NOT NULL, PRIMARY KEY (tenant_id, account_id));";
-  constexpr const char* kReservationSql =
-    "CREATE TABLE IF NOT EXISTS order_reservation ("
-    "tenant_id TEXT NOT NULL, account_id TEXT NOT NULL, order_id TEXT NOT NULL, reservation_id TEXT NOT NULL, "
-    "status TEXT NOT NULL, reserved_notional DOUBLE NOT NULL, reserved_margin DOUBLE NOT NULL, "
-    "expires_at_unix_ms BIGINT NOT NULL, PRIMARY KEY (tenant_id, account_id, order_id));";
-  if (!connection->Execute(kPolicySql) || !connection->Execute(kReservationSql)) {
+  if (qtrade::framework::dao::EnsureTableSchema(connection, qtrade::framework::dao::AccountRiskPolicy::Instance()) !=
+      ErrorCode::kSuccess) {
+    return ErrorCode::kSystemError;
+  }
+  if (qtrade::framework::dao::EnsureTableSchema(connection, qtrade::framework::dao::OrderReservation::Instance()) !=
+      ErrorCode::kSuccess) {
+    return ErrorCode::kSystemError;
+  }
+  if (qtrade::framework::dao::EnsureTableSchema(connection, qtrade::framework::dao::AccountRiskLedger::Instance()) !=
+      ErrorCode::kSuccess) {
     return ErrorCode::kSystemError;
   }
   return ErrorCode::kSuccess;

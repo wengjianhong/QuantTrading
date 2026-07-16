@@ -6,7 +6,7 @@
 #ifndef QTRADE_COMMON_CONFIG_QTRADE_LOG_SERVICE_CONFIG_HPP_
 #define QTRADE_COMMON_CONFIG_QTRADE_LOG_SERVICE_CONFIG_HPP_
 
-#include "qtrade/common/config/grpc_config.hpp"
+#include "qtrade/common/config/service_config.hpp"
 
 #include <optional>
 #include <string>
@@ -16,7 +16,7 @@ namespace qtrade::common::config {
 /// @brief 对应 config/qtrade_log_service.json
 struct QtradeLogServiceConfig {
   /// gRPC 监听
-  GrpcConfig grpc;
+  ServiceConfig grpc;
   /// 存储后端类型
   std::string storage_type;
   /// 存储路径

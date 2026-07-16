@@ -7,7 +7,13 @@
 
 #include "qtrade/common/config/qtrade_config_service_config.hpp"
 #include "qtrade/common/file/text_file.hpp"
-#include "qtrade/dao/engine_config.hpp"
+#include "qtrade/dao/config_service/engine/engine_config.hpp"
+#include "qtrade/dao/config_service/risk/instance_risk_policy.hpp"
+#include "qtrade/dao/config_service/risk/instrument_risk_policy.hpp"
+#include "qtrade/dao/config_service/risk/order_risk_policy.hpp"
+#include "qtrade/dao/config_service/risk/quote_health_policy.hpp"
+#include "qtrade/dao/config_service/risk/strategy_risk_policy.hpp"
+#include "qtrade/dao/config_service/risk/tenant_risk_policy.hpp"
 #include "qtrade/framework/dao/ddl_utils.hpp"
 #include "qtrade/framework/database/database_service_bootstrap.hpp"
 
@@ -15,8 +21,33 @@ namespace qtrade::service {
 
 namespace {
 
+/// @brief 确保 config-service 业务配置与 A 段风险策略表存在
+/// @param connection 数据库连接；不可为 nullptr
+/// @return ErrorCode::kSuccess 表示成功；任一表 DDL 失败返回 ErrorCode::kSystemError
 ErrorCode EnsureConfigSchema(cpputils::database::IConnection* connection) {
-  return qtrade::framework::dao::EnsureTableSchema(connection, qtrade::framework::dao::EngineConfig::Instance());
+  using qtrade::framework::dao::EnsureTableSchema;
+  if (EnsureTableSchema(connection, qtrade::framework::dao::EngineConfig::Instance()) != ErrorCode::kSuccess) {
+    return ErrorCode::kSystemError;
+  }
+  if (EnsureTableSchema(connection, qtrade::framework::dao::TenantRiskPolicy::Instance()) != ErrorCode::kSuccess) {
+    return ErrorCode::kSystemError;
+  }
+  if (EnsureTableSchema(connection, qtrade::framework::dao::InstanceRiskPolicy::Instance()) != ErrorCode::kSuccess) {
+    return ErrorCode::kSystemError;
+  }
+  if (EnsureTableSchema(connection, qtrade::framework::dao::StrategyRiskPolicy::Instance()) != ErrorCode::kSuccess) {
+    return ErrorCode::kSystemError;
+  }
+  if (EnsureTableSchema(connection, qtrade::framework::dao::InstrumentRiskPolicy::Instance()) != ErrorCode::kSuccess) {
+    return ErrorCode::kSystemError;
+  }
+  if (EnsureTableSchema(connection, qtrade::framework::dao::OrderRiskPolicy::Instance()) != ErrorCode::kSuccess) {
+    return ErrorCode::kSystemError;
+  }
+  if (EnsureTableSchema(connection, qtrade::framework::dao::QuoteHealthPolicy::Instance()) != ErrorCode::kSuccess) {
+    return ErrorCode::kSystemError;
+  }
+  return ErrorCode::kSuccess;
 }
 
 }  // namespace

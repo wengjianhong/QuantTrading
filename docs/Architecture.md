@@ -150,7 +150,7 @@ config-service 按 `engine_id` 返回专属 `EngineConfig`；策略启停、参�
 |---|---|---|
 | **进程引导** | 本地 `qtrade_engine.json` | 连 config/account/account-risk 服务、`engine_id`、日志/监控及本机运行参数；**不含**策略、风控阈值与密码 |
 | **业务配置** | config-service → `EngineConfig`（见 §2.5、`config.proto`） | 策略、品种、`account_id` 引用、行情源；**不含**登录密码 |
-| **风险配置** | config-service → 实例 `RiskBudget`；account-risk-service → `AccountRiskPolicy` | 实例预算、账户硬上限、安全缓冲、版本与有效期；**不含**交易凭证 |
+| **风险配置** | config-service → 租户/实例/策略/品种/订单/行情健康等 A 段策略与实例 `RiskBudget`；account-risk-service → 账户硬限制 `AccountRiskPolicy` | A 段策略经 `ConfigSnapshot` 下发，引擎只读本地快照；E 段硬上限与预占仍由 account-risk-service 裁决；**不含**交易凭证 |
 | **运行时账簿** | 引擎内 `AccountManager` | 可用资金、冻结；**不含**开户与凭证 |
 
 **account-service**（`qtrade_account_service`）单独管理资金账户主数据、加密凭证及 `engine_id` ↔ `account_id` 授权。引擎冷启动或换密时通过 `ResolveCredential` **按需**拉取登录材料；**不进** `SubscribeConfig` 流，**禁止**写入 `EngineConfig`。

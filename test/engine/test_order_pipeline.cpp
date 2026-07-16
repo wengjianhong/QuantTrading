@@ -25,7 +25,12 @@ void WaitUntil(const std::function<bool()>& predicate) {
 TEST(OrderPipeline, MockOrderFlowsThroughOmsAndReturnLane) {
   qtrade::engine::TradingEngine engine;
   qtrade::common::config::QtradeEngineConfig config;
-  config.log_topic = "test";
+  config.identity.tenant_id = "test";
+  config.identity.engine_id = "test-engine";
+  config.identity.account_id = "test-account";
+  config.support_services.config_service.enabled = false;
+  config.support_services.account_risk_service.enabled = false;
+  config.support_services.log_service.extensions["topic"] = "test";
   ASSERT_EQ(engine.Init(config), qtrade::ErrorCode::kSuccess);
 
   auto& trader_normalizer = engine.GetTraderNormalizer();

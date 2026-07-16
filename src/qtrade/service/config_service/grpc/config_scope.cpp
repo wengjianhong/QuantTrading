@@ -6,7 +6,7 @@
 #include "qtrade/service/config_service/grpc/config_scope.hpp"
 
 #include "qtrade/common/proto/proto_json_converter.hpp"
-#include "qtrade/dao/engine_config.hpp"
+#include "qtrade/dao/config_service/engine/engine_config.hpp"
 
 #include <spdlog/spdlog.h>
 

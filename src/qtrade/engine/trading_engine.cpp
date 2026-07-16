@@ -70,29 +70,33 @@ ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineConfig& 
 
   config_ = config;
 
-  if (const auto rc = log_client_.Init(config_.log_topic); rc != ErrorCode::kSuccess) {
+  const auto log_topic = config_.support_services.log_service.Extension("topic").value_or("engine");
+  if (const auto rc = log_client_.Init(log_topic); rc != ErrorCode::kSuccess) {
     spdlog::warn("[TradingEngine] log_client init failed, code={}", static_cast<int>(rc));
     return rc;
   }
   order_pipeline_.SetLogClient(&log_client_);
 
-  const std::string monitor_endpoint = config_.monitor_endpoint.empty() ? "stub://local" : config_.monitor_endpoint;
-  if (const auto rc = monitor_client_.Init(monitor_endpoint); rc != ErrorCode::kSuccess) {
+  if (const auto rc = monitor_client_.Init("stub://local"); rc != ErrorCode::kSuccess) {
     spdlog::warn("[TradingEngine] monitor_client init failed, code={}", static_cast<int>(rc));
     log_client_.Shutdown();
     return rc;
   }
 
-  if (!config_.config_service.empty()) {
+  if (config_.support_services.config_service.enabled) {
     if (const auto rc = InitConfigClient(config_); rc != ErrorCode::kSuccess) {
-      spdlog::warn("[TradingEngine] config_client init failed, code={} (using local defaults)", static_cast<int>(rc));
+      spdlog::error("[TradingEngine] config_client init failed, code={}", static_cast<int>(rc));
+      monitor_client_.Shutdown();
+      log_client_.Shutdown();
+      return rc;
     }
   } else {
-    spdlog::info("[TradingEngine] config_service empty, skipping config_client");
+    spdlog::warn("[TradingEngine] config_service.enabled=false, skipping config_client");
   }
 
-  if (config_.account_risk_enabled) {
+  if (config_.support_services.account_risk_service.enabled) {
     if (const auto rc = InitAccountRiskClient(config_); rc != ErrorCode::kSuccess) {
+      spdlog::error("[TradingEngine] account_risk_client init failed, code={}", static_cast<int>(rc));
       monitor_client_.Shutdown();
       log_client_.Shutdown();
       return rc;
@@ -106,10 +110,14 @@ ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineConfig& 
 }
 
 ErrorCode TradingEngine::InitConfigClient(const qtrade::common::config::QtradeEngineConfig& config) {
+  if (!config.support_services.config_service.enabled || !config.support_services.config_service.IsConfigured()) {
+    return ErrorCode::kNotInitialized;
+  }
+
   client::ConfigClientOptions client_opts;
-  client_opts.server_address = config.config_service;
-  client_opts.tenant_id = config.tenant_id;
-  client_opts.engine_id = config.engine_id;
+  client_opts.server_address = config.support_services.config_service.Address();
+  client_opts.tenant_id = config.identity.tenant_id;
+  client_opts.engine_id = config.identity.engine_id;
 
   if (const auto rc = config_client_.Init(client_opts); rc != ErrorCode::kSuccess) {
     return rc;
@@ -119,7 +127,7 @@ ErrorCode TradingEngine::InitConfigClient(const qtrade::common::config::QtradeEn
     [this](const qtrade::config::v1::ConfigSnapshot& snapshot) { OnConfigSnapshot(snapshot); });
 
   if (const auto rc = config_client_.FetchSnapshot(); rc != ErrorCode::kSuccess) {
-    spdlog::warn("[TradingEngine] GetConfig failed, continuing with local snapshot");
+    return rc;
   }
 
   if (const auto rc = config_client_.StartWatch(); rc != ErrorCode::kSuccess) {
@@ -131,11 +139,11 @@ ErrorCode TradingEngine::InitConfigClient(const qtrade::common::config::QtradeEn
 
 ErrorCode TradingEngine::InitAccountRiskClient(const qtrade::common::config::QtradeEngineConfig& config) {
   client::AccountRiskClientOptions options;
-  options.server_address = config.account_risk_service;
-  options.tenant_id = config.tenant_id;
-  options.account_id = config.account_id;
-  options.engine_id = config.engine_id;
-  options.timeout_ms = config.account_risk_timeout_ms;
+  options.server_address = config.support_services.account_risk_service.Address();
+  options.tenant_id = config.identity.tenant_id;
+  options.account_id = config.identity.account_id;
+  options.engine_id = config.identity.engine_id;
+  options.timeout_ms = config.support_services.account_risk_service.timeout_ms;
   return account_risk_client_.Init(options);
 }
 
@@ -146,14 +154,16 @@ void TradingEngine::OnConfigSnapshot(const qtrade::config::v1::ConfigSnapshot& s
   }
 
   const auto& engine = snapshot.engine();
-  if (!engine.engine_id().empty() && engine.engine_id() != config_.engine_id) {
-    spdlog::warn("[TradingEngine] engine_id mismatch: snapshot={} local={}", engine.engine_id(), config_.engine_id);
+  if (!engine.engine_id().empty() && engine.engine_id() != config_.identity.engine_id) {
+    spdlog::warn("[TradingEngine] engine_id mismatch: snapshot={} local={}",
+                 engine.engine_id(),
+                 config_.identity.engine_id);
   }
 
   runtime_config_ = engine;
   spdlog::info("[TradingEngine] config snapshot version={}, account={}, quote_source={}, strategies={}",
                snapshot.version(),
-               config_.account_id,
+               config_.identity.account_id,
                engine.quote_source(),
                engine.strategies_size());
 
