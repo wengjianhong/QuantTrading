@@ -62,6 +62,10 @@ class InstanceRiskPolicy final : public ITableDdl {
   /// @return 生产环境单例
   static InstanceRiskPolicy& Instance();
 
+  /// @brief 获取逻辑数据库名
+  /// @return 固定为 "config"
+  const std::string& DatabaseName() const override;
+
   /// @brief 获取逻辑表名
   /// @return 固定为 "instance_risk_policy"
   const std::string& TableName() const override;

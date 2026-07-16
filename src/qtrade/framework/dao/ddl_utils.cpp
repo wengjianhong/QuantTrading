@@ -5,6 +5,8 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/framework/dao/ddl_utils.hpp"
 
+#include "qtrade/framework/dao/dml_utils.hpp"
+
 namespace qtrade::framework::dao {
 
 ErrorCode EnsureTableSchema(cpputils::database::IConnection* connection, const ITableDdl& schema) {
@@ -12,12 +14,17 @@ ErrorCode EnsureTableSchema(cpputils::database::IConnection* connection, const I
     return ErrorCode::kSystemError;
   }
 
+  // 1. 注册连接供后续 DML 路由
+  SetConnection(schema.DatabaseName(), connection);
+
+  // 2. 执行建表 SQL
   for (const auto& sql : schema.GetCreateTableSqls()) {
     if (!connection->Execute(sql)) {
       return ErrorCode::kSystemError;
     }
   }
 
+  // 3. 创建索引
   for (const auto& sql : schema.GetIndexSqls()) {
     if (!connection->Execute(sql)) {
       return ErrorCode::kSystemError;

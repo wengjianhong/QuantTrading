@@ -10,10 +10,11 @@
 namespace qtrade::framework::dao {
 namespace {
 
-/// 测试 Mock 实例指针
+/// @brief 测试 Mock 实例指针
 AccountCredential* g_mock_instance = nullptr;
 
-constexpr const char* kCreateTableSql = R"(
+/// @brief 建表 SQL 脚本
+const std::string kCreateTableSql = R"(
 CREATE TABLE IF NOT EXISTS account_credential (
   tenant_id TEXT NOT NULL COMMENT '租户 ID（与 trading_account 对齐）',
   account_id TEXT NOT NULL COMMENT '交易账户 ID（与 trading_account 对齐）',
@@ -23,6 +24,18 @@ CREATE TABLE IF NOT EXISTS account_credential (
   PRIMARY KEY (tenant_id, account_id, credential_type)
 );
 )";
+
+/// @brief 逻辑数据库名
+const std::string kDatabaseName = "account";
+
+/// @brief 逻辑表名
+const std::string kTableName = "account_credential";
+
+/// @brief 建表 SQL 列表
+const std::vector<std::string> kCreateTableSqls = {kCreateTableSql};
+
+/// @brief 索引 SQL 列表
+const std::vector<std::string> kIndexSqls = {};
 
 }  // namespace
 
@@ -42,21 +55,23 @@ void AccountCredential::ClearMockInstance() {
   g_mock_instance = nullptr;
 }
 
+const std::string& AccountCredential::DatabaseName() const {
+  return kDatabaseName;
+}
+
 const std::string& AccountCredential::TableName() const {
-  static const std::string kName = "account_credential";
-  return kName;
+  return kTableName;
 }
 
 const std::vector<std::string>& AccountCredential::GetCreateTableSqls() const {
-  static const std::vector<std::string> kSqls = {kCreateTableSql};
-  return kSqls;
+  return kCreateTableSqls;
 }
 
 const std::vector<std::string>& AccountCredential::GetIndexSqls() const {
-  static const std::vector<std::string> kEmpty;
-  return kEmpty;
+  return kIndexSqls;
 }
 
+/// @brief 将 AccountCredentialRecord 转为 KeyValues
 KeyValues BuildAccountCredentialValues(const AccountCredentialRecord& record) {
   KeyValues values;
   AddTextValue(values, "tenant_id", record.tenant_id);
@@ -74,13 +89,14 @@ Result<std::int64_t> AccountCredential::Insert(const std::vector<AccountCredenti
     return Result<std::int64_t>{ErrorCode::kSystemError};
   }
 
+  // 1. 逐条转换并写入
   std::int64_t affected = 0;
   for (const auto& record : records) {
     const KeyValues values = BuildAccountCredentialValues(record);
     if (values.empty()) {
       return Result<std::int64_t>{ErrorCode::kSystemError};
     }
-    const auto result = InsertRow(TableName(), values);
+    const auto result = InsertRow(DatabaseName(), TableName(), values);
     if (result.error_code != ErrorCode::kSuccess) {
       return result;
     }
@@ -94,7 +110,7 @@ Result<std::int64_t> AccountCredential::Delete(const AccountCredentialRecord& wh
   if (where_values.empty()) {
     return Result<std::int64_t>{ErrorCode::kSystemError};
   }
-  return DeleteRows(TableName(), where_values);
+  return DeleteRows(DatabaseName(), TableName(), where_values);
 }
 
 Result<std::int64_t> AccountCredential::BatchDelete(const std::vector<std::int64_t>&) {
@@ -108,16 +124,17 @@ Result<std::int64_t> AccountCredential::Update(const AccountCredentialRecord& re
   if (values.empty() || where_values.empty()) {
     return Result<std::int64_t>{ErrorCode::kSystemError};
   }
-  return UpdateRows(TableName(), values, where_values);
+  return UpdateRows(DatabaseName(), TableName(), values, where_values);
 }
 
 Result<std::int64_t> AccountCredential::Count(const AccountCredentialRecord& where_conditions) {
-  return CountRows(TableName(), BuildAccountCredentialValues(where_conditions));
+  return CountRows(DatabaseName(), TableName(), BuildAccountCredentialValues(where_conditions));
 }
 
 Result<std::vector<AccountCredentialRecord>> AccountCredential::Select(
   const AccountCredentialRecord& where_conditions) {
-  auto query_result = SelectRows(TableName(), BuildAccountCredentialValues(where_conditions));
+  // 1. 按条件查询并映射结果行
+  auto query_result = SelectRows(DatabaseName(), TableName(), BuildAccountCredentialValues(where_conditions));
   if (query_result.error_code != ErrorCode::kSuccess || !query_result.data.has_value()) {
     return Result<std::vector<AccountCredentialRecord>>{query_result.error_code, query_result.error_message};
   }
@@ -130,7 +147,7 @@ Result<std::vector<AccountCredentialRecord>> AccountCredential::Select(
 }
 
 Result<std::int64_t> AccountCredential::Truncate() {
-  return TruncateRows(TableName());
+  return TruncateRows(DatabaseName(), TableName());
 }
 
 }  // namespace qtrade::framework::dao

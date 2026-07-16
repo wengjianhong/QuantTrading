@@ -8,7 +8,8 @@
 namespace qtrade::framework::dao {
 namespace {
 
-constexpr const char* kCreateTableSql = R"(
+/// @brief 建表 SQL 脚本
+const std::string kCreateTableSql = R"(
 CREATE TABLE IF NOT EXISTS order_reservation (
   tenant_id TEXT NOT NULL COMMENT '租户 ID',
   account_id TEXT NOT NULL COMMENT '交易账户 ID',
@@ -29,6 +30,20 @@ CREATE TABLE IF NOT EXISTS order_reservation (
 );
 )";
 
+/// @brief 逻辑数据库名
+const std::string kDatabaseName = "account_risk";
+
+/// @brief 逻辑表名
+const std::string kTableName = "order_reservation";
+
+/// @brief 建表 SQL 列表
+const std::vector<std::string> kCreateTableSqls = {kCreateTableSql};
+
+/// @brief 索引 SQL 列表
+const std::vector<std::string> kIndexSqls = {
+  R"(CREATE INDEX IF NOT EXISTS idx_order_reservation_status ON order_reservation (tenant_id, account_id, status);)",
+  R"(CREATE INDEX IF NOT EXISTS idx_order_reservation_expires ON order_reservation (expires_at_unix_ms);)"};
+
 }  // namespace
 
 OrderReservation& OrderReservation::Instance() {
@@ -36,22 +51,20 @@ OrderReservation& OrderReservation::Instance() {
   return instance;
 }
 
+const std::string& OrderReservation::DatabaseName() const {
+  return kDatabaseName;
+}
+
 const std::string& OrderReservation::TableName() const {
-  static const std::string kName = "order_reservation";
-  return kName;
+  return kTableName;
 }
 
 const std::vector<std::string>& OrderReservation::GetCreateTableSqls() const {
-  static const std::vector<std::string> kSqls = {kCreateTableSql};
-  return kSqls;
+  return kCreateTableSqls;
 }
 
 const std::vector<std::string>& OrderReservation::GetIndexSqls() const {
-  static const std::vector<std::string> kSqls = {
-    R"(CREATE INDEX IF NOT EXISTS idx_order_reservation_status ON order_reservation (tenant_id, account_id, status);)",
-    R"(CREATE INDEX IF NOT EXISTS idx_order_reservation_expires ON order_reservation (expires_at_unix_ms);)"
-  };
-  return kSqls;
+  return kIndexSqls;
 }
 
 }  // namespace qtrade::framework::dao

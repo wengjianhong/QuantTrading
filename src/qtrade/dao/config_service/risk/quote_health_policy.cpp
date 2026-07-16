@@ -8,7 +8,8 @@
 namespace qtrade::framework::dao {
 namespace {
 
-constexpr const char* kCreateTableSql = R"(
+/// @brief 建表 SQL 脚本
+const std::string kCreateTableSql = R"(
 CREATE TABLE IF NOT EXISTS quote_health_policy (
   tenant_id TEXT NOT NULL COMMENT '租户 ID',
   engine_id TEXT NOT NULL COMMENT '引擎实例 ID',
@@ -25,6 +26,19 @@ CREATE TABLE IF NOT EXISTS quote_health_policy (
 );
 )";
 
+/// @brief 逻辑数据库名
+const std::string kDatabaseName = "config";
+
+/// @brief 逻辑表名
+const std::string kTableName = "quote_health_policy";
+
+/// @brief 建表 SQL 列表
+const std::vector<std::string> kCreateTableSqls = {kCreateTableSql};
+
+/// @brief 索引 SQL 列表
+const std::vector<std::string> kIndexSqls = {
+  R"(CREATE INDEX IF NOT EXISTS idx_quote_health_policy_engine ON quote_health_policy (tenant_id, engine_id);)"};
+
 }  // namespace
 
 QuoteHealthPolicy& QuoteHealthPolicy::Instance() {
@@ -32,21 +46,20 @@ QuoteHealthPolicy& QuoteHealthPolicy::Instance() {
   return instance;
 }
 
+const std::string& QuoteHealthPolicy::DatabaseName() const {
+  return kDatabaseName;
+}
+
 const std::string& QuoteHealthPolicy::TableName() const {
-  static const std::string kName = "quote_health_policy";
-  return kName;
+  return kTableName;
 }
 
 const std::vector<std::string>& QuoteHealthPolicy::GetCreateTableSqls() const {
-  static const std::vector<std::string> kSqls = {kCreateTableSql};
-  return kSqls;
+  return kCreateTableSqls;
 }
 
 const std::vector<std::string>& QuoteHealthPolicy::GetIndexSqls() const {
-  static const std::vector<std::string> kSqls = {
-    R"(CREATE INDEX IF NOT EXISTS idx_quote_health_policy_engine ON quote_health_policy (tenant_id, engine_id);)"
-  };
-  return kSqls;
+  return kIndexSqls;
 }
 
 }  // namespace qtrade::framework::dao

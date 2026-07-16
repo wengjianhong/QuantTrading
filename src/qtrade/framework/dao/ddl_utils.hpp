@@ -17,6 +17,7 @@ namespace qtrade::framework::dao {
 /// @param connection 数据库连接；不可为 nullptr 且须已连接
 /// @param schema 表 schema 元数据
 /// @return 成功返回 kSuccess；连接无效或 DDL 执行失败返回 kSystemError
+/// @details 成功时会调用 SetConnection(schema.DatabaseName(), connection) 注册 DML 路由
 [[nodiscard]] ErrorCode EnsureTableSchema(cpputils::database::IConnection* connection, const ITableDdl& schema);
 
 }  // namespace qtrade::framework::dao

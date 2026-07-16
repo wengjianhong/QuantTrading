@@ -43,23 +43,31 @@ class TradingAccount final : public ITableDml<TradingAccountRecord>, public ITab
   ~TradingAccount() noexcept override = default;
 
   /// @brief 获取单例实例
+  /// @return 生产环境单例；测试 Mock 已注册时返回 Mock 实例
   static TradingAccount& Instance();
 
   /// @brief 设置测试用 Mock 实例
-  /// @param mock_instance Mock 对象指针
+  /// @param mock_instance Mock 对象指针；生产环境保持 nullptr
   static void SetMockInstance(TradingAccount* mock_instance);
 
   /// @brief 清除测试用 Mock 实例
   static void ClearMockInstance();
 
   /// ========================= ITableDdl 接口实现 =========================
+  /// @brief 获取逻辑数据库名
+  /// @return 固定为 "account"
+  const std::string& DatabaseName() const override;
+
   /// @brief 获取逻辑表名
+  /// @return 固定为 "trading_account"
   const std::string& TableName() const override;
 
   /// @brief 获取建表 SQL 列表
+  /// @return 含 CREATE TABLE 语句的列表
   const std::vector<std::string>& GetCreateTableSqls() const override;
 
   /// @brief 获取索引 SQL 列表
+  /// @return 索引语句列表；无索引时为空
   const std::vector<std::string>& GetIndexSqls() const override;
 
   /// ========================= ITableDml 接口实现 =========================

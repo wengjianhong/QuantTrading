@@ -20,8 +20,11 @@ namespace qtrade::framework::dao {
 
 /// @brief 凭证类型
 enum class CredentialType {
+  /// 默认类型
   kDefault = 0,
+  /// 交易密码
   kPassword = 1,
+  /// 授权码
   kAuthCode = 2,
 };
 
@@ -52,23 +55,31 @@ class AccountCredential final : public ITableDml<AccountCredentialRecord>, publi
   ~AccountCredential() noexcept override = default;
 
   /// @brief 获取单例实例
+  /// @return 生产环境单例；测试 Mock 已注册时返回 Mock 实例
   static AccountCredential& Instance();
 
   /// @brief 设置测试用 Mock 实例
-  /// @param mock_instance Mock 对象指针
+  /// @param mock_instance Mock 对象指针；生产环境保持 nullptr
   static void SetMockInstance(AccountCredential* mock_instance);
 
   /// @brief 清除测试用 Mock 实例
   static void ClearMockInstance();
 
   /// ========================= ITableDdl 接口实现 =========================
+  /// @brief 获取逻辑数据库名
+  /// @return 固定为 "account"
+  const std::string& DatabaseName() const override;
+
   /// @brief 获取逻辑表名
+  /// @return 固定为 "account_credential"
   const std::string& TableName() const override;
 
   /// @brief 获取建表 SQL 列表
+  /// @return 含 CREATE TABLE 语句的列表
   const std::vector<std::string>& GetCreateTableSqls() const override;
 
   /// @brief 获取索引 SQL 列表
+  /// @return 索引语句列表；无索引时为空
   const std::vector<std::string>& GetIndexSqls() const override;
 
   /// ========================= ITableDml 接口实现 =========================

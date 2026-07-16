@@ -8,7 +8,8 @@
 namespace qtrade::framework::dao {
 namespace {
 
-constexpr const char* kCreateTableSql = R"(
+/// @brief 建表 SQL 脚本
+const std::string kCreateTableSql = R"(
 CREATE TABLE IF NOT EXISTS account_risk_ledger (
   tenant_id TEXT NOT NULL COMMENT '租户 ID',
   account_id TEXT NOT NULL COMMENT '交易账户 ID',
@@ -26,6 +27,19 @@ CREATE TABLE IF NOT EXISTS account_risk_ledger (
 );
 )";
 
+/// @brief 逻辑数据库名
+const std::string kDatabaseName = "account_risk";
+
+/// @brief 逻辑表名
+const std::string kTableName = "account_risk_ledger";
+
+/// @brief 建表 SQL 列表
+const std::vector<std::string> kCreateTableSqls = {kCreateTableSql};
+
+/// @brief 索引 SQL 列表
+const std::vector<std::string> kIndexSqls = {
+  R"(CREATE INDEX IF NOT EXISTS idx_account_risk_ledger_updated ON account_risk_ledger (updated_at_unix_ms);)"};
+
 }  // namespace
 
 AccountRiskLedger& AccountRiskLedger::Instance() {
@@ -33,21 +47,20 @@ AccountRiskLedger& AccountRiskLedger::Instance() {
   return instance;
 }
 
+const std::string& AccountRiskLedger::DatabaseName() const {
+  return kDatabaseName;
+}
+
 const std::string& AccountRiskLedger::TableName() const {
-  static const std::string kName = "account_risk_ledger";
-  return kName;
+  return kTableName;
 }
 
 const std::vector<std::string>& AccountRiskLedger::GetCreateTableSqls() const {
-  static const std::vector<std::string> kSqls = {kCreateTableSql};
-  return kSqls;
+  return kCreateTableSqls;
 }
 
 const std::vector<std::string>& AccountRiskLedger::GetIndexSqls() const {
-  static const std::vector<std::string> kSqls = {
-    R"(CREATE INDEX IF NOT EXISTS idx_account_risk_ledger_updated ON account_risk_ledger (updated_at_unix_ms);)"
-  };
-  return kSqls;
+  return kIndexSqls;
 }
 
 }  // namespace qtrade::framework::dao

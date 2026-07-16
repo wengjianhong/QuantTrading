@@ -8,7 +8,8 @@
 namespace qtrade::framework::dao {
 namespace {
 
-constexpr const char* kCreateTableSql = R"(
+/// @brief 建表 SQL 脚本
+const std::string kCreateTableSql = R"(
 CREATE TABLE IF NOT EXISTS instance_risk_policy (
   tenant_id TEXT NOT NULL COMMENT '租户 ID',
   account_id TEXT NOT NULL COMMENT '交易账户 ID',
@@ -26,6 +27,19 @@ CREATE TABLE IF NOT EXISTS instance_risk_policy (
 );
 )";
 
+/// @brief 逻辑数据库名
+const std::string kDatabaseName = "config";
+
+/// @brief 逻辑表名
+const std::string kTableName = "instance_risk_policy";
+
+/// @brief 建表 SQL 列表
+const std::vector<std::string> kCreateTableSqls = {kCreateTableSql};
+
+/// @brief 索引 SQL 列表
+const std::vector<std::string> kIndexSqls = {
+  R"(CREATE INDEX IF NOT EXISTS idx_instance_risk_policy_engine ON instance_risk_policy (tenant_id, engine_id);)"};
+
 }  // namespace
 
 InstanceRiskPolicy& InstanceRiskPolicy::Instance() {
@@ -33,21 +47,20 @@ InstanceRiskPolicy& InstanceRiskPolicy::Instance() {
   return instance;
 }
 
+const std::string& InstanceRiskPolicy::DatabaseName() const {
+  return kDatabaseName;
+}
+
 const std::string& InstanceRiskPolicy::TableName() const {
-  static const std::string kName = "instance_risk_policy";
-  return kName;
+  return kTableName;
 }
 
 const std::vector<std::string>& InstanceRiskPolicy::GetCreateTableSqls() const {
-  static const std::vector<std::string> kSqls = {kCreateTableSql};
-  return kSqls;
+  return kCreateTableSqls;
 }
 
 const std::vector<std::string>& InstanceRiskPolicy::GetIndexSqls() const {
-  static const std::vector<std::string> kSqls = {
-    R"(CREATE INDEX IF NOT EXISTS idx_instance_risk_policy_engine ON instance_risk_policy (tenant_id, engine_id);)"
-  };
-  return kSqls;
+  return kIndexSqls;
 }
 
 }  // namespace qtrade::framework::dao

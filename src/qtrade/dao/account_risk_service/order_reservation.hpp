@@ -67,6 +67,10 @@ class OrderReservation final : public ITableDdl {
   /// @return 生产环境单例
   static OrderReservation& Instance();
 
+  /// @brief 获取逻辑数据库名
+  /// @return 固定为 "account_risk"
+  const std::string& DatabaseName() const override;
+
   /// @brief 获取逻辑表名
   /// @return 固定为 "order_reservation"
   const std::string& TableName() const override;

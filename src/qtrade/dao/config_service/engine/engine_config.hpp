@@ -53,15 +53,21 @@ class EngineConfig final : public ITableDml<EngineConfigRecord>, public ITableDd
   /// @brief 清除测试用 Mock 实例
   static void ClearMockInstance();
 
-  /// ========================= ITableSchema 接口实现 =========================
+  /// ========================= ITableDdl 接口实现 =========================
+  /// @brief 获取逻辑数据库名
+  /// @return 固定为 "config"
+  const std::string& DatabaseName() const override;
+
   /// @brief 获取逻辑表名
   /// @return 固定为 "engine_config"
   const std::string& TableName() const override;
 
   /// @brief 获取建表 SQL 列表
+  /// @return 含 CREATE TABLE 语句的列表
   const std::vector<std::string>& GetCreateTableSqls() const override;
 
   /// @brief 获取索引 SQL 列表
+  /// @return 索引语句列表；无索引时为空
   const std::vector<std::string>& GetIndexSqls() const override;
 
   /// ========================= ITableDml 接口实现 =========================

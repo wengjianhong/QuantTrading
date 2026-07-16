@@ -10,10 +10,11 @@
 namespace qtrade::framework::dao {
 namespace {
 
-/// 测试 Mock 实例指针
+/// @brief 测试 Mock 实例指针
 EngineConfig* g_mock_instance = nullptr;
 
-constexpr const char* kCreateTableSql = R"(
+/// @brief 建表 SQL 脚本
+const std::string kCreateTableSql = R"(
 CREATE TABLE IF NOT EXISTS engine_config (
   tenant_id TEXT NOT NULL COMMENT '租户 ID',
   engine_id TEXT NOT NULL COMMENT '引擎 ID',
@@ -22,6 +23,18 @@ CREATE TABLE IF NOT EXISTS engine_config (
   PRIMARY KEY (tenant_id, engine_id)
 );
 )";
+
+/// @brief 逻辑数据库名
+const std::string kDatabaseName = "config";
+
+/// @brief 逻辑表名
+const std::string kTableName = "engine_config";
+
+/// @brief 建表 SQL 列表
+const std::vector<std::string> kCreateTableSqls = {kCreateTableSql};
+
+/// @brief 索引 SQL 列表
+const std::vector<std::string> kIndexSqls = {};
 
 }  // namespace
 
@@ -41,21 +54,23 @@ void EngineConfig::ClearMockInstance() {
   g_mock_instance = nullptr;
 }
 
+const std::string& EngineConfig::DatabaseName() const {
+  return kDatabaseName;
+}
+
 const std::string& EngineConfig::TableName() const {
-  static const std::string kName = "engine_config";
-  return kName;
+  return kTableName;
 }
 
 const std::vector<std::string>& EngineConfig::GetCreateTableSqls() const {
-  static const std::vector<std::string> kSqls = {kCreateTableSql};
-  return kSqls;
+  return kCreateTableSqls;
 }
 
 const std::vector<std::string>& EngineConfig::GetIndexSqls() const {
-  static const std::vector<std::string> kEmpty;
-  return kEmpty;
+  return kIndexSqls;
 }
 
+/// @brief 将 EngineConfigRecord 转为 KeyValues
 KeyValues BuildEngineConfigValues(const EngineConfigRecord& record) {
   KeyValues values;
   AddTextValue(values, "tenant_id", record.tenant_id);
@@ -70,13 +85,14 @@ Result<std::int64_t> EngineConfig::Insert(const std::vector<EngineConfigRecord>&
     return Result<std::int64_t>{ErrorCode::kSystemError};
   }
 
+  // 1. 逐条转换并写入
   std::int64_t affected = 0;
   for (const auto& record : records) {
     const KeyValues values = BuildEngineConfigValues(record);
     if (values.empty()) {
       return Result<std::int64_t>{ErrorCode::kSystemError};
     }
-    const auto result = InsertRow(TableName(), values);
+    const auto result = InsertRow(DatabaseName(), TableName(), values);
     if (result.error_code != ErrorCode::kSuccess) {
       spdlog::error("[EngineConfig] insert failed");
       return result;
@@ -92,7 +108,7 @@ Result<std::int64_t> EngineConfig::Delete(const EngineConfigRecord& where_condit
     spdlog::error("[EngineConfig] delete failed: empty where");
     return Result<std::int64_t>{ErrorCode::kSystemError};
   }
-  return DeleteRows(TableName(), where_values);
+  return DeleteRows(DatabaseName(), TableName(), where_values);
 }
 
 Result<std::int64_t> EngineConfig::BatchDelete(const std::vector<std::int64_t>&) {
@@ -108,22 +124,24 @@ Result<std::int64_t> EngineConfig::Update(const EngineConfigRecord& record,
     spdlog::error("[EngineConfig] update failed: empty values or where");
     return Result<std::int64_t>{ErrorCode::kSystemError};
   }
-  return UpdateRows(TableName(), values, where_values);
+  return UpdateRows(DatabaseName(), TableName(), values, where_values);
 }
 
 Result<std::int64_t> EngineConfig::Count(const EngineConfigRecord& where_conditions) {
-  return CountRows(TableName(), BuildEngineConfigValues(where_conditions));
+  return CountRows(DatabaseName(), TableName(), BuildEngineConfigValues(where_conditions));
 }
 
 Result<std::vector<EngineConfigRecord>> EngineConfig::Select(const EngineConfigRecord& where_conditions) {
-  auto query_result = SelectRows(TableName(), BuildEngineConfigValues(where_conditions));
+  // 1. 按条件查询
+  auto query_result = SelectRows(DatabaseName(), TableName(), BuildEngineConfigValues(where_conditions));
   if (query_result.error_code != ErrorCode::kSuccess || !query_result.data.has_value()) {
-    auto* connection = GetConnection();
+    auto* connection = GetConnection(DatabaseName());
     spdlog::error("[EngineConfig] select failed: {}",
                   connection != nullptr ? connection->LastError().message : "no connection");
     return Result<std::vector<EngineConfigRecord>>{query_result.error_code};
   }
 
+  // 2. 逐行映射为记录
   std::vector<EngineConfigRecord> rows;
   while (const auto row = query_result.data.value()->Fetch()) {
     rows.push_back(BuildEngineConfigRecord(**row));
@@ -132,7 +150,7 @@ Result<std::vector<EngineConfigRecord>> EngineConfig::Select(const EngineConfigR
 }
 
 Result<std::int64_t> EngineConfig::Truncate() {
-  return TruncateRows(TableName());
+  return TruncateRows(DatabaseName(), TableName());
 }
 
 }  // namespace qtrade::framework::dao

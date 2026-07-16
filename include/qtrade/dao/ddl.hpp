@@ -17,7 +17,13 @@ class ITableDdl {
  public:
   virtual ~ITableDdl() noexcept = default;
 
-  /// @brief 逻辑表名（与数据库中实际表名一致）
+  /// @brief 获取逻辑数据库名
+  /// @return 服务内连接路由键；通常与 JSON database_name 一致
+  /// @details 用于 SetConnection / GetConnection 选择连接，不代表跨环境物理库名映射
+  virtual const std::string& DatabaseName() const = 0;
+
+  /// @brief 获取逻辑表名
+  /// @return 与数据库中实际表名一致
   virtual const std::string& TableName() const = 0;
 
   /// @brief 建表 SQL 语句列表

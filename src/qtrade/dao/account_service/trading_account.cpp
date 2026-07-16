@@ -10,10 +10,11 @@
 namespace qtrade::framework::dao {
 namespace {
 
-/// 测试 Mock 实例指针
+/// @brief 测试 Mock 实例指针
 TradingAccount* g_mock_instance = nullptr;
 
-constexpr const char* kCreateTableSql = R"(
+/// @brief 建表 SQL 脚本
+const std::string kCreateTableSql = R"(
 CREATE TABLE IF NOT EXISTS trading_account (
   tenant_id TEXT NOT NULL COMMENT '租户 ID',
   account_id TEXT NOT NULL COMMENT '交易账户 ID',
@@ -23,6 +24,18 @@ CREATE TABLE IF NOT EXISTS trading_account (
   PRIMARY KEY (tenant_id, account_id)
 );
 )";
+
+/// @brief 逻辑数据库名
+const std::string kDatabaseName = "account";
+
+/// @brief 逻辑表名
+const std::string kTableName = "trading_account";
+
+/// @brief 建表 SQL 列表
+const std::vector<std::string> kCreateTableSqls = {kCreateTableSql};
+
+/// @brief 索引 SQL 列表
+const std::vector<std::string> kIndexSqls = {};
 
 }  // namespace
 
@@ -42,21 +55,23 @@ void TradingAccount::ClearMockInstance() {
   g_mock_instance = nullptr;
 }
 
+const std::string& TradingAccount::DatabaseName() const {
+  return kDatabaseName;
+}
+
 const std::string& TradingAccount::TableName() const {
-  static const std::string kName = "trading_account";
-  return kName;
+  return kTableName;
 }
 
 const std::vector<std::string>& TradingAccount::GetCreateTableSqls() const {
-  static const std::vector<std::string> kSqls = {kCreateTableSql};
-  return kSqls;
+  return kCreateTableSqls;
 }
 
 const std::vector<std::string>& TradingAccount::GetIndexSqls() const {
-  static const std::vector<std::string> kEmpty;
-  return kEmpty;
+  return kIndexSqls;
 }
 
+/// @brief 将 TradingAccountRecord 转为 KeyValues
 KeyValues BuildTradingAccountValues(const TradingAccountRecord& record) {
   KeyValues values;
   AddTextValue(values, "tenant_id", record.tenant_id);
@@ -72,13 +87,14 @@ Result<std::int64_t> TradingAccount::Insert(const std::vector<TradingAccountReco
     return Result<std::int64_t>{ErrorCode::kSystemError};
   }
 
+  // 1. 逐条转换并写入
   std::int64_t affected = 0;
   for (const auto& record : records) {
     const KeyValues values = BuildTradingAccountValues(record);
     if (values.empty()) {
       return Result<std::int64_t>{ErrorCode::kSystemError};
     }
-    const auto result = InsertRow(TableName(), values);
+    const auto result = InsertRow(DatabaseName(), TableName(), values);
     if (result.error_code != ErrorCode::kSuccess) {
       return result;
     }
@@ -92,7 +108,7 @@ Result<std::int64_t> TradingAccount::Delete(const TradingAccountRecord& where_co
   if (where_values.empty()) {
     return Result<std::int64_t>{ErrorCode::kSystemError};
   }
-  return DeleteRows(TableName(), where_values);
+  return DeleteRows(DatabaseName(), TableName(), where_values);
 }
 
 Result<std::int64_t> TradingAccount::BatchDelete(const std::vector<std::int64_t>&) {
@@ -106,15 +122,16 @@ Result<std::int64_t> TradingAccount::Update(const TradingAccountRecord& record,
   if (values.empty() || where_values.empty()) {
     return Result<std::int64_t>{ErrorCode::kSystemError};
   }
-  return UpdateRows(TableName(), values, where_values);
+  return UpdateRows(DatabaseName(), TableName(), values, where_values);
 }
 
 Result<std::int64_t> TradingAccount::Count(const TradingAccountRecord& where_conditions) {
-  return CountRows(TableName(), BuildTradingAccountValues(where_conditions));
+  return CountRows(DatabaseName(), TableName(), BuildTradingAccountValues(where_conditions));
 }
 
 Result<std::vector<TradingAccountRecord>> TradingAccount::Select(const TradingAccountRecord& where_conditions) {
-  auto query_result = SelectRows(TableName(), BuildTradingAccountValues(where_conditions));
+  // 1. 按条件查询并映射结果行
+  auto query_result = SelectRows(DatabaseName(), TableName(), BuildTradingAccountValues(where_conditions));
   if (query_result.error_code != ErrorCode::kSuccess || !query_result.data.has_value()) {
     return Result<std::vector<TradingAccountRecord>>{query_result.error_code};
   }
@@ -127,7 +144,7 @@ Result<std::vector<TradingAccountRecord>> TradingAccount::Select(const TradingAc
 }
 
 Result<std::int64_t> TradingAccount::Truncate() {
-  return TruncateRows(TableName());
+  return TruncateRows(DatabaseName(), TableName());
 }
 
 }  // namespace qtrade::framework::dao

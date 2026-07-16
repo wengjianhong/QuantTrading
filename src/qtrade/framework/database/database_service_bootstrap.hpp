@@ -7,7 +7,6 @@
 #define QTRADE_COMMON_DATABASE_DATABASE_SERVICE_BOOTSTRAP_HPP_
 
 #include "qtrade/common/config/database_config.hpp"
-#include "qtrade/framework/dao/dml_utils.hpp"
 #include "qtrade/framework/database/db_connection.hpp"
 
 #include <qtrade/error_code/error_codes.hpp>
@@ -49,7 +48,6 @@ template <typename EnsureSchemaFn>
     return context;
   }
 
-  qtrade::framework::dao::SetConnection(connection->Connection());
   if (const auto rc = ensure_schema(connection->Connection()); rc != ErrorCode::kSuccess) {
     spdlog::error("[{}] ensure schema failed", log_tag);
     return context;
