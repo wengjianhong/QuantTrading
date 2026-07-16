@@ -17,7 +17,7 @@
 |接入层（外部独立项目）|不在本仓库；北向 HTTP REST，南向调 QTrade 支撑服务 gRPC|见《架构》§五|
 |外部企业基础服务|由机构平台提供；QTrade 仅集成身份、数据安全、运维和合规能力，不负责其实现或部署|
 
-**性能口径**：A/B/C/D/E 链路分段、控制面/数据面边界见《架构》**§2.1、§2.2**；**A 段**（策略回调同线程）禁止同步阻塞远程服务、禁止等待磁盘 fsync。
+**性能口径**：A/E/J/C/B/D 链路分段、控制面/数据面边界见《架构》**§2.1、§2.2**；A 段止于 `OrderIntent` 入队，禁止同步远程服务和磁盘 I/O。
 
 ---
 
@@ -152,19 +152,25 @@ qtrade/
 
 ### 3.1 A 段热路径（强制约束）
 
-- **定义**（§2.1.1）：Lane-M → 策略 → CMS → Risk → [E 段] → OMS → EMS 入队（完整路径见《架构》§7.2）
+- **定义**（§2.1.1）：Lane-M → 策略 → CMS → Risk → `OrderIntent` 入队
 
-- **发单主链**（§2.1.4）：A 段结束后经可选 E 段账户预占，再进入 C 段（EMS 出队 → 适配器 → 交易所）；各段分别计量 SLA
+- **发单主链**（§2.1.4）：A → [E] → J → C。Production/Institutional 强制执行 E 段；J 段订单主日志提交成功后才允许进入 EMS
 
-- **同线程禁止**：同步阻塞、磁盘 fsync、**等待交易所/远程 ack**、调用支撑服务 client（C 段 RTT 不计入 A 段 50μs）
+- **同线程禁止**：同步阻塞、磁盘 I/O、等待交易所/远程 ACK、调用支撑服务 client
 
-- **B 段（异步）**：OMS WAL、合规日志、快照；自 OMS 变更**并行**触发，专用 I/O 线程，**不得阻塞 A 段**；不在 A→C 主链中间
+- **J 段（订单主日志）**：保存准入结果、订单状态和规范化回报，是订单恢复的唯一事实源；由独立日志线程处理
+
+- **B/D 段（异步）**：内存快照、历史副本、指标和远程审计投递；不得另建一套订单事实
 
 - **控制面**：本地快照 + gRPC `SubscribeConfig` 变更推送；冷启动 `GetConfig` 拉全量（独立控制线程/启动阶段，不在策略回调内）
 
-### 3.2 C 段出站与 D 段旁路
+### 3.2 E/J/C 段与旁路
 
-- **C 段**：EMS → 执行适配器 → 交易所/券商，**单独 SLA**，与 A 段分别压测（见《架构》§2.1.4）
+- **E 段**：同步 `ReserveOrder`；超时或断连为 `Unknown`，必须使用同一 `order_id` 查询，不能直接当拒绝
+
+- **J 段**：先提交 `Prepared`/`RiskRejected`/`ReserveUnknown`，再继续后续动作
+
+- **C 段**：EMS → 执行适配器 → 交易所/券商。明确确认请求未提交时，使用同一 `order_id` 有界重试；不可重试或次数耗尽则记录 `SendFailed` 并释放预占。发送结果未知时先查询，禁止盲目重发
 
 - **D 段及非热路径**：回测、报表、日志检索、事后审计、批量查询等；Outbound 旁路上报；背压策略见《架构》§7.1（A 段永不因旁路满而阻塞）
 
@@ -181,7 +187,8 @@ qtrade/
 |交易引擎 → 支撑服务（D 段）|`client/` 异步接口 + Protobuf|Outbound 线程 fire-and-forget；内部传输可插拔，MVP 可 stub|
 |引擎 ↔ config-service|gRPC + Protobuf|引擎仅作 Client：`GetConfig` + `SubscribeConfig`（`EngineConfig`）|
 |引擎 ↔ account-service|gRPC + Protobuf|【规划】引擎 Client：`ResolveCredential`（启动/换密，不进 A 段）|
-|引擎 ↔ account-risk-service|gRPC + Protobuf|E 段：`ReserveOrder` / `ReleaseOrder`；超时或不可达默认拒绝受限账户的新订单|
+|引擎 ↔ account-risk-service|gRPC + Protobuf|E 段仅同步 `ReserveOrder`；`Unknown` 查询确认；Release/Settle 经 outbox 异步重试|
+|引擎 ↔ safety-control|引擎主动建立双向 gRPC 流|冻结 → 撤单 → 确认/对账 → 必要时断开；返回分阶段 ACK|
 |支撑服务之间|gRPC + Protobuf|同步 / 异步均可（如 config 写入前校验 account 授权）|
 |接入层 ↔ 外部系统|HTTP(S)/WebSocket|**外部独立项目**；RESTful 北向，网关转 gRPC 调本仓库支撑服务|
 |外部接入层 → QTrade 支撑服务|gRPC + Protobuf|config / **account** / history / observability 等（`src/qtrade/service/`）|
@@ -190,11 +197,11 @@ qtrade/
 
 - **D 段**：`log_client`、`monitor_client` 等仅定义引擎侧异步接口；是否实现远程 gRPC/HTTP、是否 no-op 由里程碑决定
 
-- **控制面（config）**：配置变更经 config-service 审计后，由 `SubscribeConfig` 流推送 `ConfigSnapshot`（`version` + `EngineConfig`）；引擎按 `version` 幂等应用
+- **控制面（config）**：配置变更经 config-service 审计后，由 `SubscribeConfig` 推送带 `version`、`release_id`、生效时间、过期时间和签名的快照；EngineConfig、RiskBudget 与 AccountRiskPolicy 按同一 `release_id` 联合生效
 
 - **凭证面（account）**：登录凭证经 account-service 按需拉取，不进 `SubscribeConfig`（详见《架构》§2.6）
 
-- **优先级**：P0 审计须经本地 Spool 保底，不得仅依赖远程上报
+- **P0 事实源**：订单类事实只写订单主日志；本地 Spool 是远程审计投递 outbox，不得维护另一套订单状态
 
 ### 4.3 引擎配置与多实例示例
 
@@ -206,13 +213,12 @@ qtrade/
   "account_service": "127.0.0.1:50052",
   "tenant_id": "default",
   "engine_id": "engine-1",
-  "account_id": "acc_001",
   "log_topic": "qtrade_engine",
   "monitor_endpoint": "stub://local"
 }
 ```
 
-业务配置由 config-service 下发（`GetConfig` / `SubscribeConfig`）；config-service 或 account-risk-service 不可用时引擎应直接失败、不允许依赖本地 fallback 运行。同一账户的两个策略若均交易 `IF2506`，必须分别创建 `engine-03` 和 `engine-04` 两份业务配置；每份配置中 `IF2506` 只能绑定一个策略。两个实例共享账户时，实例预算各自维护，资金、保证金和总敞口硬限制由 account-risk-service 在 E 段原子预占。
+业务配置由 config-service 下发。冷启动拉取失败时，只允许使用签名正确且未过期的本地快照；快照过期后冻结新单，但继续处理回报和撤单。MVP 中一个账户只绑定一个 Active 引擎；同账户同品种的多个模型应合并为组合策略，不通过拆实例实现。
 
 ```json
 {
@@ -229,7 +235,7 @@ qtrade/
 }
 ```
 
-配置更新必须按版本幂等应用。策略启停、参数和行情地址可由控制面更新；品种归属变更必须在维护窗口通过重启或 controlled reload 生效，MVP 不支持跨实例在线迁移。
+配置更新必须按 `version + release_id` 幂等应用。策略启停和普通参数可在事件边界热更新；策略二进制、品种归属和账户绑定通过 controlled reload 生效；MVP 不支持跨实例在线迁移。
 
 
 ---
@@ -430,7 +436,7 @@ Api 适配器实现 QTrade 的稳定接口并转发调用；Spi 适配器继承�
 | 架构能力 | 目标阶段 | 当前实现状态 |
 |---|---|---|
 | EventBus 与双 EventReactor 事件通道 | MVP | ✅ 已有引擎骨架、EventReactorLoop 与事件类型 |
-| CMS / OMS / EMS / 风控 / 持仓 | MVP | 🟡 模块骨架已有；WAL 与幂等语义仍待完善 |
+| CMS / OMS / EMS / 风控 / 持仓 | MVP | 🟡 模块骨架已有；订单主日志、状态机与幂等语义仍待完善 |
 | 配置驱动分片与一品种一策略校验 | MVP | 🟡 `EngineConfig` 模型已对齐；配置校验和策略一对一分发待实现 |
 | account-service 与凭证、配置分离 | MVP | ❌ 服务与凭证链路待实现 |
 | 行情标准化与可替换行情适配器 | MVP | ✅ 已有 `QuoteNormalizer` 与 `QuoteApi`；故障切换待实现 |
