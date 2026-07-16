@@ -27,7 +27,7 @@ class ComplianceManager {
   [[nodiscard]] ErrorCode CheckOrder(const qtrade_sdk::trader::OrderRequest& request) const;
 
  private:
-  std::atomic_bool running_{false};
+  std::atomic_bool running_ = false;
 };
 
 }  // namespace qtrade::engine::cms

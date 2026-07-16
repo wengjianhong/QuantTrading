@@ -32,7 +32,7 @@ class TraderNormalizer {
 
   event_bus::ReturnEventReactor& return_event_reactor_;
   std::unique_ptr<qtrade_sdk::trader::TraderApi> trader_api_;
-  bool running_;
+  bool running_ = false;
 };
 
 }  // namespace qtrade::engine::normalizer

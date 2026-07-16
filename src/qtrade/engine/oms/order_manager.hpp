@@ -91,9 +91,9 @@ class OrderManager {
   /// 保护订单表与索引
   mutable std::mutex mutex_;
   /// 是否已 Start
-  bool running_;
+  bool running_ = false;
   /// 订单 ID 递增计数器
-  std::atomic<uint64_t> order_id_counter_;
+  std::atomic<std::uint64_t> order_id_counter_ = 0;
 };
 
 }  // namespace qtrade::engine::oms

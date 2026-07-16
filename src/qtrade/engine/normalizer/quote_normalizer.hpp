@@ -36,7 +36,7 @@ class QuoteNormalizer {
   event_bus::MarketEventReactor& market_event_reactor_;
   std::unique_ptr<qtrade_sdk::quote::QuoteApi> market_source_;
   std::mutex mutex_;
-  bool running_;
+  bool running_ = false;
 
   void OnTick(const qtrade_sdk::quote::MarketTick& tick);
   void OnBar(const qtrade_sdk::quote::Bar& bar);

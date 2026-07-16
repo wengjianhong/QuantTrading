@@ -38,7 +38,7 @@ class PositionManager {
  private:
   mutable std::shared_mutex mutex_;
   std::unordered_map<std::string, std::int64_t> net_positions_;
-  std::atomic_bool running_{false};
+  std::atomic_bool running_ = false;
 };
 
 }  // namespace qtrade::engine::position

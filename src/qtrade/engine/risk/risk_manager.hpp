@@ -32,7 +32,7 @@ class RiskManager {
  private:
   static constexpr std::int64_t kDefaultMaxOrderVolume = std::numeric_limits<std::int64_t>::max();
 
-  std::atomic_bool running_{false};
+  std::atomic_bool running_ = false;
 };
 
 }  // namespace qtrade::engine::risk

@@ -63,7 +63,7 @@ class StrategyEngine {
   /// Market / Return 双线程回调共用此锁，串行进入策略
   std::mutex mutex_;
   /// 是否已 Start
-  bool running_;
+  bool running_ = false;
   /// 发单回调
   OrderSender order_sender_;
 
