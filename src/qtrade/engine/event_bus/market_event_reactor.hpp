@@ -1,5 +1,6 @@
 /// @file      market_event_reactor.hpp
 /// @brief     Lane-M 行情 EventReactor（EventBus 子系统实现）
+/// @details   以 EventPtr FIFO 入队；Reactor 线程按 EventType 分发给 Tick/Bar 订阅者
 /// @author    wengjianhong
 /// @date      2026-06-25
 /// @copyright CC BY-NC-SA 4.0
@@ -19,30 +20,60 @@ namespace qtrade::engine::event_bus {
 /// @brief Lane-M EventReactor：`EventPtr` FIFO 入队，按 `EventType` 调用 EventHandler
 class MarketEventReactor {
  public:
+  /// @brief 构造行情 EventReactor（绑定 MarketLanePolicy 循环）
   MarketEventReactor();
+
+  /// @brief 析构并确保 Reactor 线程已停止
   ~MarketEventReactor();
 
+  /// @brief 禁止拷贝构造
   MarketEventReactor(const MarketEventReactor&) = delete;
+
+  /// @brief 禁止拷贝赋值
   MarketEventReactor& operator=(const MarketEventReactor&) = delete;
 
+  /// @brief 启动 Reactor 线程并开始消费队列
   void Start();
+
+  /// @brief 停止 Reactor 线程并清空已注册的 EventHandler
   void Stop();
 
+  /// @brief 订阅 Tick 事件
+  /// @param handler Tick 回调；在 Reactor 线程中调用
   void SubscribeTick(TickEventHandler handler);
+
+  /// @brief 订阅 Bar 事件
+  /// @param handler Bar 回调；在 Reactor 线程中调用
   void SubscribeBar(BarEventHandler handler);
 
+  /// @brief 将 Tick 封装为 TickEvent 并入队
+  /// @param tick 行情 Tick 快照
   void PublishTick(const qtrade_sdk::quote::MarketTick& tick);
+
+  /// @brief 将 Bar 封装为 BarEvent 并入队
+  /// @param bar K 线 Bar 快照
   void PublishBar(const qtrade_sdk::quote::Bar& bar);
 
+  /// @brief 查询是否仍有待处理事件
+  /// @return 队列非空时返回 true
   [[nodiscard]] bool HasPending() const;
+
+  /// @brief 获取当前队列深度
+  /// @return 待处理事件个数
   [[nodiscard]] std::size_t PendingCount() const;
 
  private:
+  /// @brief 按 EventType 分发给已订阅的 EventHandler
+  /// @param event 出队后的事件基类引用
   void HandleEvent(const Event& event);
 
+  /// Lane-M FIFO Reactor 循环
   EventReactorLoop<EventPtr, MarketLanePolicy> loop_;
+  /// Tick 事件订阅列表
   std::vector<TickEventHandler> tick_handlers_;
+  /// Bar 事件订阅列表
   std::vector<BarEventHandler> bar_handlers_;
+  /// 保护订阅列表的互斥锁
   mutable std::mutex handlers_mutex_;
 };
 

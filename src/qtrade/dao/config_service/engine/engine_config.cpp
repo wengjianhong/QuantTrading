@@ -10,8 +10,6 @@
 namespace qtrade::framework::dao {
 namespace {
 
-/// @brief 测试 Mock 实例指针
-EngineConfig* g_mock_instance = nullptr;
 
 /// @brief 建表 SQL 脚本
 const std::string kCreateTableSql = R"(
@@ -38,21 +36,8 @@ const std::vector<std::string> kIndexSqls = {};
 
 }  // namespace
 
-EngineConfig& EngineConfig::Instance() {
-  if (g_mock_instance != nullptr) {
-    return *g_mock_instance;
-  }
-  static EngineConfig instance;
-  return instance;
-}
 
-void EngineConfig::SetMockInstance(EngineConfig* mock_instance) {
-  g_mock_instance = mock_instance;
-}
 
-void EngineConfig::ClearMockInstance() {
-  g_mock_instance = nullptr;
-}
 
 const std::string& EngineConfig::DatabaseName() const {
   return kDatabaseName;
@@ -80,7 +65,8 @@ KeyValues BuildEngineConfigValues(const EngineConfigRecord& record) {
   return values;
 }
 
-Result<std::int64_t> EngineConfig::Insert(const std::vector<EngineConfigRecord>& records) {
+Result<std::int64_t> EngineConfig::Insert(cpputils::database::IConnection& connection,
+                                          const std::vector<EngineConfigRecord>& records) {
   if (records.empty()) {
     return Result<std::int64_t>{ErrorCode::kSystemError};
   }
@@ -92,7 +78,7 @@ Result<std::int64_t> EngineConfig::Insert(const std::vector<EngineConfigRecord>&
     if (values.empty()) {
       return Result<std::int64_t>{ErrorCode::kSystemError};
     }
-    const auto result = InsertRow(DatabaseName(), TableName(), values);
+    const auto result = InsertRow(connection, TableName(), values);
     if (result.error_code != ErrorCode::kSuccess) {
       spdlog::error("[EngineConfig] insert failed");
       return result;
@@ -102,21 +88,24 @@ Result<std::int64_t> EngineConfig::Insert(const std::vector<EngineConfigRecord>&
   return Result<std::int64_t>{ErrorCode::kSuccess, "", affected};
 }
 
-Result<std::int64_t> EngineConfig::Delete(const EngineConfigRecord& where_conditions) {
+Result<std::int64_t> EngineConfig::Delete(cpputils::database::IConnection& connection,
+                                          const EngineConfigRecord& where_conditions) {
   const KeyValues where_values = BuildEngineConfigValues(where_conditions);
   if (where_values.empty()) {
     spdlog::error("[EngineConfig] delete failed: empty where");
     return Result<std::int64_t>{ErrorCode::kSystemError};
   }
-  return DeleteRows(DatabaseName(), TableName(), where_values);
+  return DeleteRows(connection, TableName(), where_values);
 }
 
-Result<std::int64_t> EngineConfig::BatchDelete(const std::vector<std::int64_t>&) {
+Result<std::int64_t> EngineConfig::BatchDelete(cpputils::database::IConnection&,
+                                               const std::vector<std::int64_t>&) {
   spdlog::error("[EngineConfig] batch delete unsupported: composite primary key");
   return Result<std::int64_t>{ErrorCode::kInternal, "composite primary key"};
 }
 
-Result<std::int64_t> EngineConfig::Update(const EngineConfigRecord& record,
+Result<std::int64_t> EngineConfig::Update(cpputils::database::IConnection& connection,
+                                          const EngineConfigRecord& record,
                                           const EngineConfigRecord& where_conditions) {
   const KeyValues values = BuildEngineConfigValues(record);
   const KeyValues where_values = BuildEngineConfigValues(where_conditions);
@@ -124,20 +113,20 @@ Result<std::int64_t> EngineConfig::Update(const EngineConfigRecord& record,
     spdlog::error("[EngineConfig] update failed: empty values or where");
     return Result<std::int64_t>{ErrorCode::kSystemError};
   }
-  return UpdateRows(DatabaseName(), TableName(), values, where_values);
+  return UpdateRows(connection, TableName(), values, where_values);
 }
 
-Result<std::int64_t> EngineConfig::Count(const EngineConfigRecord& where_conditions) {
-  return CountRows(DatabaseName(), TableName(), BuildEngineConfigValues(where_conditions));
+Result<std::int64_t> EngineConfig::Count(cpputils::database::IConnection& connection,
+                                         const EngineConfigRecord& where_conditions) {
+  return CountRows(connection, TableName(), BuildEngineConfigValues(where_conditions));
 }
 
-Result<std::vector<EngineConfigRecord>> EngineConfig::Select(const EngineConfigRecord& where_conditions) {
+Result<std::vector<EngineConfigRecord>> EngineConfig::Select(cpputils::database::IConnection& connection,
+                                                              const EngineConfigRecord& where_conditions) {
   // 1. 按条件查询
-  auto query_result = SelectRows(DatabaseName(), TableName(), BuildEngineConfigValues(where_conditions));
+  auto query_result = SelectRows(connection, TableName(), BuildEngineConfigValues(where_conditions));
   if (query_result.error_code != ErrorCode::kSuccess || !query_result.data.has_value()) {
-    auto* connection = GetConnection(DatabaseName());
-    spdlog::error("[EngineConfig] select failed: {}",
-                  connection != nullptr ? connection->LastError().message : "no connection");
+    spdlog::error("[EngineConfig] select failed: {}", connection.LastError().message);
     return Result<std::vector<EngineConfigRecord>>{query_result.error_code};
   }
 
@@ -149,8 +138,8 @@ Result<std::vector<EngineConfigRecord>> EngineConfig::Select(const EngineConfigR
   return Result<std::vector<EngineConfigRecord>>{ErrorCode::kSuccess, "", std::move(rows)};
 }
 
-Result<std::int64_t> EngineConfig::Truncate() {
-  return TruncateRows(DatabaseName(), TableName());
+Result<std::int64_t> EngineConfig::Truncate(cpputils::database::IConnection& connection) {
+  return TruncateRows(connection, TableName());
 }
 
 }  // namespace qtrade::framework::dao

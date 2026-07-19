@@ -1,11 +1,14 @@
 /// @file      trading_engine.hpp
 /// @brief     交易引擎主入口
-/// @details   整合各个子模块（账户、风控、订单、持仓等），协调整个交易流程
+/// @details   单进程封闭编排：围栏与生命周期门禁、控制面 client、行情/交易标准化、
+///            策略引擎、CMS/Risk/OMS/EMS 发单链及账户/持仓状态；须 Init 后 Start，
+///            仅 READY 接受新单
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
 #ifndef QTRADE_TRADING_ENGINE_TRADING_ENGINE_HPP_
 #define QTRADE_TRADING_ENGINE_TRADING_ENGINE_HPP_
+#include "qtrade/client/account_client/account_client.hpp"
 #include "qtrade/client/account_risk_client/account_risk_client.hpp"
 #include "qtrade/client/config_client/config_client.hpp"
 #include "qtrade/client/log_client/log_client.hpp"
@@ -14,17 +17,26 @@
 #include "qtrade/engine/account/account_manager.hpp"
 #include "qtrade/engine/cms/compliance_manager.hpp"
 #include "qtrade/engine/ems/execution_manager.hpp"
+#include "qtrade/engine/engine_fence.hpp"
+#include "qtrade/engine/engine_lifecycle.hpp"
 #include "qtrade/engine/event_bus/event_lanes.hpp"
 #include "qtrade/engine/normalizer/quote_normalizer.hpp"
 #include "qtrade/engine/normalizer/trader_normalizer.hpp"
 #include "qtrade/engine/oms/order_manager.hpp"
 #include "qtrade/engine/order_pipeline.hpp"
 #include "qtrade/engine/position/position_manager.hpp"
+#include "qtrade/engine/risk/account_risk_release_worker.hpp"
 #include "qtrade/engine/risk/risk_manager.hpp"
 #include "qtrade/engine/strategy/strategy_engine.hpp"
 
 #include <qtrade/error_code/error_codes.hpp>
 #include <qtrade/proto/config/v1/config.pb.h>
+
+#include <atomic>
+#include <cstdint>
+#include <mutex>
+#include <string>
+#include <unordered_set>
 
 namespace qtrade::engine {
 
@@ -70,6 +82,14 @@ class TradingEngine {
   /// @return true 表示已 Start
   [[nodiscard]] bool IsRunning() const;
 
+  /// @brief 引擎是否已通过全部 READY 门禁
+  /// @return 仅生命周期为 READY 时返回 true
+  [[nodiscard]] bool IsReady() const;
+
+  /// @brief 查询当前生命周期状态
+  /// @return 当前生命周期状态
+  [[nodiscard]] EngineLifecycleState LifecycleState() const;
+
   /// @brief 获取事件通道门面（Lane-M + Lane-R）
   /// @return 事件通道引用
   event_bus::EventLanes& GetEventLanes();
@@ -100,8 +120,14 @@ class TradingEngine {
 
   /// @brief 将策略请求送入 CMS → Risk → OMS → EMS 发单链
   /// @param request 策略下单请求
-  /// @return ErrorCode::kSuccess 表示成功进入 EMS
+  /// @return 生命周期为 READY 且准入成功时返回 kSuccess；未 READY 返回 kNotInitialized
   ErrorCode SubmitOrder(const qtrade_sdk::trader::OrderRequest& request);
+
+  /// @brief 撤销指定订单
+  /// @param order_id 全局订单 ID
+  /// @return 成功进入 EMS 撤单队列返回 kSuccess；订单不存在返回 kNotFound；
+  ///         OMS 拒绝或 EMS 入队失败返回对应错误码
+  ErrorCode CancelOrder(const std::string& order_id);
 
   /// @brief 获取订单管理模块引用
   /// @return OrderManager 引用
@@ -126,18 +152,41 @@ class TradingEngine {
   /// @return ErrorCode::kSuccess 表示成功；启用但地址非法时返回错误码
   ErrorCode InitAccountRiskClient(const qtrade::common::config::QtradeEngineConfig& config);
 
-  /// @brief 配置全量快照回调：应用 EngineConfig 并旁路日志
-  /// @param snapshot 含 version 与 engine 的全量快照
-  void OnConfigSnapshot(const qtrade::config::v1::ConfigSnapshot& snapshot);
+  /// @brief 按 config-service 下发的 EngineConfig 装配并连接行情/交易适配器
+  /// @return 成功返回 kSuccess；未收到有效配置时返回 kNotInitialized
+  ErrorCode InitAdapters();
+
+  /// @brief 查询柜台订单、成交、资金和持仓并完成启动对账
+  /// @param trader_api 已连接交易适配器
+  /// @return 全部查询与待对账订单确认成功返回 kSuccess
+  ErrorCode SynchronizeBrokerState(qtrade_sdk::trader::TraderApi* trader_api);
+
+  /// @brief 完整引擎配置回调：应用 EngineConfig 并旁路日志
+  /// @param config 含单调版本的完整引擎配置
+  void OnEngineConfig(const qtrade::config::v1::EngineConfig& config);
+
+  /// @brief 处理行情健康变化并更新 READY 门禁
+  /// @param healthy true 表示行情可用于交易
+  void OnMarketHealthChanged(bool healthy);
 
   /// 是否已完成 Init
-  bool initialized_ = false;
+  std::atomic_bool initialized_ = false;
   /// 是否已 Start
-  bool running_ = false;
+  std::atomic_bool running_ = false;
+  /// 单实例写入围栏
+  EngineFence engine_fence_;
+  /// 引擎生命周期状态机
+  EngineLifecycle lifecycle_;
   /// 进程引导配置（qtrade_engine.json）
   qtrade::common::config::QtradeEngineConfig config_;
   /// config-service 下发的业务配置
   qtrade::config::v1::EngineConfig runtime_config_;
+  /// 保护业务配置快照
+  mutable std::mutex runtime_config_mutex_;
+  /// 已应用的配置快照版本
+  std::uint64_t runtime_config_version_ = 0;
+  /// 当前已订阅行情合约集合
+  std::unordered_set<std::string> subscribed_instruments_;
   /// Lane-M / Lane-R 事件通道
   event_bus::EventLanes event_lanes_;
   /// 策略引擎
@@ -162,8 +211,12 @@ class TradingEngine {
   OrderPipeline order_pipeline_{compliance_, risk_manager_, order_manager_, execution_manager_};
   /// 控制面 gRPC 客户端
   client::ConfigClient config_client_;
+  /// 账户凭证客户端
+  client::AccountClient account_client_;
   /// E 段账户硬风控客户端
   client::AccountRiskClient account_risk_client_;
+  /// E 段 Release 可靠 outbox
+  risk::AccountRiskReleaseWorker account_risk_release_worker_;
   /// D 段日志旁路客户端
   client::LogClient log_client_;
   /// D 段监控旁路客户端

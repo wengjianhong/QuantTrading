@@ -72,6 +72,12 @@ class AccountRiskClient {
                          int reason,
                          qtrade::account_risk::v1::ReleaseOrderResponse& response);
 
+  /// @brief 查询订单预占状态
+  /// @param order_id 全局订单 ID
+  /// @param reservation 预占状态输出
+  /// @return 找到返回 kSuccess，不存在返回 kNotFound，RPC 失败返回 kTimeout
+  ErrorCode GetReservation(const std::string& order_id, qtrade::account_risk::v1::Reservation& reservation);
+
  private:
   /// 实现细节
   struct Impl;

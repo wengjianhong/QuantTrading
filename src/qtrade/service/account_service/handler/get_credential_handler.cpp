@@ -22,6 +22,16 @@ using qtrade::framework::grpc::detail::OkResult;
 
 }  // namespace
 
+Result<void> GetCredentialHandler::Run(::grpc::ServerContext* context,
+                                       const qtrade::account::v1::GetCredentialRequest* request,
+                                       qtrade::account::v1::GetCredentialResponse* response) {
+  connection_ = pool_manager_.Acquire();
+  if (connection_ == nullptr) return ErrResult(ErrorCode::kSystemError, "database connection pool is unavailable");
+  const auto result = GrpcHandlerInterface::Run(context, request, response);
+  connection_.reset();
+  return result;
+}
+
 Result<GetCredentialServerData> GetCredentialHandler::ConvertToServerData(
   ::grpc::ServerContext* context, const qtrade::account::v1::GetCredentialRequest* request) {
   (void)context;
@@ -50,7 +60,7 @@ Result<void> GetCredentialHandler::ExecuteBusiness(GetCredentialServerData& serv
   where.account_id = server_data.account_id;
 
   /// 查询 trading_account
-  const auto account_result = qtrade::framework::dao::TradingAccount::Instance().Select(where);
+  const auto account_result = dao_manager_.Get<qtrade::framework::dao::TradingAccount>().Select(*connection_, where);
   if (account_result.error_code != ErrorCode::kSuccess) {
     return ErrResult(account_result.error_code, account_result.error_message);
   }
@@ -68,7 +78,8 @@ Result<void> GetCredentialHandler::ExecuteBusiness(GetCredentialServerData& serv
   cred_where.tenant_id = server_data.tenant_id;
   cred_where.account_id = server_data.account_id;
   cred_where.credential_type = qtrade::framework::dao::CredentialType::kPassword;
-  const auto cred_result = qtrade::framework::dao::AccountCredential::Instance().Select(cred_where);
+  const auto cred_result =
+    dao_manager_.Get<qtrade::framework::dao::AccountCredential>().Select(*connection_, cred_where);
   if (cred_result.error_code != ErrorCode::kSuccess) {
     return ErrResult(cred_result.error_code, cred_result.error_message);
   }

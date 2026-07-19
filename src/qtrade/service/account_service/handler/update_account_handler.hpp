@@ -6,10 +6,14 @@
 #ifndef QTRADE_SERVICE_ACCOUNT_HANDLER_UPDATE_ACCOUNT_HANDLER_HPP_
 #define QTRADE_SERVICE_ACCOUNT_HANDLER_UPDATE_ACCOUNT_HANDLER_HPP_
 
+#include <qtrade/dao/dao_manager.hpp>
 #include <qtrade/dao/account_service/trading_account.hpp>
 #include <qtrade/proto/account/v1/account.pb.h>
+#include "qtrade/framework/database/db_connection_pool_manager.hpp"
+
 #include <qtrade_framework/grpc/grpc_handler_interface.hpp>
 
+#include <memory>
 #include <string>
 
 namespace qtrade::service {
@@ -32,8 +36,12 @@ class UpdateAccountHandler final
                                                          qtrade::account::v1::UpdateAccountResponse,
                                                          UpdateAccountServerData> {
  public:
-  explicit UpdateAccountHandler(const std::string& method_name) : GrpcHandlerInterface(method_name) {}
+  UpdateAccountHandler(const std::string& method_name,
+                       qtrade::framework::dao::DbConnectionPoolManager& pool_manager,
+                       qtrade::framework::dao::DaoManager& dao_manager)
+    : GrpcHandlerInterface(method_name), pool_manager_(pool_manager), dao_manager_(dao_manager) {}
   ~UpdateAccountHandler() noexcept override = default;
+  [[nodiscard]] Result<void> Run(::grpc::ServerContext*, const qtrade::account::v1::UpdateAccountRequest*, qtrade::account::v1::UpdateAccountResponse*);
 
  protected:
   /// 步骤1: 将 gRPC 请求转为业务数据
@@ -61,6 +69,11 @@ class UpdateAccountHandler final
   /// 步骤8: 构造响应
   Result<void> BuildResponse(UpdateAccountServerData& server_data,
                              qtrade::account::v1::UpdateAccountResponse* response) override;
+
+ private:
+  qtrade::framework::dao::DbConnectionPoolManager& pool_manager_;
+  qtrade::framework::dao::DaoManager& dao_manager_;
+  std::unique_ptr<cpputils::database::IConnection> connection_;
 };
 
 }  // namespace qtrade::service

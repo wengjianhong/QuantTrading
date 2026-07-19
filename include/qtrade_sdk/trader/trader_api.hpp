@@ -1,6 +1,9 @@
 /// @file      trader_api.hpp
 /// @brief     交易 API 抽象接口
 /// @details   参考 EMT::API::TraderApi，所有接口均为纯虚函数。
+/// @author    wengjianhong
+/// @date      2026-07-19
+/// @copyright CC BY-NC-SA 4.0
 #ifndef QTRADE_SDK_TRADER_API_HPP_
 #define QTRADE_SDK_TRADER_API_HPP_
 
@@ -13,12 +16,15 @@
 
 namespace qtrade_sdk::trader {
 
-/// 交易 API 抽象接口。
+/// @brief 交易 API 抽象接口。
 class TraderApi {
  public:
+  /// @brief 订单回报回调函数类型。
   using OrderCallback = std::function<void(const Order&)>;
+  /// @brief 成交回报回调函数类型。
   using TradeCallback = std::function<void(const Trade&)>;
 
+  /// @brief 销毁交易 API 实例。
   virtual ~TraderApi() = default;
 
   /// @brief 设置 API 工作线程 CPU 亲和。
@@ -267,7 +273,9 @@ class TraderApi {
   virtual void SetTradeCallback(TradeCallback cb) = 0;
 };
 
+/// @brief 交易网关接口别名。
 using ITradeGateway = TraderApi;
+/// @brief 执行适配器接口别名。
 using IExecutionAdapter = TraderApi;
 
 }  // namespace qtrade_sdk::trader

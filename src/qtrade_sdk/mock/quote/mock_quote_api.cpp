@@ -1,5 +1,9 @@
 /// @file      mock_quote_api.cpp
 /// @brief     Mock QuoteApi 适配器实现
+/// @details   实现模拟行情接口的连接、订阅管理与行情生成分发行为。
+/// @author    wengjianhong
+/// @date      2026-07-19
+/// @copyright CC BY-NC-SA 4.0
 #include "qtrade_sdk/mock/quote/mock_quote_api.hpp"
 
 #include <spdlog/spdlog.h>

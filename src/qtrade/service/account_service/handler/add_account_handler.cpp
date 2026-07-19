@@ -23,6 +23,31 @@ using qtrade::framework::grpc::detail::OkResult;
 
 }  // namespace
 
+Result<void> AddAccountHandler::Run(::grpc::ServerContext* context,
+                                    const qtrade::account::v1::AddAccountRequest* request,
+                                    qtrade::account::v1::AddAccountResponse* response) {
+  connection_ = pool_manager_.Acquire();
+  if (connection_ == nullptr) {
+    return ErrResult(ErrorCode::kSystemError, "database connection pool is unavailable");
+  }
+  if (!connection_->BeginTransaction()) {
+    connection_.reset();
+    return ErrResult(ErrorCode::kSystemError, "begin database transaction failed");
+  }
+
+  Result<void> result = GrpcHandlerInterface::Run(context, request, response);
+  if (result.error_code == ErrorCode::kSuccess) {
+    if (!connection_->CommitTransaction()) {
+      (void)connection_->RollbackTransaction();
+      result = ErrResult(ErrorCode::kSystemError, "commit database transaction failed");
+    }
+  } else {
+    (void)connection_->RollbackTransaction();
+  }
+  connection_.reset();
+  return result;
+}
+
 Result<AddAccountServerData> AddAccountHandler::ConvertToServerData(
   ::grpc::ServerContext* context, const qtrade::account::v1::AddAccountRequest* request) {
   (void)context;
@@ -49,7 +74,7 @@ Result<void> AddAccountHandler::CheckPreconditions(AddAccountServerData& server_
   key.tenant_id = server_data.account.tenant_id;
   key.account_id = server_data.account.account_id;
 
-  const auto exists = qtrade::framework::dao::TradingAccount::Instance().Count(key);
+  const auto exists = dao_manager_.Get<qtrade::framework::dao::TradingAccount>().Count(*connection_, key);
   if (exists.error_code != ErrorCode::kSuccess) {
     return ErrResult(exists.error_code, exists.error_message);
   }
@@ -60,8 +85,8 @@ Result<void> AddAccountHandler::CheckPreconditions(AddAccountServerData& server_
 }
 
 Result<void> AddAccountHandler::ExecuteBusiness(AddAccountServerData& server_data) {
-  auto& trading_dao = qtrade::framework::dao::TradingAccount::Instance();
-  auto& credential_dao = qtrade::framework::dao::AccountCredential::Instance();
+  auto& trading_dao = dao_manager_.Get<qtrade::framework::dao::TradingAccount>();
+  auto& credential_dao = dao_manager_.Get<qtrade::framework::dao::AccountCredential>();
 
   /// 加密明文密码
   std::string key_id;
@@ -71,7 +96,7 @@ Result<void> AddAccountHandler::ExecuteBusiness(AddAccountServerData& server_dat
   }
 
   /// 写入 trading_account
-  if (const auto insert_account = trading_dao.Insert({server_data.account});
+  if (const auto insert_account = trading_dao.Insert(*connection_, {server_data.account});
       insert_account.error_code != ErrorCode::kSuccess) {
     return ErrResult(insert_account.error_code, insert_account.error_message);
   }
@@ -85,7 +110,7 @@ Result<void> AddAccountHandler::ExecuteBusiness(AddAccountServerData& server_dat
   credential_row.key_id = key_id;
   credential_row.ciphertext = ciphertext;
 
-  if (const auto insert_credential = credential_dao.Insert({credential_row});
+  if (const auto insert_credential = credential_dao.Insert(*connection_, {credential_row});
       insert_credential.error_code != ErrorCode::kSuccess) {
     return ErrResult(insert_credential.error_code, insert_credential.error_message);
   }
@@ -107,7 +132,7 @@ void AddAccountHandler::Rollback(AddAccountServerData& server_data) {
   qtrade::framework::dao::TradingAccountRecord where;
   where.tenant_id = server_data.account.tenant_id;
   where.account_id = server_data.account.account_id;
-  (void)qtrade::framework::dao::TradingAccount::Instance().Delete(where);
+  (void)dao_manager_.Get<qtrade::framework::dao::TradingAccount>().Delete(*connection_, where);
   server_data.account_inserted = false;
 }
 

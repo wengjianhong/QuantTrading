@@ -1,6 +1,9 @@
 /// @file      trader_spi.hpp
 /// @brief     交易回调接口
 /// @details   参考 EMT::API::TraderSpi；业务数据使用 const 引用，可空字段保留指针。
+/// @author    wengjianhong
+/// @date      2026-07-19
+/// @copyright CC BY-NC-SA 4.0
 #ifndef QTRADE_SDK_TRADER_SPI_HPP_
 #define QTRADE_SDK_TRADER_SPI_HPP_
 
@@ -10,9 +13,10 @@
 
 namespace qtrade_sdk::trader {
 
-/// 交易回调接口。
+/// @brief 交易回调接口。
 class TraderSpi {
  public:
+  /// @brief 销毁交易回调接口实例。
   virtual ~TraderSpi() = default;
 
   /// @brief 连接成功通知。

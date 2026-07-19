@@ -32,7 +32,7 @@ struct TradingAccountRecord {
   std::optional<std::string> status;
 };
 
-/// @brief trading_account 表 DAO（单例）
+/// @brief trading_account 表 DAO
 class TradingAccount final : public ITableDml<TradingAccountRecord>, public ITableDdl {
  public:
   TradingAccount() = default;
@@ -42,16 +42,8 @@ class TradingAccount final : public ITableDml<TradingAccountRecord>, public ITab
   TradingAccount& operator=(const TradingAccount&) = delete;
   ~TradingAccount() noexcept override = default;
 
-  /// @brief 获取单例实例
-  /// @return 生产环境单例；测试 Mock 已注册时返回 Mock 实例
-  static TradingAccount& Instance();
 
-  /// @brief 设置测试用 Mock 实例
-  /// @param mock_instance Mock 对象指针；生产环境保持 nullptr
-  static void SetMockInstance(TradingAccount* mock_instance);
 
-  /// @brief 清除测试用 Mock 实例
-  static void ClearMockInstance();
 
   /// ========================= ITableDdl 接口实现 =========================
   /// @brief 获取逻辑数据库名
@@ -74,38 +66,44 @@ class TradingAccount final : public ITableDml<TradingAccountRecord>, public ITab
   /// @brief 插入交易账户记录
   /// @param records 待插入记录
   /// @return 成功：result.data 为受影响行数；失败：result.error_code 为错误码
-  Result<std::int64_t> Insert(const std::vector<TradingAccountRecord>& records) override;
+  Result<std::int64_t> Insert(cpputils::database::IConnection& connection,
+                              const std::vector<TradingAccountRecord>& records) override;
 
   /// @brief 按条件删除账户
   /// @param where_conditions 删除条件
   /// @return 成功：result.data 为受影响行数；失败：result.error_code 为错误码
-  Result<std::int64_t> Delete(const TradingAccountRecord& where_conditions) override;
+  Result<std::int64_t> Delete(cpputils::database::IConnection& connection,
+                              const TradingAccountRecord& where_conditions) override;
 
   /// @brief 按主键 id 批量删除（本表为复合主键，不支持）
   /// @param ids 主键 id 列表（未使用）
   /// @return 成功：result.data 为受影响行数；失败：result.error_code 为错误码
-  Result<std::int64_t> BatchDelete(const std::vector<std::int64_t>& ids) override;
+  Result<std::int64_t> BatchDelete(cpputils::database::IConnection& connection,
+                                   const std::vector<std::int64_t>& ids) override;
 
   /// @brief 按条件更新账户
   /// @param record 待写入字段
   /// @param where_conditions 更新条件
   /// @return 成功：result.data 为受影响行数；失败：result.error_code 为错误码
-  Result<std::int64_t> Update(const TradingAccountRecord& record,
+  Result<std::int64_t> Update(cpputils::database::IConnection& connection,
+                              const TradingAccountRecord& record,
                               const TradingAccountRecord& where_conditions) override;
 
   /// @brief 按条件统计账户数量
   /// @param where_conditions 查询条件
   /// @return 成功：result.data 为行数；失败：result.error_code 为错误码
-  Result<std::int64_t> Count(const TradingAccountRecord& where_conditions) override;
+  Result<std::int64_t> Count(cpputils::database::IConnection& connection,
+                             const TradingAccountRecord& where_conditions) override;
 
   /// @brief 按条件查询账户列表
   /// @param where_conditions 查询条件
   /// @return 查询结果；成功：result.data 为查询结果；失败：result.error_code 为错误码
-  Result<std::vector<TradingAccountRecord>> Select(const TradingAccountRecord& where_conditions) override;
+  Result<std::vector<TradingAccountRecord>> Select(cpputils::database::IConnection& connection,
+                                                    const TradingAccountRecord& where_conditions) override;
 
   /// @brief 清空表全部记录
   /// @return 成功：result.data 为受影响行数；失败：result.error_code 为错误码
-  Result<std::int64_t> Truncate() override;
+  Result<std::int64_t> Truncate(cpputils::database::IConnection& connection) override;
 };
 
 /// @brief 将 TradingAccountRecord 转为 KeyValues

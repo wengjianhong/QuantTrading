@@ -6,6 +6,8 @@
 #ifndef QTRADE_SERVICE_CONFIG_SCOPE_HPP_
 #define QTRADE_SERVICE_CONFIG_SCOPE_HPP_
 
+#include "qtrade/dao/config_service/engine/engine_config.hpp"
+
 #include <qtrade/proto/config/v1/config.pb.h>
 
 #include <string>
@@ -22,14 +24,20 @@ struct ConfigScope {
   friend auto operator<=>(const ConfigScope&, const ConfigScope&) = default;
 };
 
-/// @brief 从 GetConfig 请求构造作用域
-[[nodiscard]] ConfigScope MakeConfigScope(const qtrade::config::v1::GetConfigRequest& request);
+/// @brief 从 GetEngineConfig 请求构造作用域
+[[nodiscard]] ConfigScope MakeConfigScope(const qtrade::config::v1::GetEngineConfigRequest& request);
 
-/// @brief 从 SubscribeConfig 请求构造作用域
-[[nodiscard]] ConfigScope MakeConfigScope(const qtrade::config::v1::SubscribeConfigRequest& request);
+/// @brief 从 SubscribeEngineConfig 请求构造作用域
+[[nodiscard]] ConfigScope MakeConfigScope(const qtrade::config::v1::SubscribeEngineConfigRequest& request);
 
-/// @brief 查库并组装 ConfigSnapshot（gRPC 响应）
-[[nodiscard]] qtrade::config::v1::ConfigSnapshot QueryConfigSnapshot(const ConfigScope& scope);
+/// @brief 查库并组装 EngineConfig
+/// @param scope 配置作用域
+/// @param engine_config_dao engine_config 表 DAO
+/// @param connection 当前 RPC 独占的数据库连接
+[[nodiscard]] qtrade::config::v1::EngineConfig QueryEngineConfig(
+  const ConfigScope& scope,
+  qtrade::framework::dao::EngineConfig& engine_config_dao,
+  cpputils::database::IConnection& connection);
 
 }  // namespace qtrade::service
 

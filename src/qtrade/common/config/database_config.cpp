@@ -195,24 +195,21 @@ cpputils::database::ConnectionConfig BuildConnectionConfig(const nlohmann::json&
   }
 }
 
-/// @brief 解析 pool 段并写入 options.pool
+/// @brief 解析 pool 段并写入服务端连接池配置
 /// @param database database 段 JSON
-/// @param options 已含 connection 的配置输出
-void ParsePoolOptions(const nlohmann::json& database, DatabaseConfig& options) {
-  if (!database.contains("pool") || !database.at("pool").is_object()) {
-    return;
-  }
-
-  const auto& pool = database.at("pool");
-  if (!pool.value("enabled", false)) {
-    return;
-  }
-
+/// @param connection 已解析的单连接配置
+/// @param options 配置输出
+void ParsePoolOptions(const nlohmann::json& database,
+                      const cpputils::database::ConnectionConfig& connection,
+                      DatabaseConfig& options) {
+  const auto& pool = database.contains("pool") && database.at("pool").is_object()
+                       ? database.at("pool")
+                       : nlohmann::json::object();
   std::size_t pool_size = 4;
   if (pool.contains("size")) {
     pool_size = pool.at("size").get<std::size_t>();
   }
-  cpputils::database::ConnectionPoolConfig pool_opts{options.connection, pool_size};
+  cpputils::database::ConnectionPoolConfig pool_opts{connection, pool_size};
   pool_opts.lease_timeout = ParseSeconds(pool, "lease_timeout");
   options.pool = std::move(pool_opts);
 }
@@ -230,8 +227,7 @@ DatabaseConfig ParseDatabaseConfigFromSection(const nlohmann::json& database) {
     return options;
   }
 
-  options.connection = BuildConnectionConfig(database);
-  ParsePoolOptions(database, options);
+  ParsePoolOptions(database, BuildConnectionConfig(database), options);
   return options;
 }
 

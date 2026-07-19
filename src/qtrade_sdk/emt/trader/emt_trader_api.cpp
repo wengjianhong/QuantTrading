@@ -1,5 +1,9 @@
 /// @file      emt_trader_api.cpp
 /// @brief     EMT TraderApi 适配器实现
+/// @details   实现 EMT 交易接口的适配框架，并为厂商 SDK 接入预留转发位置。
+/// @author    wengjianhong
+/// @date      2026-07-19
+/// @copyright CC BY-NC-SA 4.0
 #include "qtrade_sdk/emt/trader/emt_trader_api.hpp"
 
 namespace qtrade::adapter::trader {

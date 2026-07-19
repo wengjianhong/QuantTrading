@@ -10,18 +10,14 @@
 
 #include <nlohmann/json.hpp>
 
-#include <optional>
-
 namespace qtrade::common::config {
 
-/// @brief 数据库连接配置（对应 JSON "database" 段）
+/// @brief 数据库连接池配置（对应 JSON "database" 段）
 struct DatabaseConfig {
   /// 是否启用数据库
   bool enabled = false;
-  /// 连接参数
-  cpputils::database::ConnectionConfig connection;
-  /// 连接池；未启用时为空
-  std::optional<cpputils::database::ConnectionPoolConfig> pool;
+  /// 连接池参数（服务端运行期始终使用连接池）
+  cpputils::database::ConnectionPoolConfig pool;
 };
 
 /// @brief 从 "database" 段对象解析（不含外层 database 键）

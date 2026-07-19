@@ -10,8 +10,6 @@
 namespace qtrade::framework::dao {
 namespace {
 
-/// @brief 测试 Mock 实例指针
-AccountCredential* g_mock_instance = nullptr;
 
 /// @brief 建表 SQL 脚本
 const std::string kCreateTableSql = R"(
@@ -39,21 +37,8 @@ const std::vector<std::string> kIndexSqls = {};
 
 }  // namespace
 
-AccountCredential& AccountCredential::Instance() {
-  if (g_mock_instance != nullptr) {
-    return *g_mock_instance;
-  }
-  static AccountCredential instance;
-  return instance;
-}
 
-void AccountCredential::SetMockInstance(AccountCredential* mock_instance) {
-  g_mock_instance = mock_instance;
-}
 
-void AccountCredential::ClearMockInstance() {
-  g_mock_instance = nullptr;
-}
 
 const std::string& AccountCredential::DatabaseName() const {
   return kDatabaseName;
@@ -84,7 +69,8 @@ KeyValues BuildAccountCredentialValues(const AccountCredentialRecord& record) {
   return values;
 }
 
-Result<std::int64_t> AccountCredential::Insert(const std::vector<AccountCredentialRecord>& records) {
+Result<std::int64_t> AccountCredential::Insert(cpputils::database::IConnection& connection,
+                                               const std::vector<AccountCredentialRecord>& records) {
   if (records.empty()) {
     return Result<std::int64_t>{ErrorCode::kSystemError};
   }
@@ -96,7 +82,7 @@ Result<std::int64_t> AccountCredential::Insert(const std::vector<AccountCredenti
     if (values.empty()) {
       return Result<std::int64_t>{ErrorCode::kSystemError};
     }
-    const auto result = InsertRow(DatabaseName(), TableName(), values);
+    const auto result = InsertRow(connection, TableName(), values);
     if (result.error_code != ErrorCode::kSuccess) {
       return result;
     }
@@ -105,36 +91,40 @@ Result<std::int64_t> AccountCredential::Insert(const std::vector<AccountCredenti
   return Result<std::int64_t>{ErrorCode::kSuccess, "", affected};
 }
 
-Result<std::int64_t> AccountCredential::Delete(const AccountCredentialRecord& where_conditions) {
+Result<std::int64_t> AccountCredential::Delete(cpputils::database::IConnection& connection,
+                                               const AccountCredentialRecord& where_conditions) {
   const KeyValues where_values = BuildAccountCredentialValues(where_conditions);
   if (where_values.empty()) {
     return Result<std::int64_t>{ErrorCode::kSystemError};
   }
-  return DeleteRows(DatabaseName(), TableName(), where_values);
+  return DeleteRows(connection, TableName(), where_values);
 }
 
-Result<std::int64_t> AccountCredential::BatchDelete(const std::vector<std::int64_t>&) {
+Result<std::int64_t> AccountCredential::BatchDelete(cpputils::database::IConnection&,
+                                                    const std::vector<std::int64_t>&) {
   return Result<std::int64_t>{ErrorCode::kInternal, "composite primary key"};
 }
 
-Result<std::int64_t> AccountCredential::Update(const AccountCredentialRecord& record,
+Result<std::int64_t> AccountCredential::Update(cpputils::database::IConnection& connection,
+                                               const AccountCredentialRecord& record,
                                                const AccountCredentialRecord& where_conditions) {
   const KeyValues values = BuildAccountCredentialValues(record);
   const KeyValues where_values = BuildAccountCredentialValues(where_conditions);
   if (values.empty() || where_values.empty()) {
     return Result<std::int64_t>{ErrorCode::kSystemError};
   }
-  return UpdateRows(DatabaseName(), TableName(), values, where_values);
+  return UpdateRows(connection, TableName(), values, where_values);
 }
 
-Result<std::int64_t> AccountCredential::Count(const AccountCredentialRecord& where_conditions) {
-  return CountRows(DatabaseName(), TableName(), BuildAccountCredentialValues(where_conditions));
+Result<std::int64_t> AccountCredential::Count(cpputils::database::IConnection& connection,
+                                              const AccountCredentialRecord& where_conditions) {
+  return CountRows(connection, TableName(), BuildAccountCredentialValues(where_conditions));
 }
 
 Result<std::vector<AccountCredentialRecord>> AccountCredential::Select(
-  const AccountCredentialRecord& where_conditions) {
+  cpputils::database::IConnection& connection, const AccountCredentialRecord& where_conditions) {
   // 1. 按条件查询并映射结果行
-  auto query_result = SelectRows(DatabaseName(), TableName(), BuildAccountCredentialValues(where_conditions));
+  auto query_result = SelectRows(connection, TableName(), BuildAccountCredentialValues(where_conditions));
   if (query_result.error_code != ErrorCode::kSuccess || !query_result.data.has_value()) {
     return Result<std::vector<AccountCredentialRecord>>{query_result.error_code, query_result.error_message};
   }
@@ -146,8 +136,8 @@ Result<std::vector<AccountCredentialRecord>> AccountCredential::Select(
   return Result<std::vector<AccountCredentialRecord>>{ErrorCode::kSuccess, "", std::move(rows)};
 }
 
-Result<std::int64_t> AccountCredential::Truncate() {
-  return TruncateRows(DatabaseName(), TableName());
+Result<std::int64_t> AccountCredential::Truncate(cpputils::database::IConnection& connection) {
+  return TruncateRows(connection, TableName());
 }
 
 }  // namespace qtrade::framework::dao

@@ -6,10 +6,14 @@
 #ifndef QTRADE_SERVICE_ACCOUNT_HANDLER_LIST_ACCOUNTS_HANDLER_HPP_
 #define QTRADE_SERVICE_ACCOUNT_HANDLER_LIST_ACCOUNTS_HANDLER_HPP_
 
+#include <qtrade/dao/dao_manager.hpp>
 #include <qtrade/dao/account_service/trading_account.hpp>
 #include <qtrade/proto/account/v1/account.pb.h>
+#include "qtrade/framework/database/db_connection_pool_manager.hpp"
+
 #include <qtrade_framework/grpc/grpc_handler_interface.hpp>
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -30,8 +34,12 @@ class ListAccountsHandler final
                                                          qtrade::account::v1::ListAccountsResponse,
                                                          ListAccountsServerData> {
  public:
-  explicit ListAccountsHandler(const std::string& method_name) : GrpcHandlerInterface(method_name) {}
+  ListAccountsHandler(const std::string& method_name,
+                      qtrade::framework::dao::DbConnectionPoolManager& pool_manager,
+                      qtrade::framework::dao::DaoManager& dao_manager)
+    : GrpcHandlerInterface(method_name), pool_manager_(pool_manager), dao_manager_(dao_manager) {}
   ~ListAccountsHandler() noexcept override = default;
+  [[nodiscard]] Result<void> Run(::grpc::ServerContext*, const qtrade::account::v1::ListAccountsRequest*, qtrade::account::v1::ListAccountsResponse*);
 
  protected:
   /// 步骤1: 将 gRPC 请求转为业务数据
@@ -59,6 +67,10 @@ class ListAccountsHandler final
   /// 步骤8: 构造响应
   Result<void> BuildResponse(ListAccountsServerData& server_data,
                              qtrade::account::v1::ListAccountsResponse* response) override;
+ private:
+  qtrade::framework::dao::DbConnectionPoolManager& pool_manager_;
+  qtrade::framework::dao::DaoManager& dao_manager_;
+  std::unique_ptr<cpputils::database::IConnection> connection_;
 };
 
 }  // namespace qtrade::service

@@ -1,6 +1,6 @@
 /// @file      config_client.hpp
 /// @brief     配置管理客户端
-/// @details   控制面：gRPC GetConfig 冷启动 + SubscribeConfig 出站监听（按版本全量快照）
+/// @details   控制面：gRPC GetEngineConfig 冷启动 + SubscribeEngineConfig 出站监听（按版本全量快照）
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
@@ -31,8 +31,8 @@ struct ConfigClientOptions {
 /// @details 引擎作为 gRPC Client 出站连接 config-service；不对外提供 gRPC Server
 class ConfigClient {
  public:
-  /// @brief 收到全量配置快照（GetConfig 与 SubscribeConfig 均触发）
-  using SnapshotHandler = std::function<void(const qtrade::config::v1::ConfigSnapshot& snapshot)>;
+  /// @brief 收到完整引擎配置（GetEngineConfig 与 SubscribeEngineConfig 均触发）
+  using SnapshotHandler = std::function<void(const qtrade::config::v1::EngineConfig& config)>;
 
   /// @brief 构造配置客户端（未初始化，须调用 Init）
   ConfigClient();
@@ -48,19 +48,19 @@ class ConfigClient {
   /// @return ErrorCode::kSuccess 表示成功
   ErrorCode Init(const ConfigClientOptions& options);
 
-  /// @brief 冷启动：GetConfig 拉全量并触发 SnapshotHandler
+  /// @brief 冷启动：GetEngineConfig 拉全量并触发 SnapshotHandler
   /// @return ErrorCode::kSuccess 表示成功；网络失败返回 ErrorCode::kTimeout
   ErrorCode FetchSnapshot();
 
-  /// @brief 启动控制线程：SubscribeConfig 监听新版本全量快照
+  /// @brief 启动控制线程：SubscribeEngineConfig 监听新版本全量快照
   /// @return ErrorCode::kSuccess 表示成功
   ErrorCode StartWatch();
 
   /// @brief 停止 Watch 线程并释放 gRPC 资源
   void Shutdown();
 
-  /// @brief 注册全量快照回调
-  /// @param handler 收到快照时调用（引擎侧替换本地配置视图）
+  /// @brief 注册完整引擎配置回调
+  /// @param handler 收到配置时调用（引擎侧替换本地配置视图）
   void SetOnSnapshot(SnapshotHandler handler);
 
   /// @brief 获取当前已应用的配置版本号
@@ -71,7 +71,7 @@ class ConfigClient {
   [[nodiscard]] bool IsInitialized() const;
 
  private:
-  void ApplySnapshot(const qtrade::config::v1::ConfigSnapshot& snapshot);
+  void ApplyConfig(const qtrade::config::v1::EngineConfig& config);
 
   /// 实现细节（隐藏 gRPC 依赖）
   struct Impl;

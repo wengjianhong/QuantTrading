@@ -7,28 +7,10 @@
 
 #include "qtrade/common/config/qtrade_account_service_config.hpp"
 #include "qtrade/common/json/json_util.hpp"
-#include "qtrade/dao/account_service/account_credential.hpp"
-#include "qtrade/dao/account_service/trading_account.hpp"
 #include "qtrade/framework/dao/ddl_utils.hpp"
-#include "qtrade/framework/database/database_service_bootstrap.hpp"
+#include "qtrade/framework/database/db_connection_pool_manager.hpp"
 
 namespace qtrade::service {
-
-namespace {
-
-ErrorCode EnsureAccountSchema(cpputils::database::IConnection* connection) {
-  if (connection == nullptr) {
-    return ErrorCode::kSystemError;
-  }
-  if (const auto rc =
-        qtrade::framework::dao::EnsureTableSchema(connection, qtrade::framework::dao::TradingAccount::Instance());
-      rc != ErrorCode::kSuccess) {
-    return rc;
-  }
-  return qtrade::framework::dao::EnsureTableSchema(connection, qtrade::framework::dao::AccountCredential::Instance());
-}
-
-}  // namespace
 
 AccountService::AccountService() : SupportSyncServiceImpl("qtrade_account_service", 50052) {}
 
@@ -57,18 +39,45 @@ ErrorCode AccountService::Initialize(const std::string& config_path) {
   }
   listen_address_ = config->grpc.Address();
 
-  const auto context =
-    qtrade::common::BootstrapDatabaseConnection(config->database, EnsureAccountSchema, service_name_);
-  if (!context.connection) {
+  // 1. 创建数据库连接池；2. 创建 DaoManager 并确保全部表结构
+  connection_ = std::make_shared<qtrade::framework::dao::DbConnectionPoolManager>(config->database.pool);
+  if (!connection_->IsReady()) {
     connection_.reset();
     state_ = qtrade::common::support::SupportServiceState::kFailed;
     last_error_ = ErrorCode::kInternal;
     return last_error_;
   }
 
-  connection_ = std::move(context.connection);
+  dao_ = std::make_shared<qtrade::framework::dao::DaoManager>();
+  auto schema_connection = connection_->Acquire();
+  if (schema_connection == nullptr) {
+    dao_.reset();
+    connection_.reset();
+    state_ = qtrade::common::support::SupportServiceState::kFailed;
+    last_error_ = ErrorCode::kInternal;
+    return last_error_;
+  }
+  auto* database = schema_connection.get();
+  if (qtrade::framework::dao::EnsureTableSchema(
+        database, dao_->Get<qtrade::framework::dao::TradingAccount>()) != ErrorCode::kSuccess ||
+      qtrade::framework::dao::EnsureTableSchema(
+        database, dao_->Get<qtrade::framework::dao::AccountCredential>()) != ErrorCode::kSuccess) {
+    dao_.reset();
+    connection_.reset();
+    state_ = qtrade::common::support::SupportServiceState::kFailed;
+    last_error_ = ErrorCode::kInternal;
+    return last_error_;
+  }
+
   last_error_ = ErrorCode::kSuccess;
   return ErrorCode::kSuccess;
+}
+
+std::unique_ptr<AccountGrpcService> AccountService::CreateGrpcService() {
+  if (!dao_) {
+    return nullptr;
+  }
+  return std::make_unique<AccountGrpcService>(connection_, dao_);
 }
 
 }  // namespace qtrade::service

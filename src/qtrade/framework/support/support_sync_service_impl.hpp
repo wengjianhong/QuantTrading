@@ -7,7 +7,7 @@
 #ifndef QTRADE_COMMON_SUPPORT_SUPPORT_SYNC_SERVICE_IMPL_HPP_
 #define QTRADE_COMMON_SUPPORT_SUPPORT_SYNC_SERVICE_IMPL_HPP_
 
-#include "qtrade/framework/database/db_connection.hpp"
+#include "qtrade/framework/database/db_connection_pool_manager.hpp"
 #include "qtrade/framework/grpc/sync/grpc_sync_server.hpp"
 
 #include <qtrade/error_code/error_codes.hpp>
@@ -62,7 +62,12 @@ class SupportSyncServiceImpl : public ISupportService {
     }
 
     // 2. 创建 Service 并启动同步 Server
-    grpc_service_ = std::make_unique<GrpcServiceT>(connection_);
+    grpc_service_ = CreateGrpcService();
+    if (!grpc_service_) {
+      state_ = SupportServiceState::kFailed;
+      last_error_ = ErrorCode::kSystemError;
+      return last_error_;
+    }
     grpc_server_ = std::make_unique<grpc_sync::GrpcSyncServer>();
     if (const auto rc = grpc_server_->Start(listen_address_, grpc_service_.get()); rc != ErrorCode::kSuccess) {
       grpc_server_.reset();
@@ -122,6 +127,10 @@ class SupportSyncServiceImpl : public ISupportService {
   }
 
  protected:
+  /// @brief 创建同步 gRPC Service（子类注入 connection_ / DaoManager 等依赖）
+  /// @return 非空表示创建成功
+  [[nodiscard]] virtual std::unique_ptr<GrpcServiceT> CreateGrpcService() = 0;
+
   /// 配置文件路径
   std::string config_path_;
   /// 服务名
@@ -142,8 +151,8 @@ class SupportSyncServiceImpl : public ISupportService {
   std::unique_ptr<GrpcServiceT> grpc_service_;
   /// 同步 gRPC Server
   std::unique_ptr<grpc_sync::GrpcSyncServer> grpc_server_;
-  /// 数据库连接持有者
-  std::shared_ptr<qtrade::framework::dao::DbConnectionHolder> connection_;
+  /// 数据库连接池管理器
+  std::shared_ptr<qtrade::framework::dao::DbConnectionPoolManager> connection_;
 };
 
 }  // namespace qtrade::common::support

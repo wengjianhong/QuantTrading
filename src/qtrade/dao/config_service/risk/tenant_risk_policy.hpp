@@ -41,7 +41,7 @@ struct TenantRiskPolicyRecord {
   std::optional<bool> enabled;
 };
 
-/// @brief tenant_risk_policy 表 DDL（单例）
+/// @brief tenant_risk_policy 表 DDL
 /// @details 实现 ITableDdl；增删改查尚未实现
 class TenantRiskPolicy final : public ITableDdl {
  public:
@@ -52,9 +52,6 @@ class TenantRiskPolicy final : public ITableDdl {
   TenantRiskPolicy& operator=(const TenantRiskPolicy&) = delete;
   ~TenantRiskPolicy() noexcept override = default;
 
-  /// @brief 获取单例实例
-  /// @return 生产环境单例
-  static TenantRiskPolicy& Instance();
 
   /// @brief 获取逻辑数据库名
   /// @return 固定为 "config"

@@ -46,10 +46,6 @@ const std::vector<std::string> kIndexSqls = {
 
 }  // namespace
 
-OrderReservation& OrderReservation::Instance() {
-  static OrderReservation instance;
-  return instance;
-}
 
 const std::string& OrderReservation::DatabaseName() const {
   return kDatabaseName;

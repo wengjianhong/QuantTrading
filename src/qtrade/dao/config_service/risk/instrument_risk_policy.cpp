@@ -43,10 +43,6 @@ const std::vector<std::string> kIndexSqls = {
 
 }  // namespace
 
-InstrumentRiskPolicy& InstrumentRiskPolicy::Instance() {
-  static InstrumentRiskPolicy instance;
-  return instance;
-}
 
 const std::string& InstrumentRiskPolicy::DatabaseName() const {
   return kDatabaseName;

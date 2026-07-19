@@ -49,7 +49,7 @@ struct InstrumentRiskPolicyRecord {
   std::optional<bool> enabled;
 };
 
-/// @brief instrument_risk_policy 表 DDL（单例）
+/// @brief instrument_risk_policy 表 DDL
 /// @details 实现 ITableDdl；增删改查尚未实现
 class InstrumentRiskPolicy final : public ITableDdl {
  public:
@@ -60,9 +60,6 @@ class InstrumentRiskPolicy final : public ITableDdl {
   InstrumentRiskPolicy& operator=(const InstrumentRiskPolicy&) = delete;
   ~InstrumentRiskPolicy() noexcept override = default;
 
-  /// @brief 获取单例实例
-  /// @return 生产环境单例
-  static InstrumentRiskPolicy& Instance();
 
   /// @brief 获取逻辑数据库名
   /// @return 固定为 "config"

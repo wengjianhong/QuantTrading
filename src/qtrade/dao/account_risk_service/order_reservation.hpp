@@ -52,7 +52,7 @@ struct OrderReservationRecord {
   std::optional<std::int64_t> updated_at_unix_ms;
 };
 
-/// @brief order_reservation 表 DDL（单例）
+/// @brief order_reservation 表 DDL
 /// @details 实现 ITableDdl；增删改查尚未实现
 class OrderReservation final : public ITableDdl {
  public:
@@ -63,9 +63,6 @@ class OrderReservation final : public ITableDdl {
   OrderReservation& operator=(const OrderReservation&) = delete;
   ~OrderReservation() noexcept override = default;
 
-  /// @brief 获取单例实例
-  /// @return 生产环境单例
-  static OrderReservation& Instance();
 
   /// @brief 获取逻辑数据库名
   /// @return 固定为 "account_risk"

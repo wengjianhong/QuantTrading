@@ -41,10 +41,6 @@ const std::vector<std::string> kIndexSqls = {
 
 }  // namespace
 
-QuoteHealthPolicy& QuoteHealthPolicy::Instance() {
-  static QuoteHealthPolicy instance;
-  return instance;
-}
 
 const std::string& QuoteHealthPolicy::DatabaseName() const {
   return kDatabaseName;

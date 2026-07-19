@@ -36,7 +36,7 @@ struct QtradeEngineSupportServices {
 };
 
 /// @brief 对应 config/qtrade_engine.json
-/// @details 业务配置由 config-service 下发；凭证经 account-service 拉取；无本地 L1 fallback
+/// @details 仅含实例身份与支撑服务端点。所有业务、适配器和可选策略由 config-service 下发。
 struct QtradeEngineConfig {
   /// 实例身份
   QtradeEngineIdentity identity;

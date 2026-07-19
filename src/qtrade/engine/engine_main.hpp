@@ -1,5 +1,7 @@
 /// @file      engine_main.hpp
 /// @brief     交易引擎进程入口封装
+/// @details   供 qtrade_engine 可执行文件调用：解析 --config、装配演示策略、
+///            驱动 TradingEngine 生命周期直至收到停机信号
 /// @author    wengjianhong
 /// @date      2026-07-16
 /// @copyright CC BY-NC-SA 4.0

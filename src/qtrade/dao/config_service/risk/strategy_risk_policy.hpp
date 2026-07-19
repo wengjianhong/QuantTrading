@@ -47,7 +47,7 @@ struct StrategyRiskPolicyRecord {
   std::optional<bool> enabled;
 };
 
-/// @brief strategy_risk_policy 表 DDL（单例）
+/// @brief strategy_risk_policy 表 DDL
 /// @details 实现 ITableDdl；增删改查尚未实现
 class StrategyRiskPolicy final : public ITableDdl {
  public:
@@ -58,9 +58,6 @@ class StrategyRiskPolicy final : public ITableDdl {
   StrategyRiskPolicy& operator=(const StrategyRiskPolicy&) = delete;
   ~StrategyRiskPolicy() noexcept override = default;
 
-  /// @brief 获取单例实例
-  /// @return 生产环境单例
-  static StrategyRiskPolicy& Instance();
 
   /// @brief 获取逻辑数据库名
   /// @return 固定为 "config"

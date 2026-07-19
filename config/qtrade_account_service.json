@@ -15,7 +15,6 @@
       "connect_timeout": 0
     },
     "pool": {
-      "enabled": true,
       "size": 4,
       "lease_timeout": 0
     }

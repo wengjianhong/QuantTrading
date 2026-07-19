@@ -1,12 +1,14 @@
 // @file      config.proto
 // @brief     配置中心 gRPC 接口定义
-// @details   控制面：引擎出站 GetConfig / SubscribeConfig；仅下发策略与行情源等业务配置，不含账户凭证
+// @details   控制面：引擎出站 GetEngineConfig / SubscribeEngineConfig；下发策略、行情源和适配器选择，不含账户凭证
 // @author    wengjianhong
 // @date      2026-06-28
 // @copyright CC BY-NC-SA 4.0
 syntax = "proto3";
 
 package qtrade.config.v1;
+
+import "common/v1/meta.proto";
 
 option cc_enable_arenas = true;
 
@@ -49,38 +51,54 @@ message EngineConfig {
     string quote_failover = 6;
     // 实例级弱一致风险预算
     RiskBudget risk_budget = 7;
-    // 配置原子生效世代；控制线程不得回退
-    uint64 activation_epoch = 8;
     // 配置失效时间（Unix 毫秒）；0 表示由服务端默认 TTL 决定
     int64 valid_until_unix_ms = 9;
+    // 交易适配器类型：mock 或 emt；由控制面和界面维护
+    string execution_adapter = 10;
+    // 主行情源连接串；例如 mock://localhost 或厂商连接地址
+    string quote_connection_string = 11;
+    // 配置中心单调递增版本，用于拒绝旧配置和断线续传
+    uint64 version = 12;
 }
 
-// 配置
-message ConfigSnapshot {
-    // 单调递增版本号
-    uint64 version = 1;
-    // 引擎业务配置
+// 获取引擎配置请求
+message GetEngineConfigRequest {
+    // 统一请求链路元数据
+    qtrade.common.meta.v1.RequestMeta meta = 1;
+    // 引擎实例标识
+    string engine_id = 2;
+}
+
+// 获取引擎配置响应
+message GetEngineConfigResponse {
+    // 统一响应链路元数据
+    qtrade.common.meta.v1.ResponseMeta meta = 1;
+    // 当前引擎配置
     EngineConfig engine = 2;
 }
 
-// 获取配置请求
-message GetConfigRequest {
+// 订阅引擎配置请求
+message SubscribeEngineConfigRequest {
+    // 统一请求链路元数据
+    qtrade.common.meta.v1.RequestMeta meta = 1;
     // 引擎实例标识
-    string engine_id = 1;
+    string engine_id = 2;
+    // 客户端已接收的最新版本（0 表示获取最新配置）
+    uint64 since_version = 3;
 }
 
-// 订阅配置请求
-message SubscribeConfigRequest {
-    // 引擎实例标识
-    string engine_id = 1;
-    // 客户端已接收的最新版本（0 表示获取最新配置）
-    uint64 since_version = 2;
+// 订阅引擎配置响应
+message SubscribeEngineConfigResponse {
+    // 统一响应链路元数据
+    qtrade.common.meta.v1.ResponseMeta meta = 1;
+    // 本次推送的引擎配置
+    EngineConfig engine = 2;
 }
 
 // 配置中心 gRPC 服务
 service ConfigService {
-    // 获取配置
-    rpc GetConfig(GetConfigRequest) returns (ConfigSnapshot);
-    // 订阅配置变更（Server Streaming）
-    rpc SubscribeConfig(SubscribeConfigRequest) returns (stream ConfigSnapshot);
+    // 获取引擎配置
+    rpc GetEngineConfig(GetEngineConfigRequest) returns (GetEngineConfigResponse);
+    // 订阅引擎配置变更（Server Streaming）
+    rpc SubscribeEngineConfig(SubscribeEngineConfigRequest) returns (stream SubscribeEngineConfigResponse);
 }

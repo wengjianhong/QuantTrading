@@ -46,6 +46,7 @@ release/bin/*
 
 .vscode
 .cache/
+logs/
 build/
 release/
 

@@ -39,10 +39,6 @@ const std::vector<std::string> kIndexSqls = {
 
 }  // namespace
 
-TenantRiskPolicy& TenantRiskPolicy::Instance() {
-  static TenantRiskPolicy instance;
-  return instance;
-}
 
 const std::string& TenantRiskPolicy::DatabaseName() const {
   return kDatabaseName;

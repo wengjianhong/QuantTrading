@@ -43,10 +43,6 @@ const std::vector<std::string> kIndexSqls = {};
 
 }  // namespace
 
-OrderRiskPolicy& OrderRiskPolicy::Instance() {
-  static OrderRiskPolicy instance;
-  return instance;
-}
 
 const std::string& OrderRiskPolicy::DatabaseName() const {
   return kDatabaseName;

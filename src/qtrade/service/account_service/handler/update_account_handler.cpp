@@ -23,6 +23,25 @@ using qtrade::framework::grpc::detail::OkResult;
 
 }  // namespace
 
+Result<void> UpdateAccountHandler::Run(::grpc::ServerContext* context,
+                                       const qtrade::account::v1::UpdateAccountRequest* request,
+                                       qtrade::account::v1::UpdateAccountResponse* response) {
+  connection_ = pool_manager_.Acquire();
+  if (connection_ == nullptr) return ErrResult(ErrorCode::kSystemError, "database connection pool is unavailable");
+  if (!connection_->BeginTransaction()) return ErrResult(ErrorCode::kSystemError, "begin database transaction failed");
+  Result<void> result = GrpcHandlerInterface::Run(context, request, response);
+  if (result.error_code == ErrorCode::kSuccess) {
+    if (!connection_->CommitTransaction()) {
+      (void)connection_->RollbackTransaction();
+      result = ErrResult(ErrorCode::kSystemError, "commit database transaction failed");
+    }
+  } else {
+    (void)connection_->RollbackTransaction();
+  }
+  connection_.reset();
+  return result;
+}
+
 Result<UpdateAccountServerData> UpdateAccountHandler::ConvertToServerData(
   ::grpc::ServerContext* context, const qtrade::account::v1::UpdateAccountRequest* request) {
   (void)context;
@@ -50,15 +69,15 @@ Result<void> UpdateAccountHandler::CheckPreconditions(UpdateAccountServerData& s
 }
 
 Result<void> UpdateAccountHandler::ExecuteBusiness(UpdateAccountServerData& server_data) {
-  auto& trading_dao = qtrade::framework::dao::TradingAccount::Instance();
-  auto& credential_dao = qtrade::framework::dao::AccountCredential::Instance();
+  auto& trading_dao = dao_manager_.Get<qtrade::framework::dao::TradingAccount>();
+  auto& credential_dao = dao_manager_.Get<qtrade::framework::dao::AccountCredential>();
 
   qtrade::framework::dao::TradingAccountRecord where;
   where.tenant_id = server_data.account.tenant_id;
   where.account_id = server_data.account.account_id;
 
   /// 更新 trading_account
-  const auto update_result = trading_dao.Update(server_data.account, where);
+  const auto update_result = trading_dao.Update(*connection_, server_data.account, where);
   if (update_result.error_code != ErrorCode::kSuccess) {
     return ErrResult(update_result.error_code, update_result.error_message);
   }
@@ -81,7 +100,7 @@ Result<void> UpdateAccountHandler::ExecuteBusiness(UpdateAccountServerData& serv
   credential_key.tenant_id = server_data.account.tenant_id;
   credential_key.account_id = server_data.account.account_id;
   credential_key.credential_type = qtrade::framework::dao::CredentialType::kPassword;
-  const auto existing = credential_dao.Select(credential_key);
+  const auto existing = credential_dao.Select(*connection_, credential_key);
   if (existing.error_code != ErrorCode::kSuccess || !existing.data.has_value() || existing.data->empty()) {
     return ErrResult(ErrorCode::kNotFound, "credential not found");
   }
@@ -93,7 +112,7 @@ Result<void> UpdateAccountHandler::ExecuteBusiness(UpdateAccountServerData& serv
   credential_row.key_id = key_id;
   credential_row.ciphertext = ciphertext;
 
-  const auto update_credential = credential_dao.Update(credential_row, credential_key);
+  const auto update_credential = credential_dao.Update(*connection_, credential_row, credential_key);
   if (update_credential.error_code != ErrorCode::kSuccess) {
     return ErrResult(update_credential.error_code, update_credential.error_message);
   }

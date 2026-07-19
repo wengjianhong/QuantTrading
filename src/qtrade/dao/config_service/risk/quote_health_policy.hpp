@@ -45,7 +45,7 @@ struct QuoteHealthPolicyRecord {
   std::optional<bool> enabled;
 };
 
-/// @brief quote_health_policy 表 DDL（单例）
+/// @brief quote_health_policy 表 DDL
 /// @details 实现 ITableDdl；增删改查尚未实现
 class QuoteHealthPolicy final : public ITableDdl {
  public:
@@ -56,9 +56,6 @@ class QuoteHealthPolicy final : public ITableDdl {
   QuoteHealthPolicy& operator=(const QuoteHealthPolicy&) = delete;
   ~QuoteHealthPolicy() noexcept override = default;
 
-  /// @brief 获取单例实例
-  /// @return 生产环境单例
-  static QuoteHealthPolicy& Instance();
 
   /// @brief 获取逻辑数据库名
   /// @return 固定为 "config"

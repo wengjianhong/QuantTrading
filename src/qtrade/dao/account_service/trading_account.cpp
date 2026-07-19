@@ -10,8 +10,6 @@
 namespace qtrade::framework::dao {
 namespace {
 
-/// @brief 测试 Mock 实例指针
-TradingAccount* g_mock_instance = nullptr;
 
 /// @brief 建表 SQL 脚本
 const std::string kCreateTableSql = R"(
@@ -39,21 +37,8 @@ const std::vector<std::string> kIndexSqls = {};
 
 }  // namespace
 
-TradingAccount& TradingAccount::Instance() {
-  if (g_mock_instance != nullptr) {
-    return *g_mock_instance;
-  }
-  static TradingAccount instance;
-  return instance;
-}
 
-void TradingAccount::SetMockInstance(TradingAccount* mock_instance) {
-  g_mock_instance = mock_instance;
-}
 
-void TradingAccount::ClearMockInstance() {
-  g_mock_instance = nullptr;
-}
 
 const std::string& TradingAccount::DatabaseName() const {
   return kDatabaseName;
@@ -82,7 +67,8 @@ KeyValues BuildTradingAccountValues(const TradingAccountRecord& record) {
   return values;
 }
 
-Result<std::int64_t> TradingAccount::Insert(const std::vector<TradingAccountRecord>& records) {
+Result<std::int64_t> TradingAccount::Insert(cpputils::database::IConnection& connection,
+                                            const std::vector<TradingAccountRecord>& records) {
   if (records.empty()) {
     return Result<std::int64_t>{ErrorCode::kSystemError};
   }
@@ -94,7 +80,7 @@ Result<std::int64_t> TradingAccount::Insert(const std::vector<TradingAccountReco
     if (values.empty()) {
       return Result<std::int64_t>{ErrorCode::kSystemError};
     }
-    const auto result = InsertRow(DatabaseName(), TableName(), values);
+    const auto result = InsertRow(connection, TableName(), values);
     if (result.error_code != ErrorCode::kSuccess) {
       return result;
     }
@@ -103,35 +89,40 @@ Result<std::int64_t> TradingAccount::Insert(const std::vector<TradingAccountReco
   return Result<std::int64_t>{ErrorCode::kSuccess, "", affected};
 }
 
-Result<std::int64_t> TradingAccount::Delete(const TradingAccountRecord& where_conditions) {
+Result<std::int64_t> TradingAccount::Delete(cpputils::database::IConnection& connection,
+                                            const TradingAccountRecord& where_conditions) {
   const KeyValues where_values = BuildTradingAccountValues(where_conditions);
   if (where_values.empty()) {
     return Result<std::int64_t>{ErrorCode::kSystemError};
   }
-  return DeleteRows(DatabaseName(), TableName(), where_values);
+  return DeleteRows(connection, TableName(), where_values);
 }
 
-Result<std::int64_t> TradingAccount::BatchDelete(const std::vector<std::int64_t>&) {
+Result<std::int64_t> TradingAccount::BatchDelete(cpputils::database::IConnection&,
+                                                 const std::vector<std::int64_t>&) {
   return Result<std::int64_t>{ErrorCode::kInternal, "composite primary key"};
 }
 
-Result<std::int64_t> TradingAccount::Update(const TradingAccountRecord& record,
+Result<std::int64_t> TradingAccount::Update(cpputils::database::IConnection& connection,
+                                            const TradingAccountRecord& record,
                                             const TradingAccountRecord& where_conditions) {
   const KeyValues values = BuildTradingAccountValues(record);
   const KeyValues where_values = BuildTradingAccountValues(where_conditions);
   if (values.empty() || where_values.empty()) {
     return Result<std::int64_t>{ErrorCode::kSystemError};
   }
-  return UpdateRows(DatabaseName(), TableName(), values, where_values);
+  return UpdateRows(connection, TableName(), values, where_values);
 }
 
-Result<std::int64_t> TradingAccount::Count(const TradingAccountRecord& where_conditions) {
-  return CountRows(DatabaseName(), TableName(), BuildTradingAccountValues(where_conditions));
+Result<std::int64_t> TradingAccount::Count(cpputils::database::IConnection& connection,
+                                           const TradingAccountRecord& where_conditions) {
+  return CountRows(connection, TableName(), BuildTradingAccountValues(where_conditions));
 }
 
-Result<std::vector<TradingAccountRecord>> TradingAccount::Select(const TradingAccountRecord& where_conditions) {
+Result<std::vector<TradingAccountRecord>> TradingAccount::Select(cpputils::database::IConnection& connection,
+                                                                  const TradingAccountRecord& where_conditions) {
   // 1. 按条件查询并映射结果行
-  auto query_result = SelectRows(DatabaseName(), TableName(), BuildTradingAccountValues(where_conditions));
+  auto query_result = SelectRows(connection, TableName(), BuildTradingAccountValues(where_conditions));
   if (query_result.error_code != ErrorCode::kSuccess || !query_result.data.has_value()) {
     return Result<std::vector<TradingAccountRecord>>{query_result.error_code};
   }
@@ -143,8 +134,8 @@ Result<std::vector<TradingAccountRecord>> TradingAccount::Select(const TradingAc
   return Result<std::vector<TradingAccountRecord>>{ErrorCode::kSuccess, "", std::move(rows)};
 }
 
-Result<std::int64_t> TradingAccount::Truncate() {
-  return TruncateRows(DatabaseName(), TableName());
+Result<std::int64_t> TradingAccount::Truncate(cpputils::database::IConnection& connection) {
+  return TruncateRows(connection, TableName());
 }
 
 }  // namespace qtrade::framework::dao

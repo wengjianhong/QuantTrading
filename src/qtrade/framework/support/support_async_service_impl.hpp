@@ -7,7 +7,7 @@
 #ifndef QTRADE_COMMON_SUPPORT_SUPPORT_ASYNC_SERVICE_IMPL_HPP_
 #define QTRADE_COMMON_SUPPORT_SUPPORT_ASYNC_SERVICE_IMPL_HPP_
 
-#include "qtrade/framework/database/db_connection.hpp"
+#include "qtrade/framework/database/db_connection_pool_manager.hpp"
 #include "qtrade/framework/grpc/async/grpc_async_server.hpp"
 
 #include <qtrade/error_code/error_codes.hpp>
@@ -78,8 +78,8 @@ class SupportAsyncServiceImpl : public ISupportService {
       return rc;
     }
 
-    // 3. 绑定 CQ / 连接后启动 Handler，并标记就绪
-    handler_->Init(&async_service_, grpc_server_->CompletionQueue(), connection_);
+    // 3. 绑定 CQ / 连接（及子类额外依赖）后启动 Handler，并标记就绪
+    InitHandler();
     handler_->Start();
 
     state_ = SupportServiceState::kReady;
@@ -133,6 +133,11 @@ class SupportAsyncServiceImpl : public ISupportService {
   }
 
  protected:
+  /// @brief 向 Handler 注入 AsyncService / CQ / 连接等依赖（子类可追加 DaoManager）
+  virtual void InitHandler() {
+    handler_->Init(&async_service_, grpc_server_->CompletionQueue(), connection_);
+  }
+
   /// 配置文件路径
   std::string config_path_;
   /// 服务名
@@ -155,8 +160,8 @@ class SupportAsyncServiceImpl : public ISupportService {
   std::unique_ptr<HandlerT> handler_;
   /// 异步 gRPC Server（含 CQ）
   std::unique_ptr<grpc_async::GrpcAsyncServer> grpc_server_;
-  /// 数据库连接持有者
-  std::shared_ptr<qtrade::framework::dao::DbConnectionHolder> connection_;
+  /// 数据库连接池管理器
+  std::shared_ptr<qtrade::framework::dao::DbConnectionPoolManager> connection_;
 };
 
 }  // namespace qtrade::common::support

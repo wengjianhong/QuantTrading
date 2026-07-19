@@ -18,8 +18,8 @@ class ITableDdl {
   virtual ~ITableDdl() noexcept = default;
 
   /// @brief 获取逻辑数据库名
-  /// @return 服务内连接路由键；通常与 JSON database_name 一致
-  /// @details 用于 SetConnection / GetConnection 选择连接，不代表跨环境物理库名映射
+  /// @return DAO 所属的逻辑数据库名；通常与 JSON database_name 一致
+  /// @details 用于描述表的部署归属，不参与运行期连接路由
   virtual const std::string& DatabaseName() const = 0;
 
   /// @brief 获取逻辑表名

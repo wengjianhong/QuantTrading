@@ -17,6 +17,16 @@ using qtrade::framework::grpc::detail::OkResult;
 
 }  // namespace
 
+Result<void> GetAccountHandler::Run(::grpc::ServerContext* context,
+                                    const qtrade::account::v1::GetAccountRequest* request,
+                                    qtrade::account::v1::GetAccountResponse* response) {
+  connection_ = pool_manager_.Acquire();
+  if (connection_ == nullptr) return ErrResult(ErrorCode::kSystemError, "database connection pool is unavailable");
+  const auto result = GrpcHandlerInterface::Run(context, request, response);
+  connection_.reset();
+  return result;
+}
+
 Result<GetAccountServerData> GetAccountHandler::ConvertToServerData(
   ::grpc::ServerContext* context, const qtrade::account::v1::GetAccountRequest* request) {
   (void)context;
@@ -43,7 +53,7 @@ Result<void> GetAccountHandler::ExecuteBusiness(GetAccountServerData& server_dat
   where.tenant_id = server_data.tenant_id;
   where.account_id = server_data.account_id;
 
-  const auto result = qtrade::framework::dao::TradingAccount::Instance().Select(where);
+  const auto result = dao_manager_.Get<qtrade::framework::dao::TradingAccount>().Select(*connection_, where);
   if (result.error_code != ErrorCode::kSuccess) {
     return ErrResult(result.error_code, result.error_message);
   }

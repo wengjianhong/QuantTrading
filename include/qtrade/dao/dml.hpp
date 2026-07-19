@@ -8,6 +8,8 @@
 
 #include <qtrade/structs/result.hpp>
 
+#include <cpputils/database/connection.hpp>
+
 #include <cstdint>
 #include <vector>
 
@@ -23,37 +25,44 @@ class ITableDml {
   /// @brief 插入多条记录
   /// @param records 待插入记录列表
   /// @return 成功：result.data 为受影响行数；失败：result.error_code 为错误码
-  virtual Result<std::int64_t> Insert(const std::vector<RecordT>& records) = 0;
+  virtual Result<std::int64_t> Insert(cpputils::database::IConnection& connection,
+                                      const std::vector<RecordT>& records) = 0;
 
   /// @brief 按条件删除记录
   /// @param where_conditions 查询条件（仅填需匹配的 optional 字段）
   /// @return 成功：result.data 为受影响行数；失败：result.error_code 为错误码
-  virtual Result<std::int64_t> Delete(const RecordT& where_conditions) = 0;
+  virtual Result<std::int64_t> Delete(cpputils::database::IConnection& connection,
+                                      const RecordT& where_conditions) = 0;
 
   /// @brief 按主键 id 列表批量删除
   /// @param ids 主键 id 列表
   /// @return 成功：result.data 为受影响行数；失败：result.error_code 为错误码
-  virtual Result<std::int64_t> BatchDelete(const std::vector<std::int64_t>& ids) = 0;
+  virtual Result<std::int64_t> BatchDelete(cpputils::database::IConnection& connection,
+                                           const std::vector<std::int64_t>& ids) = 0;
 
   /// @brief 按条件更新记录
   /// @param record 待写入字段
   /// @param where_conditions 更新条件
   /// @return 成功：result.data 为受影响行数；失败：result.error_code 为错误码
-  virtual Result<std::int64_t> Update(const RecordT& record, const RecordT& where_conditions) = 0;
+  virtual Result<std::int64_t> Update(cpputils::database::IConnection& connection,
+                                      const RecordT& record,
+                                      const RecordT& where_conditions) = 0;
 
   /// @brief 按条件统计记录数
   /// @param where_conditions 查询条件；全空 optional 表示全表
   /// @return 成功：result.data 为行数；失败：result.error_code 为错误码
-  virtual Result<std::int64_t> Count(const RecordT& where_conditions) = 0;
+  virtual Result<std::int64_t> Count(cpputils::database::IConnection& connection,
+                                     const RecordT& where_conditions) = 0;
 
   /// @brief 按条件查询记录列表
   /// @param where_conditions 查询条件；全空 optional 表示全表
   /// @return 查询结果；成功：result.data 为查询结果；失败：result.error_code 为错误码
-  virtual Result<std::vector<RecordT>> Select(const RecordT& where_conditions) = 0;
+  virtual Result<std::vector<RecordT>> Select(cpputils::database::IConnection& connection,
+                                              const RecordT& where_conditions) = 0;
 
   /// @brief 清空表全部记录
   /// @return 成功：result.data 为受影响行数；失败：result.error_code 为错误码
-  virtual Result<std::int64_t> Truncate() = 0;
+  virtual Result<std::int64_t> Truncate(cpputils::database::IConnection& connection) = 0;
 };
 
 }  // namespace qtrade::framework::dao

@@ -42,10 +42,6 @@ const std::vector<std::string> kIndexSqls = {
 
 }  // namespace
 
-AccountRiskLedger& AccountRiskLedger::Instance() {
-  static AccountRiskLedger instance;
-  return instance;
-}
 
 const std::string& AccountRiskLedger::DatabaseName() const {
   return kDatabaseName;

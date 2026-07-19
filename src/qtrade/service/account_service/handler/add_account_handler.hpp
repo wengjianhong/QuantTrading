@@ -6,10 +6,14 @@
 #ifndef QTRADE_SERVICE_ACCOUNT_HANDLER_ADD_ACCOUNT_HANDLER_HPP_
 #define QTRADE_SERVICE_ACCOUNT_HANDLER_ADD_ACCOUNT_HANDLER_HPP_
 
+#include "qtrade/framework/database/db_connection_pool_manager.hpp"
+
 #include <qtrade/dao/account_service/trading_account.hpp>
+#include <qtrade/dao/dao_manager.hpp>
 #include <qtrade/proto/account/v1/account.pb.h>
 #include <qtrade_framework/grpc/grpc_handler_interface.hpp>
 
+#include <memory>
 #include <string>
 
 namespace qtrade::service {
@@ -30,8 +34,15 @@ class AddAccountHandler final
                                                          qtrade::account::v1::AddAccountResponse,
                                                          AddAccountServerData> {
  public:
-  explicit AddAccountHandler(const std::string& method_name) : GrpcHandlerInterface(method_name) {}
+  AddAccountHandler(const std::string& method_name,
+                    qtrade::framework::dao::DbConnectionPoolManager& pool_manager,
+                    qtrade::framework::dao::DaoManager& dao_manager)
+    : GrpcHandlerInterface(method_name), pool_manager_(pool_manager), dao_manager_(dao_manager) {}
   ~AddAccountHandler() noexcept override = default;
+
+  [[nodiscard]] Result<void> Run(::grpc::ServerContext* context,
+                                 const qtrade::account::v1::AddAccountRequest* request,
+                                 qtrade::account::v1::AddAccountResponse* response);
 
  protected:
   /// 步骤1: 将 gRPC 请求转为业务数据
@@ -59,6 +70,11 @@ class AddAccountHandler final
   /// 步骤8: 构造响应
   Result<void> BuildResponse(AddAccountServerData& server_data,
                              qtrade::account::v1::AddAccountResponse* response) override;
+
+ private:
+  qtrade::framework::dao::DaoManager& dao_manager_;
+  qtrade::framework::dao::DbConnectionPoolManager& pool_manager_;
+  std::unique_ptr<cpputils::database::IConnection> connection_;
 };
 
 }  // namespace qtrade::service

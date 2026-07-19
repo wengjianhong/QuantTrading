@@ -1,5 +1,9 @@
 /// @file      emt_trader_spi.cpp
 /// @brief     EMT TraderSpi 适配器实现
+/// @details   为 EMT 交易回调的结构转换和标准 SPI 转发提供实现位置。
+/// @author    wengjianhong
+/// @date      2026-07-19
+/// @copyright CC BY-NC-SA 4.0
 #include "qtrade_sdk/emt/trader/emt_trader_spi.hpp"
 
 namespace qtrade::adapter::trader {

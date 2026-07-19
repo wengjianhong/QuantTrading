@@ -46,7 +46,7 @@ struct AccountRiskPolicyRecord {
   std::optional<bool> enabled;
 };
 
-/// @brief account_risk_policy 表 DDL（单例）
+/// @brief account_risk_policy 表 DDL
 /// @details 实现 ITableDdl；增删改查尚未实现
 class AccountRiskPolicy final : public ITableDdl {
  public:
@@ -57,9 +57,6 @@ class AccountRiskPolicy final : public ITableDdl {
   AccountRiskPolicy& operator=(const AccountRiskPolicy&) = delete;
   ~AccountRiskPolicy() noexcept override = default;
 
-  /// @brief 获取单例实例
-  /// @return 生产环境单例
-  static AccountRiskPolicy& Instance();
 
   /// @brief 获取逻辑数据库名
   /// @return 固定为 "account_risk"

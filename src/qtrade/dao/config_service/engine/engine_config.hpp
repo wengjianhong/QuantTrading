@@ -31,8 +31,8 @@ struct EngineConfigRecord {
   std::optional<std::string> payload;
 };
 
-/// @brief engine_config 表 DAO（单例）
-/// @details 同时实现 ITableDml 与 ITableDdl；通过 SetConnection 注入连接
+/// @brief engine_config 表 DAO
+/// @details 同时实现 ITableDml 与 ITableDdl；DML 调用显式传入请求级连接
 class EngineConfig final : public ITableDml<EngineConfigRecord>, public ITableDdl {
  public:
   EngineConfig() = default;
@@ -42,16 +42,8 @@ class EngineConfig final : public ITableDml<EngineConfigRecord>, public ITableDd
   EngineConfig& operator=(const EngineConfig&) = delete;
   ~EngineConfig() noexcept override = default;
 
-  /// @brief 获取单例实例
-  /// @return 生产环境单例；测试 Mock 已注册时返回 Mock 实例
-  static EngineConfig& Instance();
 
-  /// @brief 设置测试用 Mock 实例
-  /// @param mock_instance Mock 对象指针；生产环境保持 nullptr
-  static void SetMockInstance(EngineConfig* mock_instance);
 
-  /// @brief 清除测试用 Mock 实例
-  static void ClearMockInstance();
 
   /// ========================= ITableDdl 接口实现 =========================
   /// @brief 获取逻辑数据库名
@@ -74,37 +66,44 @@ class EngineConfig final : public ITableDml<EngineConfigRecord>, public ITableDd
   /// @brief 插入配置记录
   /// @param records 待插入记录
   /// @return 成功：result.data 为受影响行数；失败：result.error_code 为错误码
-  Result<std::int64_t> Insert(const std::vector<EngineConfigRecord>& records) override;
+  Result<std::int64_t> Insert(cpputils::database::IConnection& connection,
+                              const std::vector<EngineConfigRecord>& records) override;
 
   /// @brief 按条件删除配置
   /// @param where_conditions 删除条件（不可全空）
   /// @return 成功：result.data 为受影响行数；失败：result.error_code 为错误码
-  Result<std::int64_t> Delete(const EngineConfigRecord& where_conditions) override;
+  Result<std::int64_t> Delete(cpputils::database::IConnection& connection,
+                              const EngineConfigRecord& where_conditions) override;
 
   /// @brief 按主键 id 批量删除（本表为复合主键，不支持）
   /// @param ids 主键 id 列表（未使用）
   /// @return 成功：result.data 为受影响行数；失败：result.error_code 为错误码
-  Result<std::int64_t> BatchDelete(const std::vector<std::int64_t>& ids) override;
+  Result<std::int64_t> BatchDelete(cpputils::database::IConnection& connection,
+                                   const std::vector<std::int64_t>& ids) override;
 
   /// @brief 按条件更新配置
   /// @param record 待写入字段
   /// @param where_conditions 更新条件
   /// @return 成功：result.data 为受影响行数；失败：result.error_code 为错误码
-  Result<std::int64_t> Update(const EngineConfigRecord& record, const EngineConfigRecord& where_conditions) override;
+  Result<std::int64_t> Update(cpputils::database::IConnection& connection,
+                              const EngineConfigRecord& record,
+                              const EngineConfigRecord& where_conditions) override;
 
   /// @brief 按条件统计配置数量
   /// @param where_conditions 查询条件
   /// @return 成功：result.data 为行数；失败：result.error_code 为错误码
-  Result<std::int64_t> Count(const EngineConfigRecord& where_conditions) override;
+  Result<std::int64_t> Count(cpputils::database::IConnection& connection,
+                             const EngineConfigRecord& where_conditions) override;
 
   /// @brief 按条件查询配置列表
   /// @param where_conditions 查询条件
   /// @return 查询结果；成功：result.data 为查询结果；失败：result.error_code 为错误码
-  Result<std::vector<EngineConfigRecord>> Select(const EngineConfigRecord& where_conditions) override;
+  Result<std::vector<EngineConfigRecord>> Select(cpputils::database::IConnection& connection,
+                                                  const EngineConfigRecord& where_conditions) override;
 
   /// @brief 清空表全部记录
   /// @return 成功：result.data 为受影响行数；失败：result.error_code 为错误码
-  Result<std::int64_t> Truncate() override;
+  Result<std::int64_t> Truncate(cpputils::database::IConnection& connection) override;
 };
 
 /// @brief 将 EngineConfigRecord 转为 KeyValues

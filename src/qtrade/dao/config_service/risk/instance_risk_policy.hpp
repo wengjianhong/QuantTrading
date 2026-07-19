@@ -47,7 +47,7 @@ struct InstanceRiskPolicyRecord {
   std::optional<bool> enabled;
 };
 
-/// @brief instance_risk_policy 表 DDL（单例）
+/// @brief instance_risk_policy 表 DDL
 /// @details 实现 ITableDdl；增删改查尚未实现
 class InstanceRiskPolicy final : public ITableDdl {
  public:
@@ -58,9 +58,6 @@ class InstanceRiskPolicy final : public ITableDdl {
   InstanceRiskPolicy& operator=(const InstanceRiskPolicy&) = delete;
   ~InstanceRiskPolicy() noexcept override = default;
 
-  /// @brief 获取单例实例
-  /// @return 生产环境单例
-  static InstanceRiskPolicy& Instance();
 
   /// @brief 获取逻辑数据库名
   /// @return 固定为 "config"
