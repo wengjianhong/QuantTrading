@@ -1,8 +1,8 @@
 /// @file      trading_engine.hpp
-/// @brief     交易引擎主入口
-/// @details   单进程封闭编排：围栏与生命周期门禁、控制面 client、行情/交易标准化、
-///            策略引擎、CMS/Risk/OMS/EMS 发单链及账户/持仓状态；须 Init 后 Start，
-///            仅 READY 接受新单
+/// @brief     交易引擎本体（Init / Start / Stop 与运行时编排）
+/// @details   不负责进程入口；进程阶段由 apps/qtrade_engine/main.cpp + engine_boot 完成。
+///            本类内部再拆 Init/Start 子阶段（围栏、回放、控制面、适配器、柜台对账等）。
+///            须 Init 后 Start，仅 READY 接受新单。
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
@@ -52,7 +52,9 @@ class TradingEngine {
   TradingEngine(const TradingEngine&) = delete;
   TradingEngine& operator=(const TradingEngine&) = delete;
 
-  /// @brief 初始化控制面 gRPC 与 D 段 client（须在 Start 之前调用）
+  /// @brief 初始化引擎（编排 Init 子阶段，须在 Start 之前调用）
+  /// @details 子阶段：BootstrapLocalRuntime → AcquireInstanceFence → ReplayLocalOrderFacts
+  ///          → InitBypassClients → InitControlPlaneClients → ConnectAdaptersIfConfigured
   /// @param config 进程引导配置（config/account 地址、tenant、log/monitor 等）
   /// @return ErrorCode::kSuccess 表示成功
   ErrorCode Init(const qtrade::common::config::QtradeEngineConfig& config);
@@ -70,11 +72,13 @@ class TradingEngine {
   /// @return 配置只读引用
   [[nodiscard]] const qtrade::common::config::QtradeEngineConfig& GetConfig() const;
 
-  /// @brief 停止所有子模块与 client
+  /// @brief 停止所有子模块与 client（排空后逆序释放）
   /// @return ErrorCode::kSuccess 表示成功；未运行返回 ErrorCode::kSystemError
   ErrorCode Stop();
 
-  /// @brief 启动所有子模块（须先 Init）
+  /// @brief 启动运行时（编排 Start 子阶段，须先 Init）
+  /// @details 子阶段：EnsureAdaptersConnected → ReconcileBrokerState → StartRuntimeModules
+  ///          → AdvancePostStartLifecycle（BrokerSynced/RiskSynced → 行情门禁 → Ready）
   /// @return ErrorCode::kSuccess 表示成功
   ErrorCode Start();
 
@@ -142,31 +146,67 @@ class TradingEngine {
   position::PositionManager& GetPositionManager();
 
  private:
-  /// @brief 初始化并连接 config_client（GetConfig + SubscribeConfig）
-  /// @param config 进程引导配置
-  /// @return ErrorCode::kSuccess 表示成功
+  // ---------------------------------------------------------------------------
+  // Init 子阶段（由 Init() 按序调用；失败时 ReleaseInitResources）
+  // ---------------------------------------------------------------------------
+
+  /// @brief Init-1: 应用引导配置并配置行情健康阈值 → kBootstrap
+  ErrorCode BootstrapLocalRuntime(const qtrade::common::config::QtradeEngineConfig& config);
+
+  /// @brief Init-2: 获取单实例写入围栏 → kFenced
+  ErrorCode AcquireInstanceFence();
+
+  /// @brief Init-3: 初始化订单 journal 并回放本地事实 → kReplayed
+  ErrorCode ReplayLocalOrderFacts();
+
+  /// @brief Init-4: 初始化 D 段旁路 client（log / monitor）
+  ErrorCode InitBypassClients();
+
+  /// @brief Init-5: 初始化控制面 client（config / account-risk）
+  ErrorCode InitControlPlaneClients();
+
+  /// @brief Init-6: 若启用 config-service，则按快照连接行情/交易适配器
+  ErrorCode ConnectAdaptersIfConfigured();
+
+  /// @brief Init 失败时逆序释放已初始化资源
+  void ReleaseInitResources();
+
+  // ---------------------------------------------------------------------------
+  // Start 子阶段（由 Start() 按序调用）
+  // ---------------------------------------------------------------------------
+
+  /// @brief Start-1: 确保行情/交易适配器已连接（幂等）
+  ErrorCode EnsureAdaptersConnected();
+
+  /// @brief Start-2: 柜台订单/成交/资金/持仓对账
+  ErrorCode ReconcileBrokerState();
+
+  /// @brief Start-3: 启动 risk outbox、事件通道、标准化、策略与 EMS，并订阅合约
+  ErrorCode StartRuntimeModules();
+
+  /// @brief Start-4: 推进 BrokerSynced/RiskSynced，并按行情门禁尝试 READY
+  ErrorCode AdvancePostStartLifecycle();
+
+  // ---------------------------------------------------------------------------
+  // 控制面 / 适配器辅助
+  // ---------------------------------------------------------------------------
+
+  /// @brief 初始化并连接 config_client（FetchSnapshot + StartWatch）
   ErrorCode InitConfigClient(const qtrade::common::config::QtradeEngineConfig& config);
 
-  /// @brief 按配置初始化账户硬风控客户端并注入 OrderPipeline
-  /// @param config 进程引导配置
-  /// @return ErrorCode::kSuccess 表示成功；启用但地址非法时返回错误码
+  /// @brief 按配置初始化账户硬风控客户端
   ErrorCode InitAccountRiskClient(const qtrade::common::config::QtradeEngineConfig& config);
 
   /// @brief 按 config-service 下发的 EngineConfig 装配并连接行情/交易适配器
-  /// @return 成功返回 kSuccess；未收到有效配置时返回 kNotInitialized
   ErrorCode InitAdapters();
 
-  /// @brief 查询柜台订单、成交、资金和持仓并完成启动对账
-  /// @param trader_api 已连接交易适配器
-  /// @return 全部查询与待对账订单确认成功返回 kSuccess
+  /// @brief 查询柜台快照并完成启动对账
   ErrorCode SynchronizeBrokerState(qtrade_sdk::trader::TraderApi* trader_api);
 
   /// @brief 完整引擎配置回调：应用 EngineConfig 并旁路日志
-  /// @param config 含单调版本的完整引擎配置
   void OnEngineConfig(const qtrade::config::v1::EngineConfig& config);
 
   /// @brief 处理行情健康变化并更新 READY 门禁
-  /// @param healthy true 表示行情可用于交易
   void OnMarketHealthChanged(bool healthy);
 
   /// 是否已完成 Init

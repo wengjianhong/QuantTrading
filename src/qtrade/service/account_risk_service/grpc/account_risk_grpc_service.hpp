@@ -79,10 +79,10 @@ class AccountRiskGrpcService final : public qtrade::account_risk::v1::AccountRis
                                        qtrade::account_risk::v1::UpsertAccountRiskPolicyResponse* response) override;
 
  private:
-  /// 数据库连接池管理器
-  std::shared_ptr<qtrade::framework::dao::DbConnectionPoolManager> connection_;
   /// 本进程 DaoManager
-  std::shared_ptr<qtrade::framework::dao::DaoManager> dao_;
+  std::shared_ptr<qtrade::framework::dao::DaoManager> dao_mgr_;
+  /// 数据库连接池管理器
+  std::shared_ptr<qtrade::framework::dao::DbConnectionPoolManager> connection_pool_mgr_;
 };
 
 }  // namespace qtrade::service

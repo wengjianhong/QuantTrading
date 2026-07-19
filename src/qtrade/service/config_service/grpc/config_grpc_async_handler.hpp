@@ -51,14 +51,20 @@ class ConfigGrpcAsyncHandler {
 
  private:
   [[nodiscard]] bool DatabaseReady() const {
-    return connection_ != nullptr && connection_->IsReady() && dao_ != nullptr;
+    return connection_pool_mgr_ != nullptr && connection_pool_mgr_->IsReady() && dao_mgr_ != nullptr;
   }
 
-  qtrade::config::v1::ConfigService::AsyncService* async_service_ = nullptr;
-  grpc::ServerCompletionQueue* cq_ = nullptr;
-  std::shared_ptr<qtrade::framework::dao::DbConnectionPoolManager> connection_;
-  std::shared_ptr<qtrade::framework::dao::DaoManager> dao_;
+  /// 是否已启动
   bool started_ = false;
+  /// AsyncService
+  qtrade::config::v1::ConfigService::AsyncService* async_service_ = nullptr;
+  /// CQ
+  grpc::ServerCompletionQueue* cq_ = nullptr;
+
+  /// 本进程 DaoManager
+  std::shared_ptr<qtrade::framework::dao::DaoManager> dao_mgr_;
+  /// 数据库连接池管理器
+  std::shared_ptr<qtrade::framework::dao::DbConnectionPoolManager> connection_pool_mgr_;
 };
 
 }  // namespace qtrade::service

@@ -6,14 +6,13 @@
 #ifndef QTRADE_SERVICE_ACCOUNT_HANDLER_GET_CREDENTIAL_HANDLER_HPP_
 #define QTRADE_SERVICE_ACCOUNT_HANDLER_GET_CREDENTIAL_HANDLER_HPP_
 
-#include <qtrade/dao/dao_manager.hpp>
-#include <qtrade/dao/account_service/trading_account.hpp>
-#include <qtrade/proto/account/v1/account.pb.h>
 #include "qtrade/framework/database/db_connection_pool_manager.hpp"
 
+#include <qtrade/dao/account_service/trading_account.hpp>
+#include <qtrade/dao/dao_manager.hpp>
+#include <qtrade/proto/account/v1/account.pb.h>
 #include <qtrade_framework/grpc/grpc_handler_interface.hpp>
 
-#include <memory>
 #include <string>
 
 namespace qtrade::service {
@@ -43,7 +42,6 @@ class GetCredentialHandler final
                        qtrade::framework::dao::DaoManager& dao_manager)
     : GrpcHandlerInterface(method_name), pool_manager_(pool_manager), dao_manager_(dao_manager) {}
   ~GetCredentialHandler() noexcept override = default;
-  [[nodiscard]] Result<void> Run(::grpc::ServerContext*, const qtrade::account::v1::GetCredentialRequest*, qtrade::account::v1::GetCredentialResponse*);
 
  protected:
   /// 步骤1: 将 gRPC 请求转为业务数据
@@ -56,7 +54,7 @@ class GetCredentialHandler final
   /// 步骤3: 检查前置条件
   Result<void> CheckPreconditions(GetCredentialServerData& server_data) override;
 
-  /// 步骤4: 执行业务逻辑（查账户、解密凭证）
+  /// 步骤4: 执行业务逻辑（取连接、查账户并解密凭证）
   Result<void> ExecuteBusiness(GetCredentialServerData& server_data) override;
 
   /// 步骤5: 校验操作是否真正生效
@@ -71,10 +69,10 @@ class GetCredentialHandler final
   /// 步骤8: 构造响应
   Result<void> BuildResponse(GetCredentialServerData& server_data,
                              qtrade::account::v1::GetCredentialResponse* response) override;
+
  private:
   qtrade::framework::dao::DbConnectionPoolManager& pool_manager_;
   qtrade::framework::dao::DaoManager& dao_manager_;
-  std::unique_ptr<cpputils::database::IConnection> connection_;
 };
 
 }  // namespace qtrade::service

@@ -15,23 +15,6 @@
 
 namespace qtrade::service {
 
-namespace {
-
-using qtrade::framework::grpc::detail::ErrResult;
-using qtrade::framework::grpc::detail::OkResult;
-
-}  // namespace
-
-Result<void> GetCredentialHandler::Run(::grpc::ServerContext* context,
-                                       const qtrade::account::v1::GetCredentialRequest* request,
-                                       qtrade::account::v1::GetCredentialResponse* response) {
-  connection_ = pool_manager_.Acquire();
-  if (connection_ == nullptr) return ErrResult(ErrorCode::kSystemError, "database connection pool is unavailable");
-  const auto result = GrpcHandlerInterface::Run(context, request, response);
-  connection_.reset();
-  return result;
-}
-
 Result<GetCredentialServerData> GetCredentialHandler::ConvertToServerData(
   ::grpc::ServerContext* context, const qtrade::account::v1::GetCredentialRequest* request) {
   (void)context;
@@ -39,38 +22,44 @@ Result<GetCredentialServerData> GetCredentialHandler::ConvertToServerData(
   data.tenant_id = request->tenant_id();
   data.account_id = request->account_id();
   data.engine_id = request->engine_id();
-  return OkResult(std::move(data));
+  return {ErrorCode::kSuccess, "success", std::move(data)};
 }
 
 Result<void> GetCredentialHandler::ValidateParams(GetCredentialServerData& server_data) {
   if (server_data.tenant_id.empty() || server_data.engine_id.empty() || server_data.account_id.empty()) {
-    return ErrResult(ErrorCode::kInternal, "tenant_id, engine_id and account_id are required");
+    return Result<void>{ErrorCode::kInternal, "tenant_id, engine_id and account_id are required"};
   }
-  return OkResult();
+  return Result<void>{ErrorCode::kSuccess, "success"};
 }
 
 Result<void> GetCredentialHandler::CheckPreconditions(GetCredentialServerData& server_data) {
   (void)server_data;
-  return OkResult();
+  return Result<void>{ErrorCode::kSuccess, "success"};
 }
 
 Result<void> GetCredentialHandler::ExecuteBusiness(GetCredentialServerData& server_data) {
+  auto connection = pool_manager_.Acquire();
+  if (connection == nullptr) {
+    return Result<void>{ErrorCode::kSystemError, "database connection pool is unavailable"};
+  }
+
   qtrade::framework::dao::TradingAccountRecord where;
   where.tenant_id = server_data.tenant_id;
   where.account_id = server_data.account_id;
 
   /// 查询 trading_account
-  const auto account_result = dao_manager_.Get<qtrade::framework::dao::TradingAccount>().Select(*connection_, where);
+  const auto account_result =
+    dao_manager_.Get<qtrade::framework::dao::TradingAccount>().Select(*connection, where);
   if (account_result.error_code != ErrorCode::kSuccess) {
-    return ErrResult(account_result.error_code, account_result.error_message);
+    return Result<void>{account_result.error_code, account_result.error_message};
   }
   if (!account_result.data.has_value() || account_result.data->empty()) {
-    return ErrResult(ErrorCode::kNotFound, "account not found");
+    return Result<void>{ErrorCode::kNotFound, "account not found"};
   }
 
   server_data.account = account_result.data->front();
   if (server_data.account.status.value_or("") == "disabled") {
-    return ErrResult(ErrorCode::kInternal, "account is disabled");
+    return Result<void>{ErrorCode::kInternal, "account is disabled"};
   }
 
   /// 查询并解密 account_credential（默认取交易密码）
@@ -79,29 +68,29 @@ Result<void> GetCredentialHandler::ExecuteBusiness(GetCredentialServerData& serv
   cred_where.account_id = server_data.account_id;
   cred_where.credential_type = qtrade::framework::dao::CredentialType::kPassword;
   const auto cred_result =
-    dao_manager_.Get<qtrade::framework::dao::AccountCredential>().Select(*connection_, cred_where);
+    dao_manager_.Get<qtrade::framework::dao::AccountCredential>().Select(*connection, cred_where);
   if (cred_result.error_code != ErrorCode::kSuccess) {
-    return ErrResult(cred_result.error_code, cred_result.error_message);
+    return Result<void>{cred_result.error_code, cred_result.error_message};
   }
   if (!cred_result.data.has_value() || cred_result.data->empty()) {
-    return ErrResult(ErrorCode::kNotFound, "credential not found");
+    return Result<void>{ErrorCode::kNotFound, "credential not found"};
   }
 
   const auto& cred_row = cred_result.data->front();
   if (!cred_row.key_id.has_value() || !cred_row.ciphertext.has_value()) {
-    return ErrResult(ErrorCode::kInternal, "credential data invalid");
+    return Result<void>{ErrorCode::kInternal, "credential data invalid"};
   }
 
   if (!DecryptCredential(cred_row.key_id.value(), cred_row.ciphertext.value(), server_data.password)) {
-    return ErrResult(ErrorCode::kInternal, "decrypt credential failed");
+    return Result<void>{ErrorCode::kInternal, "decrypt credential failed"};
   }
 
-  return OkResult();
+  return Result<void>{ErrorCode::kSuccess, "success"};
 }
 
 Result<void> GetCredentialHandler::VerifyExecutionEffective(GetCredentialServerData& server_data) {
   (void)server_data;
-  return OkResult();
+  return Result<void>{ErrorCode::kSuccess, "success"};
 }
 
 void GetCredentialHandler::Rollback(GetCredentialServerData& server_data) {
@@ -114,7 +103,7 @@ Result<void> GetCredentialHandler::NotifyService(GetCredentialServerData& server
                server_data.tenant_id,
                server_data.engine_id,
                server_data.account_id);
-  return OkResult();
+  return Result<void>{ErrorCode::kSuccess, "success"};
 }
 
 Result<void> GetCredentialHandler::BuildResponse(GetCredentialServerData& server_data,
@@ -125,7 +114,7 @@ Result<void> GetCredentialHandler::BuildResponse(GetCredentialServerData& server
   credential->set_broker_id(server_data.account.broker_id.value_or(""));
   credential->set_connection_string(server_data.account.connection_string.value_or(""));
   credential->set_password(server_data.password);
-  return OkResult();
+  return Result<void>{ErrorCode::kSuccess, "success"};
 }
 
 }  // namespace qtrade::service

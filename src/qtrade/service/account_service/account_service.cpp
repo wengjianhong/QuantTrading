@@ -40,30 +40,30 @@ ErrorCode AccountService::Initialize(const std::string& config_path) {
   listen_address_ = config->grpc.Address();
 
   // 1. 创建数据库连接池；2. 创建 DaoManager 并确保全部表结构
-  connection_ = std::make_shared<qtrade::framework::dao::DbConnectionPoolManager>(config->database.pool);
-  if (!connection_->IsReady()) {
-    connection_.reset();
+  connection_pool_mgr_ = std::make_shared<qtrade::framework::dao::DbConnectionPoolManager>(config->database.pool);
+  if (!connection_pool_mgr_->IsReady()) {
+    connection_pool_mgr_.reset();
     state_ = qtrade::common::support::SupportServiceState::kFailed;
     last_error_ = ErrorCode::kInternal;
     return last_error_;
   }
 
-  dao_ = std::make_shared<qtrade::framework::dao::DaoManager>();
-  auto schema_connection = connection_->Acquire();
+  dao_mgr_ = std::make_shared<qtrade::framework::dao::DaoManager>();
+  auto schema_connection = connection_pool_mgr_->Acquire();
   if (schema_connection == nullptr) {
-    dao_.reset();
-    connection_.reset();
+    dao_mgr_.reset();
+    connection_pool_mgr_.reset();
     state_ = qtrade::common::support::SupportServiceState::kFailed;
     last_error_ = ErrorCode::kInternal;
     return last_error_;
   }
   auto* database = schema_connection.get();
-  if (qtrade::framework::dao::EnsureTableSchema(
-        database, dao_->Get<qtrade::framework::dao::TradingAccount>()) != ErrorCode::kSuccess ||
-      qtrade::framework::dao::EnsureTableSchema(
-        database, dao_->Get<qtrade::framework::dao::AccountCredential>()) != ErrorCode::kSuccess) {
-    dao_.reset();
-    connection_.reset();
+  if (qtrade::framework::dao::EnsureTableSchema(database, dao_mgr_->Get<qtrade::framework::dao::TradingAccount>()) !=
+        ErrorCode::kSuccess ||
+      qtrade::framework::dao::EnsureTableSchema(database, dao_mgr_->Get<qtrade::framework::dao::AccountCredential>()) !=
+        ErrorCode::kSuccess) {
+    dao_mgr_.reset();
+    connection_pool_mgr_.reset();
     state_ = qtrade::common::support::SupportServiceState::kFailed;
     last_error_ = ErrorCode::kInternal;
     return last_error_;
@@ -74,10 +74,10 @@ ErrorCode AccountService::Initialize(const std::string& config_path) {
 }
 
 std::unique_ptr<AccountGrpcService> AccountService::CreateGrpcService() {
-  if (!dao_) {
+  if (!dao_mgr_) {
     return nullptr;
   }
-  return std::make_unique<AccountGrpcService>(connection_, dao_);
+  return std::make_unique<AccountGrpcService>(connection_pool_mgr_, dao_mgr_);
 }
 
 }  // namespace qtrade::service

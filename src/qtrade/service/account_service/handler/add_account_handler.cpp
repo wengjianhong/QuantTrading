@@ -14,138 +14,119 @@ namespace qtrade::service {
 
 namespace {
 
-using qtrade::framework::grpc::detail::ErrResult;
-using qtrade::framework::grpc::detail::OkResult;
-
 [[nodiscard]] bool OptionalStringEmpty(const std::optional<std::string>& value) {
   return !value.has_value() || value->empty();
 }
 
 }  // namespace
 
-Result<void> AddAccountHandler::Run(::grpc::ServerContext* context,
-                                    const qtrade::account::v1::AddAccountRequest* request,
-                                    qtrade::account::v1::AddAccountResponse* response) {
-  connection_ = pool_manager_.Acquire();
-  if (connection_ == nullptr) {
-    return ErrResult(ErrorCode::kSystemError, "database connection pool is unavailable");
-  }
-  if (!connection_->BeginTransaction()) {
-    connection_.reset();
-    return ErrResult(ErrorCode::kSystemError, "begin database transaction failed");
-  }
-
-  Result<void> result = GrpcHandlerInterface::Run(context, request, response);
-  if (result.error_code == ErrorCode::kSuccess) {
-    if (!connection_->CommitTransaction()) {
-      (void)connection_->RollbackTransaction();
-      result = ErrResult(ErrorCode::kSystemError, "commit database transaction failed");
-    }
-  } else {
-    (void)connection_->RollbackTransaction();
-  }
-  connection_.reset();
-  return result;
-}
-
 Result<AddAccountServerData> AddAccountHandler::ConvertToServerData(
   ::grpc::ServerContext* context, const qtrade::account::v1::AddAccountRequest* request) {
   (void)context;
   if (!request->has_account()) {
-    return ErrResult<AddAccountServerData>(ErrorCode::kInternal, "account is missing");
+    return Result<AddAccountServerData>{ErrorCode::kInternal, "account is missing"};
   }
 
   AddAccountServerData data;
   data.account = ToTradingAccountRecord(request->account());
   data.password = request->account().password();
-  return OkResult(std::move(data));
+  return {ErrorCode::kSuccess, "success", std::move(data)};
 }
 
 Result<void> AddAccountHandler::ValidateParams(AddAccountServerData& server_data) {
   if (OptionalStringEmpty(server_data.account.tenant_id) || OptionalStringEmpty(server_data.account.account_id) ||
       server_data.password.empty()) {
-    return ErrResult(ErrorCode::kInternal, "tenant_id, account_id and password are required");
+    return Result<void>{ErrorCode::kInternal, "tenant_id, account_id and password are required"};
   }
-  return OkResult();
+  return Result<void>{ErrorCode::kSuccess, "success"};
 }
 
 Result<void> AddAccountHandler::CheckPreconditions(AddAccountServerData& server_data) {
-  qtrade::framework::dao::TradingAccountRecord key;
-  key.tenant_id = server_data.account.tenant_id;
-  key.account_id = server_data.account.account_id;
-
-  const auto exists = dao_manager_.Get<qtrade::framework::dao::TradingAccount>().Count(*connection_, key);
-  if (exists.error_code != ErrorCode::kSuccess) {
-    return ErrResult(exists.error_code, exists.error_message);
-  }
-  if (exists.data.has_value() && exists.data.value() > 0) {
-    return ErrResult(ErrorCode::kSystemError, "account already exists");
-  }
-  return OkResult();
+  (void)server_data;
+  return Result<void>{ErrorCode::kSuccess, "success"};
 }
 
 Result<void> AddAccountHandler::ExecuteBusiness(AddAccountServerData& server_data) {
+  auto connection = pool_manager_.Acquire();
+  if (connection == nullptr) {
+    return Result<void>{ErrorCode::kSystemError, "database connection pool is unavailable"};
+  }
+  if (!connection->BeginTransaction()) {
+    return Result<void>{ErrorCode::kSystemError, "begin database transaction failed"};
+  }
+
   auto& trading_dao = dao_manager_.Get<qtrade::framework::dao::TradingAccount>();
   auto& credential_dao = dao_manager_.Get<qtrade::framework::dao::AccountCredential>();
 
-  /// 加密明文密码
+  // 1. 查重
+  qtrade::framework::dao::TradingAccountRecord key;
+  key.tenant_id = server_data.account.tenant_id;
+  key.account_id = server_data.account.account_id;
+  const auto exists = trading_dao.Count(*connection, key);
+  if (exists.error_code != ErrorCode::kSuccess) {
+    (void)connection->RollbackTransaction();
+    return Result<void>{exists.error_code, exists.error_message};
+  }
+  if (exists.data.has_value() && exists.data.value() > 0) {
+    (void)connection->RollbackTransaction();
+    return Result<void>{ErrorCode::kSystemError, "account already exists"};
+  }
+
+  // 2. 加密明文密码
   std::string key_id;
   std::string ciphertext;
   if (!EncryptCredential(server_data.password, key_id, ciphertext)) {
-    return ErrResult(ErrorCode::kInternal, "encrypt credential failed");
+    (void)connection->RollbackTransaction();
+    return Result<void>{ErrorCode::kInternal, "encrypt credential failed"};
   }
 
-  /// 写入 trading_account
-  if (const auto insert_account = trading_dao.Insert(*connection_, {server_data.account});
+  // 3. 写入 trading_account
+  if (const auto insert_account = trading_dao.Insert(*connection, {server_data.account});
       insert_account.error_code != ErrorCode::kSuccess) {
-    return ErrResult(insert_account.error_code, insert_account.error_message);
+    (void)connection->RollbackTransaction();
+    return Result<void>{insert_account.error_code, insert_account.error_message};
   }
-  server_data.account_inserted = true;
 
-  /// 写入 account_credential
+  // 4. 写入 account_credential
   qtrade::framework::dao::AccountCredentialRecord credential_row;
   credential_row.tenant_id = server_data.account.tenant_id;
   credential_row.account_id = server_data.account.account_id;
   credential_row.credential_type = qtrade::framework::dao::CredentialType::kPassword;
   credential_row.key_id = key_id;
   credential_row.ciphertext = ciphertext;
-
-  if (const auto insert_credential = credential_dao.Insert(*connection_, {credential_row});
+  if (const auto insert_credential = credential_dao.Insert(*connection, {credential_row});
       insert_credential.error_code != ErrorCode::kSuccess) {
-    return ErrResult(insert_credential.error_code, insert_credential.error_message);
+    (void)connection->RollbackTransaction();
+    return Result<void>{insert_credential.error_code, insert_credential.error_message};
   }
 
-  return OkResult();
+  // 5. 提交事务
+  if (!connection->CommitTransaction()) {
+    (void)connection->RollbackTransaction();
+    return Result<void>{ErrorCode::kSystemError, "commit database transaction failed"};
+  }
+  return Result<void>{ErrorCode::kSuccess, "success"};
 }
 
 Result<void> AddAccountHandler::VerifyExecutionEffective(AddAccountServerData& server_data) {
   (void)server_data;
-  return OkResult();
+  return Result<void>{ErrorCode::kSuccess, "success"};
 }
 
 void AddAccountHandler::Rollback(AddAccountServerData& server_data) {
-  if (!server_data.account_inserted) {
-    return;
-  }
-
-  /// 凭证写入失败时，删除已插入的 trading_account 记录
-  qtrade::framework::dao::TradingAccountRecord where;
-  where.tenant_id = server_data.account.tenant_id;
-  where.account_id = server_data.account.account_id;
-  (void)dao_manager_.Get<qtrade::framework::dao::TradingAccount>().Delete(*connection_, where);
-  server_data.account_inserted = false;
+  (void)server_data;
 }
 
 Result<void> AddAccountHandler::NotifyService(AddAccountServerData& server_data) {
   (void)server_data;
-  return OkResult();
+  return Result<void>{ErrorCode::kSuccess, "success"};
 }
 
 Result<void> AddAccountHandler::BuildResponse(AddAccountServerData& server_data,
                                               qtrade::account::v1::AddAccountResponse* response) {
   (void)server_data;
   (void)response;
-  return OkResult();
+  return Result<void>{ErrorCode::kSuccess, "success"};
 }
 
 }  // namespace qtrade::service

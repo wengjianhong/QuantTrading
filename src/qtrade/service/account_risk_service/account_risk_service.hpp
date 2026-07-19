@@ -31,7 +31,7 @@ class AccountRiskService final : public qtrade::common::support::SupportSyncServ
 
  private:
   /// 本进程 DaoManager（Initialize 创建）
-  std::shared_ptr<qtrade::framework::dao::DaoManager> dao_;
+  std::shared_ptr<qtrade::framework::dao::DaoManager> dao_mgr_;
 };
 
 }  // namespace qtrade::service

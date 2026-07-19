@@ -96,8 +96,8 @@ grpc::Status InvalidArgument(const std::string& message) {
 AccountRiskGrpcService::AccountRiskGrpcService(
   std::shared_ptr<qtrade::framework::dao::DbConnectionPoolManager> connection,
   std::shared_ptr<qtrade::framework::dao::DaoManager> dao)
-  : connection_(std::move(connection)), dao_(std::move(dao)) {
-  (void)dao_;
+  : connection_pool_mgr_(std::move(connection)), dao_mgr_(std::move(dao)) {
+  (void)dao_mgr_;
 }
 
 grpc::Status AccountRiskGrpcService::ReserveOrder(grpc::ServerContext*,
@@ -179,10 +179,9 @@ grpc::Status AccountRiskGrpcService::ReserveOrder(grpc::ServerContext*,
   return grpc::Status::OK;
 }
 
-grpc::Status AccountRiskGrpcService::GetReservation(
-  grpc::ServerContext*,
-  const qtrade::account_risk::v1::GetReservationRequest* request,
-  qtrade::account_risk::v1::GetReservationResponse* response) {
+grpc::Status AccountRiskGrpcService::GetReservation(grpc::ServerContext*,
+                                                    const qtrade::account_risk::v1::GetReservationRequest* request,
+                                                    qtrade::account_risk::v1::GetReservationResponse* response) {
   if (request->tenant_id().empty() || request->account_id().empty() || request->order_id().empty()) {
     return InvalidArgument("tenant_id, account_id and order_id are required");
   }

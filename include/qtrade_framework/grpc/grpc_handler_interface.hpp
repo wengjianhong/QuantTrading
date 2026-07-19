@@ -14,42 +14,9 @@
 
 #include <optional>
 #include <string>
-#include <type_traits>
 #include <utility>
 
 namespace qtrade::framework::grpc {
-
-namespace detail {
-
-/// @brief 构造成功 Result<void>
-inline Result<void> OkResult() {
-  return Result<void>{ErrorCode::kSuccess, "success"};
-}
-
-/// @brief 构造带数据的成功 Result<T>
-template <typename T>
-inline Result<T> OkResult(T value) {
-  Result<T> result;
-  result.error_code = ErrorCode::kSuccess;
-  result.error_message = "success";
-  result.data = std::move(value);
-  return result;
-}
-
-/// @brief 构造失败 Result（T=void 时为 Result<void>）
-template <typename T = void>
-inline Result<T> ErrResult(ErrorCode code, std::string message) {
-  if constexpr (std::is_void_v<T>) {
-    return Result<void>{code, std::move(message)};
-  } else {
-    Result<T> result;
-    result.error_code = code;
-    result.error_message = std::move(message);
-    return result;
-  }
-}
-
-}  // namespace detail
 
 /// ===========================================================================
 /// ========================= 模板基类: 统一接口处理器 =========================
@@ -151,7 +118,7 @@ Result<void> GrpcHandlerInterface<RequestProto, ResponseProto, ServerData>::Chec
   (void)context;
   (void)request;
   /// 当前 qtrade 尚未接入权限中心，默认放行；后续可在此对接 GrpcPermissionMgr。
-  return detail::OkResult();
+  return Result<void>{ErrorCode::kSuccess, "success"};
 }
 
 /// ===========================================================================
@@ -164,15 +131,15 @@ Result<void> GrpcHandlerInterface<RequestProto, ResponseProto, ServerData>::Run(
   /// 前置检查: 空指针检查
   if (context == nullptr) {
     spdlog::error("GrpcHandlerInterface context is nullptr: method={}", method_name_);
-    return detail::ErrResult(ErrorCode::kInternal, "context is nullptr");
+    return Result<void>{ErrorCode::kInternal, "context is nullptr"};
   }
   if (request == nullptr) {
     spdlog::error("GrpcHandlerInterface request is nullptr: method={}", method_name_);
-    return detail::ErrResult(ErrorCode::kInternal, "request is nullptr");
+    return Result<void>{ErrorCode::kInternal, "request is nullptr"};
   }
   if (response == nullptr) {
     spdlog::error("GrpcHandlerInterface response is nullptr: method={}", method_name_);
-    return detail::ErrResult(ErrorCode::kInternal, "response is nullptr");
+    return Result<void>{ErrorCode::kInternal, "response is nullptr"};
   }
 
   std::optional<ServerData> server_data;
@@ -198,7 +165,7 @@ Result<void> GrpcHandlerInterface<RequestProto, ResponseProto, ServerData>::Run(
     }
     if (!convert_result.data.has_value()) {
       spdlog::warn("GrpcHandlerInterface ConvertToServerData data missing: method={}", method_name_);
-      return detail::ErrResult(ErrorCode::kInternal, "data is null");
+      return Result<void>{ErrorCode::kInternal, "data is null"};
     }
 
     /// 提取转换后的业务层数据结构体
@@ -263,7 +230,7 @@ Result<void> GrpcHandlerInterface<RequestProto, ResponseProto, ServerData>::Run(
 
     rollback_on_exception = false;
     /// 全部流程执行成功
-    return detail::OkResult();
+    return Result<void>{ErrorCode::kSuccess, "success"};
   } catch (const std::exception& ex) {
     /// 捕获异常，防止服务崩溃
     spdlog::error("GrpcHandlerInterface exception: method={}, {}", method_name_, ex.what());
@@ -274,7 +241,7 @@ Result<void> GrpcHandlerInterface<RequestProto, ResponseProto, ServerData>::Run(
         spdlog::error("GrpcHandlerInterface rollback exception: method={}, {}", method_name_, rollback_ex.what());
       }
     }
-    return detail::ErrResult(ErrorCode::kSystemError, "handler run exception");
+    return Result<void>{ErrorCode::kSystemError, "handler run exception"};
   }
 }
 

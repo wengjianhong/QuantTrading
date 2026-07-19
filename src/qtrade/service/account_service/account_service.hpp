@@ -30,7 +30,7 @@ class AccountService final : public qtrade::common::support::SupportSyncServiceI
 
  private:
   /// 本进程 DaoManager（Initialize 创建，供 Handler 使用）
-  std::shared_ptr<qtrade::framework::dao::DaoManager> dao_;
+  std::shared_ptr<qtrade::framework::dao::DaoManager> dao_mgr_;
 };
 
 }  // namespace qtrade::service

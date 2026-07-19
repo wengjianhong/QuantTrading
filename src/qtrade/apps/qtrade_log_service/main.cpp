@@ -1,11 +1,23 @@
 /// @file      main.cpp
 /// @brief     日志分析服务（qtrade_log_service）
-/// @details   独立进程入口，解析配置并启动日志服务主循环
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade/common/app/app_runner.hpp"
+#include "qtrade/common/app/process_boot.hpp"
+#include "qtrade/common/app/support_boot.hpp"
+#include "qtrade/service/log_service/log_service.hpp"
+
+#include <cstdlib>
+#include <iostream>
+#include <string>
 
 int main(int argc, char** argv) {
-  return qtrade::common::RunServiceMain(argc, argv, "qtrade_log_service", "log-service.log");
+  std::string config_path;
+  if (!qtrade::common::process_boot::ParseConfigPath(argc, argv, config_path)) {
+    std::cerr << "[qtrade_log_service] missing required argument: --config <path>\n";
+    return EXIT_FAILURE;
+  }
+
+  qtrade::service::LogService service;
+  return qtrade::common::support_boot::RunSupportServiceMain(config_path, "logs", "log-service.log", service);
 }

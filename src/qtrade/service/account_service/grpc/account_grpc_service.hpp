@@ -51,10 +51,10 @@ class AccountGrpcService final : public qtrade::account::v1::AccountService::Ser
   /// @brief 检查数据库连接是否就绪
   [[nodiscard]] bool DatabaseReady() const;
 
-  /// 数据库连接池管理器
-  std::shared_ptr<qtrade::framework::dao::DbConnectionPoolManager> connection_;
   /// 本进程 DaoManager
-  std::shared_ptr<qtrade::framework::dao::DaoManager> dao_;
+  std::shared_ptr<qtrade::framework::dao::DaoManager> dao_mgr_;
+  /// 数据库连接池管理器
+  std::shared_ptr<qtrade::framework::dao::DbConnectionPoolManager> connection_pool_mgr_;
 };
 
 }  // namespace qtrade::service

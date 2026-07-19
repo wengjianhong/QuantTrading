@@ -18,11 +18,10 @@ namespace detail {
 /// @brief SubscribeEngineConfig 轮询数据库的间隔（毫秒）
 constexpr int kWatchPollIntervalMs = 2000;
 
-using ConfigUnaryCallTag =
-  qtrade::common::grpc_async::UnaryCallTag<qtrade::config::v1::ConfigService::AsyncService,
-                                           ConfigGrpcAsyncHandler,
-                                           qtrade::config::v1::GetEngineConfigRequest,
-                                           qtrade::config::v1::GetEngineConfigResponse>;
+using ConfigUnaryCallTag = qtrade::common::grpc_async::UnaryCallTag<qtrade::config::v1::ConfigService::AsyncService,
+                                                                    ConfigGrpcAsyncHandler,
+                                                                    qtrade::config::v1::GetEngineConfigRequest,
+                                                                    qtrade::config::v1::GetEngineConfigResponse>;
 
 /// @brief SubscribeEngineConfig 异步 CallTag（Server Streaming；定时查库推送）
 class SubscribeConfigCallTag final : public qtrade::common::grpc_async::CallTagBase {
@@ -147,8 +146,8 @@ void ConfigGrpcAsyncHandler::Init(qtrade::config::v1::ConfigService::AsyncServic
                                   std::shared_ptr<qtrade::framework::dao::DaoManager> dao) {
   async_service_ = async_service;
   cq_ = cq;
-  connection_ = std::move(connection);
-  dao_ = std::move(dao);
+  connection_pool_mgr_ = std::move(connection);
+  dao_mgr_ = std::move(dao);
 }
 
 void ConfigGrpcAsyncHandler::Start() {
@@ -193,14 +192,14 @@ void ConfigGrpcAsyncHandler::SpawnSubscribeEngineConfig() {
 }
 
 qtrade::config::v1::EngineConfig ConfigGrpcAsyncHandler::QueryConfig(const ConfigScope& scope) const {
-  if (dao_ == nullptr) {
+  if (dao_mgr_ == nullptr) {
     return qtrade::config::v1::EngineConfig{};
   }
-  auto connection = connection_->Acquire();
+  auto connection = connection_pool_mgr_->Acquire();
   if (connection == nullptr) {
     return qtrade::config::v1::EngineConfig{};
   }
-  return QueryEngineConfig(scope, dao_->Get<qtrade::framework::dao::EngineConfig>(), *connection);
+  return QueryEngineConfig(scope, dao_mgr_->Get<qtrade::framework::dao::EngineConfig>(), *connection);
 }
 
 }  // namespace qtrade::service

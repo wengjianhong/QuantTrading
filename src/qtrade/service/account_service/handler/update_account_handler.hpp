@@ -6,14 +6,13 @@
 #ifndef QTRADE_SERVICE_ACCOUNT_HANDLER_UPDATE_ACCOUNT_HANDLER_HPP_
 #define QTRADE_SERVICE_ACCOUNT_HANDLER_UPDATE_ACCOUNT_HANDLER_HPP_
 
-#include <qtrade/dao/dao_manager.hpp>
-#include <qtrade/dao/account_service/trading_account.hpp>
-#include <qtrade/proto/account/v1/account.pb.h>
 #include "qtrade/framework/database/db_connection_pool_manager.hpp"
 
+#include <qtrade/dao/account_service/trading_account.hpp>
+#include <qtrade/dao/dao_manager.hpp>
+#include <qtrade/proto/account/v1/account.pb.h>
 #include <qtrade_framework/grpc/grpc_handler_interface.hpp>
 
-#include <memory>
 #include <string>
 
 namespace qtrade::service {
@@ -22,8 +21,6 @@ namespace qtrade::service {
 struct UpdateAccountServerData {
   /// 是否同步更新密码
   bool update_password = false;
-  /// 凭证是否已更新（预留回滚）
-  bool credential_updated = false;
   /// 新明文密码（空表示不更新凭证）
   std::string password;
   /// 待更新账户元数据
@@ -41,7 +38,6 @@ class UpdateAccountHandler final
                        qtrade::framework::dao::DaoManager& dao_manager)
     : GrpcHandlerInterface(method_name), pool_manager_(pool_manager), dao_manager_(dao_manager) {}
   ~UpdateAccountHandler() noexcept override = default;
-  [[nodiscard]] Result<void> Run(::grpc::ServerContext*, const qtrade::account::v1::UpdateAccountRequest*, qtrade::account::v1::UpdateAccountResponse*);
 
  protected:
   /// 步骤1: 将 gRPC 请求转为业务数据
@@ -54,13 +50,13 @@ class UpdateAccountHandler final
   /// 步骤3: 检查前置条件
   Result<void> CheckPreconditions(UpdateAccountServerData& server_data) override;
 
-  /// 步骤4: 执行业务逻辑（更新 trading_account，可选更新 credential）
+  /// 步骤4: 执行业务逻辑（取连接、事务内更新 trading_account，可选更新 credential）
   Result<void> ExecuteBusiness(UpdateAccountServerData& server_data) override;
 
   /// 步骤5: 校验操作是否真正生效
   Result<void> VerifyExecutionEffective(UpdateAccountServerData& server_data) override;
 
-  /// 步骤6: 失败回滚
+  /// 步骤6: 失败回滚（DB 事务已在 ExecuteBusiness 内处理）
   void Rollback(UpdateAccountServerData& server_data) override;
 
   /// 步骤7: 通知其他服务（失败不回滚）
@@ -73,7 +69,6 @@ class UpdateAccountHandler final
  private:
   qtrade::framework::dao::DbConnectionPoolManager& pool_manager_;
   qtrade::framework::dao::DaoManager& dao_manager_;
-  std::unique_ptr<cpputils::database::IConnection> connection_;
 };
 
 }  // namespace qtrade::service

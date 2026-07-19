@@ -28,10 +28,10 @@ using qtrade::framework::grpc::ToGrpcStatus;
 
 AccountGrpcService::AccountGrpcService(std::shared_ptr<qtrade::framework::dao::DbConnectionPoolManager> connection,
                                        std::shared_ptr<qtrade::framework::dao::DaoManager> dao)
-  : connection_(std::move(connection)), dao_(std::move(dao)) {}
+  : connection_pool_mgr_(std::move(connection)), dao_mgr_(std::move(dao)) {}
 
 bool AccountGrpcService::DatabaseReady() const {
-  return connection_ != nullptr && connection_->IsReady() && dao_ != nullptr;
+  return connection_pool_mgr_ != nullptr && connection_pool_mgr_->IsReady() && dao_mgr_ != nullptr;
 }
 
 grpc::Status AccountGrpcService::AddAccount(grpc::ServerContext* context,
@@ -41,7 +41,7 @@ grpc::Status AccountGrpcService::AddAccount(grpc::ServerContext* context,
     return ToGrpcStatus(ErrorCode::kSystemError);
   }
 
-  AddAccountHandler handler("AddAccount", *connection_, *dao_);
+  AddAccountHandler handler("AddAccount", *connection_pool_mgr_, *dao_mgr_);
   const Result<void> result = handler.Run(context, request, response);
   if (result.error_code != ErrorCode::kSuccess) {
     spdlog::error("AddAccount failed: {}", result.error_message);
@@ -56,7 +56,7 @@ grpc::Status AccountGrpcService::GetAccount(grpc::ServerContext* context,
     return ToGrpcStatus(ErrorCode::kSystemError);
   }
 
-  GetAccountHandler handler("GetAccount", *connection_, *dao_);
+  GetAccountHandler handler("GetAccount", *connection_pool_mgr_, *dao_mgr_);
   const Result<void> result = handler.Run(context, request, response);
   if (result.error_code != ErrorCode::kSuccess) {
     spdlog::error("GetAccount failed: {}", result.error_message);
@@ -71,7 +71,7 @@ grpc::Status AccountGrpcService::ListAccounts(grpc::ServerContext* context,
     return ToGrpcStatus(ErrorCode::kSystemError);
   }
 
-  ListAccountsHandler handler("ListAccounts", *connection_, *dao_);
+  ListAccountsHandler handler("ListAccounts", *connection_pool_mgr_, *dao_mgr_);
   const Result<void> result = handler.Run(context, request, response);
   if (result.error_code != ErrorCode::kSuccess) {
     spdlog::error("ListAccounts failed: {}", result.error_message);
@@ -86,7 +86,7 @@ grpc::Status AccountGrpcService::UpdateAccount(grpc::ServerContext* context,
     return ToGrpcStatus(ErrorCode::kSystemError);
   }
 
-  UpdateAccountHandler handler("UpdateAccount", *connection_, *dao_);
+  UpdateAccountHandler handler("UpdateAccount", *connection_pool_mgr_, *dao_mgr_);
   const Result<void> result = handler.Run(context, request, response);
   if (result.error_code != ErrorCode::kSuccess) {
     spdlog::error("UpdateAccount failed: {}", result.error_message);
@@ -101,7 +101,7 @@ grpc::Status AccountGrpcService::GetCredential(grpc::ServerContext* context,
     return ToGrpcStatus(ErrorCode::kSystemError);
   }
 
-  GetCredentialHandler handler("GetCredential", *connection_, *dao_);
+  GetCredentialHandler handler("GetCredential", *connection_pool_mgr_, *dao_mgr_);
   const Result<void> result = handler.Run(context, request, response);
   if (result.error_code != ErrorCode::kSuccess) {
     spdlog::error("GetCredential failed: {}", result.error_message);

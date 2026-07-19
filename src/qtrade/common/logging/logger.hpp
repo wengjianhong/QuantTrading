@@ -20,11 +20,11 @@ namespace qtrade::common {
 /// @param max_size_mb  单个文件最大大小(MB)
 /// @param max_files    最大保留文件数
 /// @param level        日志级别
-bool init_spdlog_logger(const std::string& log_dir = "logs",
-                        const std::string& log_filename = "qtrade.log",
-                        std::size_t max_size_mb = 50,
-                        std::size_t max_files = 10,
-                        spdlog::level::level_enum level = spdlog::level::info);
+bool InitSpdlogLogger(const std::string& log_dir = "logs",
+                      const std::string& log_filename = "qtrade.log",
+                      std::size_t max_size_mb = 50,
+                      std::size_t max_files = 10,
+                      spdlog::level::level_enum level = spdlog::level::info);
 
 }  // namespace qtrade::common
 

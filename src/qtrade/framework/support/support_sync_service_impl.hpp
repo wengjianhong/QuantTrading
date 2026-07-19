@@ -48,12 +48,12 @@ class SupportSyncServiceImpl : public ISupportService {
 
   /// @brief 创建同步 Service 并启动 gRPC 监听
   /// @return 成功返回 ErrorCode::kSuccess；状态非法、DB 未就绪或监听失败返回错误码
-  /// @details 要求状态为 kInitializing 且 connection_ 已就绪；失败时写入 last_error_ 并置为 kFailed
+  /// @details 要求状态为 kInitializing 且 connection_pool_mgr_ 已就绪；失败时写入 last_error_ 并置为 kFailed
   ErrorCode Start() override {
     std::lock_guard lock(mutex_);
 
     // 1. 校验生命周期状态与数据库连接
-    if (state_ != SupportServiceState::kInitializing || !connection_ || !connection_->IsReady()) {
+    if (state_ != SupportServiceState::kInitializing || !connection_pool_mgr_ || !connection_pool_mgr_->IsReady()) {
       return ErrorCode::kSystemError;
     }
 
@@ -91,7 +91,7 @@ class SupportSyncServiceImpl : public ISupportService {
     if (!grpc_server_ || !grpc_server_->IsRunning()) {
       if (state_ == SupportServiceState::kInitializing) {
         grpc_service_.reset();
-        connection_.reset();
+        connection_pool_mgr_.reset();
         state_ = SupportServiceState::kTerminated;
       }
       return;
@@ -100,7 +100,7 @@ class SupportSyncServiceImpl : public ISupportService {
     state_ = SupportServiceState::kStopping;
     grpc_server_->Shutdown();
     grpc_service_.reset();
-    connection_.reset();
+    connection_pool_mgr_.reset();
     state_ = SupportServiceState::kTerminated;
   }
 
@@ -127,7 +127,7 @@ class SupportSyncServiceImpl : public ISupportService {
   }
 
  protected:
-  /// @brief 创建同步 gRPC Service（子类注入 connection_ / DaoManager 等依赖）
+  /// @brief 创建同步 gRPC Service（子类注入 connection_pool_mgr_ / DaoManager 等依赖）
   /// @return 非空表示创建成功
   [[nodiscard]] virtual std::unique_ptr<GrpcServiceT> CreateGrpcService() = 0;
 
@@ -152,7 +152,7 @@ class SupportSyncServiceImpl : public ISupportService {
   /// 同步 gRPC Server
   std::unique_ptr<grpc_sync::GrpcSyncServer> grpc_server_;
   /// 数据库连接池管理器
-  std::shared_ptr<qtrade::framework::dao::DbConnectionPoolManager> connection_;
+  std::shared_ptr<qtrade::framework::dao::DbConnectionPoolManager> connection_pool_mgr_;
 };
 
 }  // namespace qtrade::common::support
