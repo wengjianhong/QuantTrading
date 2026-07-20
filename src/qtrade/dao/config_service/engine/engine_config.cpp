@@ -10,7 +10,6 @@
 namespace qtrade::framework::dao {
 namespace {
 
-
 /// @brief 建表 SQL 脚本
 const std::string kCreateTableSql = R"(
 CREATE TABLE IF NOT EXISTS engine_config (
@@ -35,9 +34,6 @@ const std::vector<std::string> kCreateTableSqls = {kCreateTableSql};
 const std::vector<std::string> kIndexSqls = {};
 
 }  // namespace
-
-
-
 
 const std::string& EngineConfig::DatabaseName() const {
   return kDatabaseName;
@@ -98,8 +94,7 @@ Result<std::int64_t> EngineConfig::Delete(cpputils::database::IConnection& conne
   return DeleteRows(connection, TableName(), where_values);
 }
 
-Result<std::int64_t> EngineConfig::BatchDelete(cpputils::database::IConnection&,
-                                               const std::vector<std::int64_t>&) {
+Result<std::int64_t> EngineConfig::BatchDelete(cpputils::database::IConnection&, const std::vector<std::int64_t>&) {
   spdlog::error("[EngineConfig] batch delete unsupported: composite primary key");
   return Result<std::int64_t>{ErrorCode::kInternal, "composite primary key"};
 }
@@ -122,7 +117,7 @@ Result<std::int64_t> EngineConfig::Count(cpputils::database::IConnection& connec
 }
 
 Result<std::vector<EngineConfigRecord>> EngineConfig::Select(cpputils::database::IConnection& connection,
-                                                              const EngineConfigRecord& where_conditions) {
+                                                             const EngineConfigRecord& where_conditions) {
   // 1. 按条件查询
   auto query_result = SelectRows(connection, TableName(), BuildEngineConfigValues(where_conditions));
   if (query_result.error_code != ErrorCode::kSuccess || !query_result.data.has_value()) {

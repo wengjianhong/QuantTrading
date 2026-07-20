@@ -4,10 +4,10 @@
 /// @date      2026-07-13
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/service/account_service/handler/add_account_handler.hpp"
-#include "qtrade/service/account_service/account_service_define.hpp"
 
 #include "qtrade/dao/account_service/account_credential.hpp"
 #include "qtrade/dao/account_service/trading_account.hpp"
+#include "qtrade/dao/dao_define.hpp"
 #include "qtrade/service/account_service/logic/credential_codec.hpp"
 #include "qtrade/service/account_service/logic/trading_account_converter.hpp"
 
@@ -48,7 +48,7 @@ Result<void> AddAccountHandler::CheckPreconditions(AddAccountServerData& server_
 }
 
 Result<void> AddAccountHandler::ExecuteBusiness(AddAccountServerData& server_data) {
-  auto connection = pool_manager_.Acquire(account::kDatabaseName);
+  auto connection = pool_manager_.Acquire(qtrade::framework::dao::kAccountDatabaseName);
   if (connection == nullptr) {
     return Result<void>{ErrorCode::kSystemError, "database connection pool is unavailable"};
   }

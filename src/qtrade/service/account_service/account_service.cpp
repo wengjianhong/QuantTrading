@@ -7,9 +7,9 @@
 
 #include "qtrade/common/config/qtrade_account_service_config.hpp"
 #include "qtrade/common/json/json_util.hpp"
+#include "qtrade/dao/dao_define.hpp"
 #include "qtrade/framework/dao/ddl_utils.hpp"
 #include "qtrade/framework/database/db_connection_pool_manager.hpp"
-#include "qtrade/service/account_service/account_service_define.hpp"
 
 namespace qtrade::service {
 
@@ -42,7 +42,7 @@ ErrorCode AccountService::Initialize(const std::string& config_path) {
 
   // 1. 创建数据库连接池；2. 创建 DaoManager 并确保全部表结构
   connection_pool_mgr_ = std::make_shared<qtrade::framework::dao::DbConnectionPoolManager>();
-  if (!connection_pool_mgr_->AddConnectionPool(account::kAccountDatabaseName, config->database.pool) ||
+  if (!connection_pool_mgr_->AddConnectionPool(qtrade::framework::dao::kAccountDatabaseName, config->database.pool) ||
       !connection_pool_mgr_->IsReady()) {
     connection_pool_mgr_.reset();
     state_ = qtrade::common::support::SupportServiceState::kFailed;
@@ -51,7 +51,7 @@ ErrorCode AccountService::Initialize(const std::string& config_path) {
   }
 
   dao_mgr_ = std::make_shared<qtrade::framework::dao::DaoManager>();
-  auto schema_connection = connection_pool_mgr_->Acquire(account::kAccountDatabaseName);
+  auto schema_connection = connection_pool_mgr_->Acquire(qtrade::framework::dao::kAccountDatabaseName);
   if (schema_connection == nullptr) {
     dao_mgr_.reset();
     connection_pool_mgr_.reset();
