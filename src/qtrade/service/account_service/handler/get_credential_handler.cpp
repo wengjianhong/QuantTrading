@@ -4,6 +4,7 @@
 /// @date      2026-07-13
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/service/account_service/handler/get_credential_handler.hpp"
+#include "qtrade/service/account_service/account_service_define.hpp"
 
 #include "qtrade/dao/account_service/account_credential.hpp"
 #include "qtrade/dao/account_service/trading_account.hpp"
@@ -38,7 +39,7 @@ Result<void> GetCredentialHandler::CheckPreconditions(GetCredentialServerData& s
 }
 
 Result<void> GetCredentialHandler::ExecuteBusiness(GetCredentialServerData& server_data) {
-  auto connection = pool_manager_.Acquire();
+  auto connection = pool_manager_.Acquire(account::kDatabaseName);
   if (connection == nullptr) {
     return Result<void>{ErrorCode::kSystemError, "database connection pool is unavailable"};
   }

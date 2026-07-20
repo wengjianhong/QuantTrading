@@ -9,6 +9,7 @@
 #include "qtrade/common/json/json_util.hpp"
 #include "qtrade/framework/dao/ddl_utils.hpp"
 #include "qtrade/framework/database/db_connection_pool_manager.hpp"
+#include "qtrade/service/account_risk_service/account_risk_define.hpp"
 
 namespace qtrade::service {
 
@@ -39,15 +40,16 @@ ErrorCode AccountRiskService::Initialize(const std::string& config_path) {
   listen_address_ = config->grpc.Address();
 
   // 3. 创建数据库连接池、DaoManager 并确保表结构
-  connection_pool_mgr_ = std::make_shared<qtrade::framework::dao::DbConnectionPoolManager>(config->database.pool);
-  if (!connection_pool_mgr_->IsReady()) {
+  connection_pool_mgr_ = std::make_shared<qtrade::framework::dao::DbConnectionPoolManager>();
+  if (!connection_pool_mgr_->AddConnectionPool(account_risk::kDatabaseName, config->database.pool) ||
+      !connection_pool_mgr_->IsReady()) {
     connection_pool_mgr_.reset();
     state_ = qtrade::common::support::SupportServiceState::kFailed;
     return last_error_ = ErrorCode::kInternal;
   }
 
   dao_mgr_ = std::make_shared<qtrade::framework::dao::DaoManager>();
-  auto schema_connection = connection_pool_mgr_->Acquire();
+  auto schema_connection = connection_pool_mgr_->Acquire(account_risk::kDatabaseName);
   if (schema_connection == nullptr) {
     dao_mgr_.reset();
     connection_pool_mgr_.reset();

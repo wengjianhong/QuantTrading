@@ -4,6 +4,7 @@
 /// @date      2026-06-28
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/service/config_service/grpc/config_grpc_async_handler.hpp"
+#include "qtrade/service/config_service/config_service_define.hpp"
 
 #include "qtrade/framework/grpc/async/call_tag_base.hpp"
 #include "qtrade/framework/grpc/async/unary_call_tag.hpp"
@@ -195,7 +196,7 @@ qtrade::config::v1::EngineConfig ConfigGrpcAsyncHandler::QueryConfig(const Confi
   if (dao_mgr_ == nullptr) {
     return qtrade::config::v1::EngineConfig{};
   }
-  auto connection = connection_pool_mgr_->Acquire();
+  auto connection = connection_pool_mgr_->Acquire(config::kDatabaseName);
   if (connection == nullptr) {
     return qtrade::config::v1::EngineConfig{};
   }

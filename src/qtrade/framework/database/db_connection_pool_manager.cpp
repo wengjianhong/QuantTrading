@@ -7,31 +7,55 @@
 
 #include <spdlog/spdlog.h>
 
+#include <utility>
+
 namespace qtrade::framework::dao {
 
-DbConnectionPoolManager::DbConnectionPoolManager(const cpputils::database::ConnectionPoolConfig& options) {
-  pool_ = cpputils::database::CreateConnectionPool();
-  if (pool_ == nullptr || !pool_->Open(options)) {
-    spdlog::error("[DbConnectionPoolManager] open pool failed");
-    pool_.reset();
-  }
-}
-
 DbConnectionPoolManager::~DbConnectionPoolManager() {
-  if (pool_ != nullptr) {
-    pool_->Close();
+  for (auto& [name, pool] : pools_) {
+    (void)name;
+    pool->Close();
   }
 }
 
 bool DbConnectionPoolManager::IsReady() const {
-  return pool_ != nullptr && pool_->IsOpen();
+  if (pools_.empty()) {
+    return false;
+  }
+  for (const auto& [name, pool] : pools_) {
+    (void)name;
+    if (pool == nullptr || !pool->IsOpen()) {
+      return false;
+    }
+  }
+  return true;
 }
 
-std::unique_ptr<cpputils::database::IConnection> DbConnectionPoolManager::Acquire() {
-  if (!IsReady()) {
+bool DbConnectionPoolManager::IsReady(std::string_view database_name) const {
+  const auto it = pools_.find(database_name);
+  return it != pools_.end() && it->second != nullptr && it->second->IsOpen();
+}
+
+bool DbConnectionPoolManager::AddConnectionPool(std::string database_name,
+                                                const cpputils::database::ConnectionPoolConfig& options) {
+  if (database_name.empty() || pools_.contains(database_name)) {
+    return false;
+  }
+  auto pool = cpputils::database::CreateConnectionPool();
+  if (pool == nullptr || !pool->Open(options)) {
+    spdlog::error("[DbConnectionPoolManager] open pool '{}' failed", database_name);
+    return false;
+  }
+  pools_.emplace(std::move(database_name), std::move(pool));
+  return true;
+}
+
+std::unique_ptr<cpputils::database::IConnection> DbConnectionPoolManager::Acquire(std::string_view database_name) {
+  const auto it = pools_.find(database_name);
+  if (it == pools_.end() || it->second == nullptr || !it->second->IsOpen()) {
     return nullptr;
   }
-  return pool_->Acquire();
+  return it->second->Acquire();
 }
 
 }  // namespace qtrade::framework::dao
