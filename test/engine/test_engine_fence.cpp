@@ -1,4 +1,4 @@
-#include "qtrade/engine/engine_fence.hpp"
+#include "qtrade/engine/core/engine_fence.hpp"
 
 #include <gtest/gtest.h>
 

@@ -86,7 +86,7 @@ class EngineLifecycle {
 
  private:
   /// 当前状态
-  std::atomic<EngineLifecycleState> state_{EngineLifecycleState::kNew};
+  std::atomic<EngineLifecycleState> state_ = EngineLifecycleState::kNew;
   /// 保护原因字符串
   mutable std::mutex mutex_;
   /// 最近冻结或失败原因

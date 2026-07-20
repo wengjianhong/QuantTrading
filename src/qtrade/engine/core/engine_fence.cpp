@@ -4,7 +4,7 @@
 /// @author    wengjianhong
 /// @date      2026-07-16
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade/engine/engine_fence.hpp"
+#include "qtrade/engine/core/engine_fence.hpp"
 
 #include <algorithm>
 #include <cerrno>

@@ -4,7 +4,7 @@
 /// @author    wengjianhong
 /// @date      2026-07-15
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade/engine/order_pipeline.hpp"
+#include "qtrade/engine/core/order_pipeline.hpp"
 
 #include "qtrade/client/account_risk_client/account_risk_client.hpp"
 #include "qtrade/client/log_client/log_client.hpp"

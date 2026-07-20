@@ -4,7 +4,7 @@
 /// @author    wengjianhong
 /// @date      2026-07-16
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade/engine/engine_lifecycle.hpp"
+#include "qtrade/engine/core/engine_lifecycle.hpp"
 
 namespace qtrade::engine {
 namespace {

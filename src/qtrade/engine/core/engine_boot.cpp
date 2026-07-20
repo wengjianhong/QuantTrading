@@ -3,7 +3,7 @@
 /// @author    wengjianhong
 /// @date      2026-07-19
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade/engine/engine_boot.hpp"
+#include "qtrade/engine/core/engine_boot.hpp"
 
 #include "qtrade/common/app/process_boot.hpp"
 #include "qtrade/engine/trading_engine.hpp"
@@ -81,7 +81,8 @@ bool StartEngine(TradingEngine& engine) {
 
   // 演示订阅：生产环境应由 config-service 下发的策略 instruments 驱动
   auto& quote_normalizer = engine.GetQuoteNormalizer();
-  if (auto* quote_api = quote_normalizer.GetQuoteApi(); quote_api != nullptr && quote_api->IsConnected()) {
+  auto* quote_api = quote_normalizer.GetQuoteApi();
+  if (quote_api != nullptr && quote_api->IsConnected()) {
     quote_normalizer.Subscribe({"IF2401", "IC2401"});
   }
   return true;

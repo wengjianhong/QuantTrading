@@ -28,7 +28,7 @@ using qtrade::framework::grpc::ToGrpcStatus;
 
 AccountGrpcService::AccountGrpcService(std::shared_ptr<qtrade::framework::dao::DbConnectionPoolManager> connection,
                                        std::shared_ptr<qtrade::framework::dao::DaoManager> dao)
-  : connection_pool_mgr_(std::move(connection)), dao_mgr_(std::move(dao)) {}
+  : dao_mgr_(std::move(dao)), connection_pool_mgr_(std::move(connection)) {}
 
 bool AccountGrpcService::DatabaseReady() const {
   return connection_pool_mgr_ != nullptr && connection_pool_mgr_->IsReady() && dao_mgr_ != nullptr;

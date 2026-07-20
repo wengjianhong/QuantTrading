@@ -8,7 +8,7 @@
 #include "qtrade/common/app/process_boot.hpp"
 #include "qtrade/common/system/signal.hpp"
 #include "qtrade/common/system/systemd_notify.hpp"
-#include "qtrade/engine/engine_boot.hpp"
+#include "qtrade/engine/core/engine_boot.hpp"
 #include "qtrade/engine/trading_engine.hpp"
 
 #include <cstdlib>
@@ -28,14 +28,13 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  // 3. 初始化程序全局环境（日志、启动横幅）
+  // 3. 初始化程序全局环境（日志）
   if (!qtrade::common::process_boot::InitProgramEnv(kServiceName, "logs", "trading-engine.log", config_path)) {
     qtrade::common::system::NotifyError(0, "Failed to initialize program environment");
     return EXIT_FAILURE;
   }
 
   qtrade::engine::TradingEngine engine;
-
   // 4. 加载本地引导配置（identity + support_services）
   if (!qtrade::engine::boot::LoadBootstrapConfig(engine, config_path)) {
     qtrade::common::system::NotifyError(0, "Failed to load bootstrap config");
