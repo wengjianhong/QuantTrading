@@ -57,7 +57,6 @@ class AccountRiskLedger final : public ITableDdl {
   AccountRiskLedger& operator=(const AccountRiskLedger&) = delete;
   ~AccountRiskLedger() noexcept override = default;
 
-
   /// @brief 获取逻辑数据库名
   /// @return 固定为 "account_risk"
   const std::string& DatabaseName() const override;

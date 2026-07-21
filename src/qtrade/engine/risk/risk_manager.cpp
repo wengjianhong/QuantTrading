@@ -13,8 +13,8 @@ namespace qtrade::engine::risk {
 
 ErrorCode RiskManager::Configure(const RiskLimits& limits) {
   // 1. 校验预算参数
-  if (limits.max_order_volume <= 0 || limits.max_order_notional < 0.0 ||
-      limits.max_total_notional < 0.0 || limits.safety_buffer < 0.0 ||
+  if (limits.max_order_volume <= 0 || limits.max_order_notional < 0.0 || limits.max_total_notional < 0.0 ||
+      limits.safety_buffer < 0.0 ||
       (limits.max_total_notional > 0.0 && limits.safety_buffer >= limits.max_total_notional)) {
     return ErrorCode::kSystemError;
   }
@@ -36,8 +36,7 @@ void RiskManager::SetStateProviders(std::function<std::uint64_t()> open_orders_p
 
 ErrorCode RiskManager::CheckOrder(const qtrade_sdk::trader::OrderRequest& request) const {
   // 1. 基础字段合法性
-  if (request.instrument.empty() || request.volume <= 0 || !std::isfinite(request.price) ||
-      request.price < 0.0 ||
+  if (request.instrument.empty() || request.volume <= 0 || !std::isfinite(request.price) || request.price < 0.0 ||
       (request.price_type == qtrade_sdk::trader::PriceType::kLimit && request.price <= 0.0)) {
     return ErrorCode::kSystemError;
   }
@@ -59,8 +58,7 @@ ErrorCode RiskManager::CheckOrder(const qtrade_sdk::trader::OrderRequest& reques
       (limits.max_order_notional > 0.0 && order_notional > limits.max_order_notional)) {
     return ErrorCode::kResourceExhausted;
   }
-  if (limits.max_open_orders > 0 && open_orders_provider &&
-      open_orders_provider() >= limits.max_open_orders) {
+  if (limits.max_open_orders > 0 && open_orders_provider && open_orders_provider() >= limits.max_open_orders) {
     return ErrorCode::kResourceExhausted;
   }
   if (limits.max_total_notional > 0.0 && notional_provider &&

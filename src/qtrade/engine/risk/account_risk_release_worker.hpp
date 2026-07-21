@@ -41,9 +41,7 @@ class AccountRiskReleaseWorker {
   /// @param path outbox JSON Lines 文件路径
   /// @param sync_on_append 每条事实是否 fsync
   /// @return 成功返回 kSuccess
-  ErrorCode Initialize(client::AccountRiskClient* client,
-                       const std::string& path,
-                       bool sync_on_append);
+  ErrorCode Initialize(client::AccountRiskClient* client, const std::string& path, bool sync_on_append);
 
   /// @brief 启动重试线程
   void Start();

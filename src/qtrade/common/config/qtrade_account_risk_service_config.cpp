@@ -9,8 +9,7 @@
 
 namespace qtrade::common::config {
 
-std::optional<QtradeAccountRiskServiceConfig> ParseQtradeAccountRiskServiceConfig(
-  const nlohmann::json& config_node) {
+std::optional<QtradeAccountRiskServiceConfig> ParseQtradeAccountRiskServiceConfig(const nlohmann::json& config_node) {
   if (!config_node.is_object()) {
     return std::nullopt;
   }

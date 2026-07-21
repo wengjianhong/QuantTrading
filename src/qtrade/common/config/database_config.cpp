@@ -202,9 +202,8 @@ cpputils::database::ConnectionConfig BuildConnectionConfig(const nlohmann::json&
 void ParsePoolOptions(const nlohmann::json& database,
                       const cpputils::database::ConnectionConfig& connection,
                       DatabaseConfig& options) {
-  const auto& pool = database.contains("pool") && database.at("pool").is_object()
-                       ? database.at("pool")
-                       : nlohmann::json::object();
+  const auto& pool =
+    database.contains("pool") && database.at("pool").is_object() ? database.at("pool") : nlohmann::json::object();
   std::size_t pool_size = 4;
   if (pool.contains("size")) {
     pool_size = pool.at("size").get<std::size_t>();

@@ -47,8 +47,7 @@ ErrorCode OrderPipeline::Submit(const qtrade_sdk::trader::OrderRequest& request)
   if (const auto rc = risk_manager_.CheckOrder(request); rc != ErrorCode::kSuccess) {
     return rc;
   }
-  if (request.client_order_id != 0 &&
-      order_manager_.GetOrderByClientId(request.client_order_id).has_value()) {
+  if (request.client_order_id != 0 && order_manager_.GetOrderByClientId(request.client_order_id).has_value()) {
     return ErrorCode::kSuccess;
   }
 
@@ -58,10 +57,9 @@ ErrorCode OrderPipeline::Submit(const qtrade_sdk::trader::OrderRequest& request)
     qtrade::account_risk::v1::ReserveOrderResponse response;
     const auto reserve_result =
       account_risk_client_->ReserveOrder(order_id, request, risk_manager_.Version(), response);
-    const bool reserve_unknown =
-      reserve_result == ErrorCode::kTimeout ||
-      (reserve_result == ErrorCode::kSuccess &&
-       response.decision() == qtrade::account_risk::v1::ReserveOrderResponse::UNKNOWN);
+    const bool reserve_unknown = reserve_result == ErrorCode::kTimeout ||
+                                 (reserve_result == ErrorCode::kSuccess &&
+                                  response.decision() == qtrade::account_risk::v1::ReserveOrderResponse::UNKNOWN);
     if (reserve_unknown) {
       qtrade::account_risk::v1::Reservation reservation;
       const auto query_result = account_risk_client_->GetReservation(order_id, reservation);
@@ -78,8 +76,7 @@ ErrorCode OrderPipeline::Submit(const qtrade_sdk::trader::OrderRequest& request)
   const auto order = order_manager_.CreateOrder(request, order_id);
   if (!order.has_value()) {
     if (release_handler_) {
-      (void)release_handler_(
-        order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
+      (void)release_handler_(order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
     }
     return ErrorCode::kNotInitialized;
   }
@@ -92,8 +89,7 @@ ErrorCode OrderPipeline::Submit(const qtrade_sdk::trader::OrderRequest& request)
   // 4. 持久化 EMS 入队事实后再交给执行线程
   if (const auto rc = order_manager_.MarkEmsQueued(persisted_order_id); rc != ErrorCode::kSuccess) {
     if (release_handler_) {
-      (void)release_handler_(
-        persisted_order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
+      (void)release_handler_(persisted_order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
     }
     return rc;
   }
@@ -102,8 +98,7 @@ ErrorCode OrderPipeline::Submit(const qtrade_sdk::trader::OrderRequest& request)
   if (rc != ErrorCode::kSuccess) {
     (void)order_manager_.RecordSendResult(persisted_order_id, rc);
     if (release_handler_) {
-      (void)release_handler_(
-        persisted_order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
+      (void)release_handler_(persisted_order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
     }
   }
   return rc;

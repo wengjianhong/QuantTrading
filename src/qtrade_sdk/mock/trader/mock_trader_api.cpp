@@ -192,8 +192,7 @@ qtrade::ErrorCode MockTraderApi::CancelOrder(const sdk::CancelOrderRequest& requ
     if (it == orders_.end()) {
       return qtrade::ErrorCode::kNotFound;
     }
-    if (it->second.status == sdk::OrderStatusType::kFilled ||
-        it->second.status == sdk::OrderStatusType::kCanceled ||
+    if (it->second.status == sdk::OrderStatusType::kFilled || it->second.status == sdk::OrderStatusType::kCanceled ||
         it->second.status == sdk::OrderStatusType::kRejected) {
       return qtrade::ErrorCode::kSystemError;
     }
@@ -229,8 +228,7 @@ qtrade::ErrorCode MockTraderApi::QueryOrders(const sdk::QueryOrdersRequest& requ
   for (const auto& [order_emt_id, order] : orders_) {
     if ((!request.instrument.empty() && order.instrument != request.instrument) ||
         (request.order_emt_id != 0 && order_emt_id != request.order_emt_id) ||
-        (request.status != sdk::OrderStatusType::kUnknown &&
-         order.status != request.status)) {
+        (request.status != sdk::OrderStatusType::kUnknown && order.status != request.status)) {
       continue;
     }
     response.orders.push_back(order);
@@ -307,8 +305,7 @@ qtrade::ErrorCode MockTraderApi::QueryPositions(const sdk::QueryPositionRequest&
       position.instrument = trade.instrument;
       position.market = trade.market;
       position.direction = sdk::PositionDirectionType::kNet;
-      position.total_volume +=
-        trade.side == sdk::SideType::kBuy ? trade.volume : -trade.volume;
+      position.total_volume += trade.side == sdk::SideType::kBuy ? trade.volume : -trade.volume;
     }
   }
   for (auto& [instrument, position] : positions) {

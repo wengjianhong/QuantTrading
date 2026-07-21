@@ -73,8 +73,7 @@ void EngineLifecycle::Freeze(const std::string& reason) {
 ErrorCode EngineLifecycle::ResumeReady() {
   // 1. 仅允许 Frozen → Ready，成功后清除原因
   EngineLifecycleState expected = EngineLifecycleState::kFrozen;
-  if (!state_.compare_exchange_strong(
-        expected, EngineLifecycleState::kReady, std::memory_order_acq_rel)) {
+  if (!state_.compare_exchange_strong(expected, EngineLifecycleState::kReady, std::memory_order_acq_rel)) {
     return ErrorCode::kSystemError;
   }
   std::lock_guard lock(mutex_);

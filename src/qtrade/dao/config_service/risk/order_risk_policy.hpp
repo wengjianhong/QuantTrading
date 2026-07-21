@@ -62,7 +62,6 @@ class OrderRiskPolicy final : public ITableDdl {
   OrderRiskPolicy& operator=(const OrderRiskPolicy&) = delete;
   ~OrderRiskPolicy() noexcept override = default;
 
-
   /// @brief 获取逻辑数据库名
   /// @return 固定为 "config"
   const std::string& DatabaseName() const override;

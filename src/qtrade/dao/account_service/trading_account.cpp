@@ -10,7 +10,6 @@
 namespace qtrade::framework::dao {
 namespace {
 
-
 /// @brief 建表 SQL 脚本
 const std::string kCreateTableSql = R"(
 CREATE TABLE IF NOT EXISTS trading_account (
@@ -36,9 +35,6 @@ const std::vector<std::string> kCreateTableSqls = {kCreateTableSql};
 const std::vector<std::string> kIndexSqls = {};
 
 }  // namespace
-
-
-
 
 const std::string& TradingAccount::DatabaseName() const {
   return kDatabaseName;
@@ -98,8 +94,7 @@ Result<std::int64_t> TradingAccount::Delete(cpputils::database::IConnection& con
   return DeleteRows(connection, TableName(), where_values);
 }
 
-Result<std::int64_t> TradingAccount::BatchDelete(cpputils::database::IConnection&,
-                                                 const std::vector<std::int64_t>&) {
+Result<std::int64_t> TradingAccount::BatchDelete(cpputils::database::IConnection&, const std::vector<std::int64_t>&) {
   return Result<std::int64_t>{ErrorCode::kInternal, "composite primary key"};
 }
 
@@ -120,7 +115,7 @@ Result<std::int64_t> TradingAccount::Count(cpputils::database::IConnection& conn
 }
 
 Result<std::vector<TradingAccountRecord>> TradingAccount::Select(cpputils::database::IConnection& connection,
-                                                                  const TradingAccountRecord& where_conditions) {
+                                                                 const TradingAccountRecord& where_conditions) {
   // 1. 按条件查询并映射结果行
   auto query_result = SelectRows(connection, TableName(), BuildTradingAccountValues(where_conditions));
   if (query_result.error_code != ErrorCode::kSuccess || !query_result.data.has_value()) {

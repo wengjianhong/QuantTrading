@@ -19,8 +19,7 @@ namespace {
 /// @brief 当前 steady_clock 毫秒
 /// @return 自 epoch 起的毫秒数
 std::int64_t SteadyNowMs() {
-  return std::chrono::duration_cast<std::chrono::milliseconds>(
-           std::chrono::steady_clock::now().time_since_epoch())
+  return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch())
     .count();
 }
 
@@ -171,11 +170,8 @@ void QuoteNormalizer::WatchHealth() {
     {
       // 1. 周期性检查；超时则标记不健康
       std::unique_lock lock(mutex_);
-      const auto interval =
-        std::min(health_options_.max_stale_age, std::chrono::milliseconds(100));
-      health_cv_.wait_for(lock, interval, [this] {
-        return !running_.load(std::memory_order_acquire);
-      });
+      const auto interval = std::min(health_options_.max_stale_age, std::chrono::milliseconds(100));
+      health_cv_.wait_for(lock, interval, [this] { return !running_.load(std::memory_order_acquire); });
       if (!running_.load(std::memory_order_acquire)) {
         return;
       }

@@ -52,7 +52,6 @@ class TenantRiskPolicy final : public ITableDdl {
   TenantRiskPolicy& operator=(const TenantRiskPolicy&) = delete;
   ~TenantRiskPolicy() noexcept override = default;
 
-
   /// @brief 获取逻辑数据库名
   /// @return 固定为 "config"
   const std::string& DatabaseName() const override;

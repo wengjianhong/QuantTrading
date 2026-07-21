@@ -6,15 +6,14 @@
 #include "qtrade/common/system/systemd_notify.hpp"
 
 #include <spdlog/spdlog.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 
 #include <cerrno>
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
 #include <string>
-
-#include <sys/socket.h>
-#include <sys/un.h>
 #include <unistd.h>
 
 namespace qtrade::common::system {
@@ -32,7 +31,7 @@ namespace {
   }
 
   // abstract namespace: '@' → '\0'
-  sockaddr_un address {};
+  sockaddr_un address{};
   address.sun_family = AF_UNIX;
   std::string path = socket_path;
   if (path[0] == '@') {
@@ -50,8 +49,7 @@ namespace {
     return -1;
   }
 
-  const socklen_t addr_len =
-    static_cast<socklen_t>(offsetof(sockaddr_un, sun_path) + path.size());
+  const socklen_t addr_len = static_cast<socklen_t>(offsetof(sockaddr_un, sun_path) + path.size());
   if (::connect(fd, reinterpret_cast<sockaddr*>(&address), addr_len) != 0) {
     spdlog::error("[system::systemd_notify] connect failed: {}", std::strerror(errno));
     ::close(fd);

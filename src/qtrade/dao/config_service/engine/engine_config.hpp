@@ -42,9 +42,6 @@ class EngineConfig final : public ITableDml<EngineConfigRecord>, public ITableDd
   EngineConfig& operator=(const EngineConfig&) = delete;
   ~EngineConfig() noexcept override = default;
 
-
-
-
   /// ========================= ITableDdl 接口实现 =========================
   /// @brief 获取逻辑数据库名
   /// @return 固定为 "config"
@@ -99,7 +96,7 @@ class EngineConfig final : public ITableDml<EngineConfigRecord>, public ITableDd
   /// @param where_conditions 查询条件
   /// @return 查询结果；成功：result.data 为查询结果；失败：result.error_code 为错误码
   Result<std::vector<EngineConfigRecord>> Select(cpputils::database::IConnection& connection,
-                                                  const EngineConfigRecord& where_conditions) override;
+                                                 const EngineConfigRecord& where_conditions) override;
 
   /// @brief 清空表全部记录
   /// @return 成功：result.data 为受影响行数；失败：result.error_code 为错误码

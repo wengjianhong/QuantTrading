@@ -45,9 +45,7 @@ class ExecutionManager {
   /// @param before_send 调用 TraderApi 前执行；失败时不发送
   /// @param send_result SendOrder 返回后执行
   /// @param cancel_result CancelOrder 返回后执行
-  void SetResultHandlers(BeforeSendHandler before_send,
-                         ResultHandler send_result,
-                         ResultHandler cancel_result);
+  void SetResultHandlers(BeforeSendHandler before_send, ResultHandler send_result, ResultHandler cancel_result);
 
   /// @brief 将新单加入 EMS 有界队列
   /// @param order OMS 订单快照

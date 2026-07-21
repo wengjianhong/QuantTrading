@@ -56,7 +56,6 @@ class QuoteHealthPolicy final : public ITableDdl {
   QuoteHealthPolicy& operator=(const QuoteHealthPolicy&) = delete;
   ~QuoteHealthPolicy() noexcept override = default;
 
-
   /// @brief 获取逻辑数据库名
   /// @return 固定为 "config"
   const std::string& DatabaseName() const override;

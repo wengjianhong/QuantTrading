@@ -19,8 +19,7 @@ struct StrategyState {
 
 class ConfigurableStrategy final : public qtrade::strategy::IStrategy {
  public:
-  explicit ConfigurableStrategy(std::shared_ptr<StrategyState> state)
-    : state_(std::move(state)) {}
+  explicit ConfigurableStrategy(std::shared_ptr<StrategyState> state) : state_(std::move(state)) {}
 
   qtrade::ErrorCode Init(const qtrade::strategy::StrategyConfig&) override {
     return qtrade::ErrorCode::kSuccess;
@@ -57,8 +56,7 @@ class ConfigurableStrategy final : public qtrade::strategy::IStrategy {
     return it == state_->params.end() ? std::string{} : it->second;
   }
 
-  qtrade::ErrorCode SetParameter(const std::string& key,
-                                 const std::string& value) override {
+  qtrade::ErrorCode SetParameter(const std::string& key, const std::string& value) override {
     state_->params[key] = value;
     return qtrade::ErrorCode::kSuccess;
   }
@@ -73,8 +71,7 @@ TEST(StrategyConfig, CreatesAndControlsConfiguredStrategy) {
   qtrade::engine::event_bus::EventLanes lanes;
   qtrade::engine::strategy::StrategyEngine engine(lanes);
   const auto state = std::make_shared<StrategyState>();
-  ASSERT_EQ(engine.RegisterFactory(
-              "test", [state] { return std::make_unique<ConfigurableStrategy>(state); }),
+  ASSERT_EQ(engine.RegisterFactory("test", [state] { return std::make_unique<ConfigurableStrategy>(state); }),
             qtrade::ErrorCode::kSuccess);
 
   qtrade::engine::strategy::StrategyRuntimeConfig config;
@@ -107,8 +104,7 @@ TEST(StrategyConfig, RejectsDuplicateInstrumentRoutes) {
   qtrade::engine::event_bus::EventLanes lanes;
   qtrade::engine::strategy::StrategyEngine engine(lanes);
   ASSERT_EQ(engine.RegisterFactory(
-              "test", [] { return std::make_unique<ConfigurableStrategy>(
-                                  std::make_shared<StrategyState>()); }),
+              "test", [] { return std::make_unique<ConfigurableStrategy>(std::make_shared<StrategyState>()); }),
             qtrade::ErrorCode::kSuccess);
 
   qtrade::engine::strategy::StrategyRuntimeConfig first;

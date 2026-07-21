@@ -14,11 +14,11 @@
 #include <algorithm>
 #include <cerrno>
 #include <chrono>
+#include <fcntl.h>
 #include <filesystem>
 #include <fstream>
-#include <fcntl.h>
-#include <unordered_map>
 #include <unistd.h>
+#include <unordered_map>
 
 namespace qtrade::engine::risk {
 namespace {
@@ -27,8 +27,7 @@ namespace {
 /// @param path 文件路径
 /// @param next_sequence 输出下一序号
 /// @return 尚未收到 ack 的任务
-std::unordered_map<std::string, int> ReplayOutbox(const std::string& path,
-                                                  std::uint64_t& next_sequence) {
+std::unordered_map<std::string, int> ReplayOutbox(const std::string& path, std::uint64_t& next_sequence) {
   std::unordered_map<std::string, int> pending;
   std::ifstream input(path);
   std::string line;

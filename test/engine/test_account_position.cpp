@@ -71,8 +71,7 @@ TEST(PositionManager, TracksLongShortAndTodayYesterday) {
   close_yesterday.price = 111.0;
   close_yesterday.volume = 3;
   close_yesterday.side = qtrade_sdk::trader::SideType::kSell;
-  close_yesterday.position_effect =
-    qtrade_sdk::trader::PositionEffectType::kCloseYesterday;
+  close_yesterday.position_effect = qtrade_sdk::trader::PositionEffectType::kCloseYesterday;
   manager.ApplyTrade(close_yesterday);
 
   qtrade_sdk::trader::Trade close_today = close_yesterday;

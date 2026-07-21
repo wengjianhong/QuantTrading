@@ -73,9 +73,8 @@ ErrorCode AccountRiskClient::ReserveOrder(const std::string& order_id,
   return status.ok() ? ErrorCode::kSuccess : ErrorCode::kTimeout;
 }
 
-ErrorCode AccountRiskClient::GetReservation(
-  const std::string& order_id,
-  qtrade::account_risk::v1::Reservation& reservation) {
+ErrorCode AccountRiskClient::GetReservation(const std::string& order_id,
+                                            qtrade::account_risk::v1::Reservation& reservation) {
   if (!IsInitialized() || order_id.empty()) {
     return ErrorCode::kNotInitialized;
   }

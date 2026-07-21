@@ -6,13 +6,14 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/engine/core/engine_fence.hpp"
 
+#include <sys/file.h>
+
 #include <algorithm>
 #include <cerrno>
 #include <charconv>
-#include <filesystem>
 #include <fcntl.h>
+#include <filesystem>
 #include <string>
-#include <sys/file.h>
 #include <unistd.h>
 
 namespace qtrade::engine {
@@ -57,8 +58,7 @@ ErrorCode EngineFence::Acquire(const std::string& path, std::uint64_t minimum_ep
   const std::uint64_t epoch = std::max(minimum_epoch, previous_epoch + 1);
   const std::string serialized = std::to_string(epoch) + "\n";
   if (::ftruncate(fd, 0) != 0 ||
-      ::pwrite(fd, serialized.data(), serialized.size(), 0) !=
-        static_cast<ssize_t>(serialized.size()) ||
+      ::pwrite(fd, serialized.data(), serialized.size(), 0) != static_cast<ssize_t>(serialized.size()) ||
       ::fsync(fd) != 0) {
     ::flock(fd, LOCK_UN);
     ::close(fd);

@@ -201,8 +201,8 @@ Result<std::unique_ptr<cpputils::database::IResultSet>> SelectRows(cpputils::dat
                                                                    const std::string& table,
                                                                    const KeyValues& where_values) {
   if (!connection.IsConnected()) {
-    return Result<std::unique_ptr<cpputils::database::IResultSet>>{
-      ErrorCode::kSystemError, "database connection is unavailable"};
+    return Result<std::unique_ptr<cpputils::database::IResultSet>>{ErrorCode::kSystemError,
+                                                                   "database connection is unavailable"};
   }
 
   // 1. 组装 SELECT 并返回结果集

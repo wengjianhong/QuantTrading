@@ -4,10 +4,10 @@
 /// @date      2026-07-13
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/service/account_service/handler/get_credential_handler.hpp"
-#include "qtrade/dao/dao_define.hpp"
 
 #include "qtrade/dao/account_service/account_credential.hpp"
 #include "qtrade/dao/account_service/trading_account.hpp"
+#include "qtrade/dao/dao_define.hpp"
 #include "qtrade/service/account_service/logic/credential_codec.hpp"
 
 #include <spdlog/spdlog.h>
@@ -49,8 +49,7 @@ Result<void> GetCredentialHandler::ExecuteBusiness(GetCredentialServerData& serv
   where.account_id = server_data.account_id;
 
   /// 查询 trading_account
-  const auto account_result =
-    dao_manager_.Get<qtrade::framework::dao::TradingAccount>().Select(*connection, where);
+  const auto account_result = dao_manager_.Get<qtrade::framework::dao::TradingAccount>().Select(*connection, where);
   if (account_result.error_code != ErrorCode::kSuccess) {
     return Result<void>{account_result.error_code, account_result.error_message};
   }

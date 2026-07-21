@@ -31,8 +31,7 @@ class ITableDml {
   /// @brief 按条件删除记录
   /// @param where_conditions 查询条件（仅填需匹配的 optional 字段）
   /// @return 成功：result.data 为受影响行数；失败：result.error_code 为错误码
-  virtual Result<std::int64_t> Delete(cpputils::database::IConnection& connection,
-                                      const RecordT& where_conditions) = 0;
+  virtual Result<std::int64_t> Delete(cpputils::database::IConnection& connection, const RecordT& where_conditions) = 0;
 
   /// @brief 按主键 id 列表批量删除
   /// @param ids 主键 id 列表
@@ -51,8 +50,7 @@ class ITableDml {
   /// @brief 按条件统计记录数
   /// @param where_conditions 查询条件；全空 optional 表示全表
   /// @return 成功：result.data 为行数；失败：result.error_code 为错误码
-  virtual Result<std::int64_t> Count(cpputils::database::IConnection& connection,
-                                     const RecordT& where_conditions) = 0;
+  virtual Result<std::int64_t> Count(cpputils::database::IConnection& connection, const RecordT& where_conditions) = 0;
 
   /// @brief 按条件查询记录列表
   /// @param where_conditions 查询条件；全空 optional 表示全表

@@ -9,8 +9,7 @@
 TEST(EngineFence, EnforcesSingleWriterAndMonotonicEpoch) {
   const std::string path =
     (std::filesystem::temp_directory_path() /
-     ("qtrade-engine-fence-" +
-      std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())))
+     ("qtrade-engine-fence-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())))
       .string();
 
   qtrade::engine::EngineFence first;

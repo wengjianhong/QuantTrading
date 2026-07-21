@@ -35,8 +35,7 @@ void StrategyEngine::Start() {
   // 2. 启动已启用且未启动的策略
   for (auto& [strategy_id, entry] : strategies_) {
     (void)strategy_id;
-    if (entry.enabled && !entry.started &&
-        entry.strategy->Start() == ErrorCode::kSuccess) {
+    if (entry.enabled && !entry.started && entry.strategy->Start() == ErrorCode::kSuccess) {
       entry.started = true;
     }
   }
@@ -69,8 +68,7 @@ void StrategyEngine::RegisterStrategy(std::unique_ptr<qtrade::strategy::IStrateg
     return;
   }
   const std::string strategy_id = "manual-" + std::to_string(++manual_strategy_counter_);
-  strategies_.emplace(
-    strategy_id, StrategyEntry{std::move(strategy), true, false, false, {}});
+  strategies_.emplace(strategy_id, StrategyEntry{std::move(strategy), true, false, false, {}});
   spdlog::info("[StrategyEngine] registered new strategy");
 }
 
@@ -90,15 +88,13 @@ ErrorCode StrategyEngine::RegisterStrategy(std::unique_ptr<qtrade::strategy::ISt
   for (const auto& instrument : instruments) {
     instrument_routes_.emplace(instrument, raw);
   }
-  strategies_.emplace(
-    strategy_id, StrategyEntry{std::move(strategy), true, false, false, instruments});
+  strategies_.emplace(strategy_id, StrategyEntry{std::move(strategy), true, false, false, instruments});
   return ErrorCode::kSuccess;
 }
 
-ErrorCode StrategyEngine::RegisterStrategy(
-  const std::string& strategy_id,
-  std::unique_ptr<qtrade::strategy::IStrategy> strategy,
-  const std::vector<std::string>& instruments) {
+ErrorCode StrategyEngine::RegisterStrategy(const std::string& strategy_id,
+                                           std::unique_ptr<qtrade::strategy::IStrategy> strategy,
+                                           const std::vector<std::string>& instruments) {
   if (strategy_id.empty() || !strategy) {
     return ErrorCode::kInternal;
   }
@@ -115,8 +111,7 @@ ErrorCode StrategyEngine::RegisterStrategy(
   for (const auto& instrument : instruments) {
     instrument_routes_[instrument] = raw;
   }
-  strategies_.emplace(
-    strategy_id, StrategyEntry{std::move(strategy), true, false, false, instruments});
+  strategies_.emplace(strategy_id, StrategyEntry{std::move(strategy), true, false, false, instruments});
   return ErrorCode::kSuccess;
 }
 
@@ -125,13 +120,10 @@ ErrorCode StrategyEngine::RegisterFactory(const std::string& plugin, StrategyFac
     return ErrorCode::kInternal;
   }
   std::lock_guard lock(mutex_);
-  return factories_.emplace(plugin, std::move(factory)).second
-           ? ErrorCode::kSuccess
-           : ErrorCode::kSystemError;
+  return factories_.emplace(plugin, std::move(factory)).second ? ErrorCode::kSuccess : ErrorCode::kSystemError;
 }
 
-ErrorCode StrategyEngine::ApplyConfiguration(
-  const std::vector<StrategyRuntimeConfig>& configs) {
+ErrorCode StrategyEngine::ApplyConfiguration(const std::vector<StrategyRuntimeConfig>& configs) {
   std::lock_guard lock(mutex_);
 
   // 1. 预检：策略 ID 唯一、工厂可得、启用策略品种不冲突
@@ -168,10 +160,7 @@ ErrorCode StrategyEngine::ApplyConfiguration(
         return ErrorCode::kInternal;
       }
       entry_it =
-        strategies_
-          .emplace(config.strategy_id,
-                   StrategyEntry{std::move(strategy), false, false, true, {}})
-          .first;
+        strategies_.emplace(config.strategy_id, StrategyEntry{std::move(strategy), false, false, true, {}}).first;
     }
 
     StrategyEntry& entry = entry_it->second;

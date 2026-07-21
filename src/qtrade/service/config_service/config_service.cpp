@@ -7,9 +7,9 @@
 
 #include "qtrade/common/config/qtrade_config_service_config.hpp"
 #include "qtrade/common/json/json_util.hpp"
+#include "qtrade/dao/dao_define.hpp"
 #include "qtrade/framework/dao/ddl_utils.hpp"
 #include "qtrade/framework/database/db_connection_pool_manager.hpp"
-#include "qtrade/dao/dao_define.hpp"
 
 namespace qtrade::service {
 

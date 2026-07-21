@@ -54,9 +54,6 @@ class AccountCredential final : public ITableDml<AccountCredentialRecord>, publi
   AccountCredential& operator=(const AccountCredential&) = delete;
   ~AccountCredential() noexcept override = default;
 
-
-
-
   /// ========================= ITableDdl 接口实现 =========================
   /// @brief 获取逻辑数据库名
   /// @return 固定为 "account"
@@ -111,7 +108,7 @@ class AccountCredential final : public ITableDml<AccountCredentialRecord>, publi
   /// @param where_conditions 查询条件
   /// @return 查询结果；成功：result.data 为查询结果；失败：result.error_code 为错误码
   Result<std::vector<AccountCredentialRecord>> Select(cpputils::database::IConnection& connection,
-                                                       const AccountCredentialRecord& where_conditions) override;
+                                                      const AccountCredentialRecord& where_conditions) override;
 
   /// @brief 清空表全部记录
   /// @return 成功：result.data 为受影响行数；失败：result.error_code 为错误码

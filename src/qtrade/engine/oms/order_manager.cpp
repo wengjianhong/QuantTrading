@@ -23,10 +23,9 @@ namespace {
 std::string TradeDedupKey(const trader::Trade& trade) {
   return !trade.trade_id.empty()
            ? trade.trade_id
-           : trade.order_id + ":" + std::to_string(trade.report_index) + ":" +
-               std::to_string(trade.client_order_id) + ":" + trade.instrument + ":" +
-               std::to_string(trade.trade_time) + ":" + std::to_string(trade.price) + ":" +
-               std::to_string(trade.volume);
+           : trade.order_id + ":" + std::to_string(trade.report_index) + ":" + std::to_string(trade.client_order_id) +
+               ":" + trade.instrument + ":" + std::to_string(trade.trade_time) + ":" + std::to_string(trade.price) +
+               ":" + std::to_string(trade.volume);
 }
 
 }  // namespace
@@ -49,8 +48,7 @@ ErrorCode OrderManager::Initialize(const OrderManagerOptions& options) {
       return ErrorCode::kSystemError;
     }
   }
-  if (const auto result = journal_.Open(options.journal_path, options.fsync_on_append);
-      result != ErrorCode::kSuccess) {
+  if (const auto result = journal_.Open(options.journal_path, options.fsync_on_append); result != ErrorCode::kSuccess) {
     return result;
   }
 
@@ -154,8 +152,7 @@ ErrorCode OrderManager::CancelOrder(const std::string& order_id) {
   if (it == orders_.end()) {
     return ErrorCode::kNotFound;
   }
-  return PersistTransition(
-    it->second, OrderLifecycleState::kCancelPending, OrderJournalEventType::kCancelRequested);
+  return PersistTransition(it->second, OrderLifecycleState::kCancelPending, OrderJournalEventType::kCancelRequested);
 }
 
 ErrorCode OrderManager::MarkEmsQueued(const std::string& order_id) {
@@ -174,8 +171,7 @@ ErrorCode OrderManager::MarkSendPending(const std::string& order_id) {
     return ErrorCode::kNotFound;
   }
   it->second.order.submit_status = trader::OrderSubmitStatusType::kInsertSubmitted;
-  return PersistTransition(
-    it->second, OrderLifecycleState::kSendPending, OrderJournalEventType::kSendPending);
+  return PersistTransition(it->second, OrderLifecycleState::kSendPending, OrderJournalEventType::kSendPending);
 }
 
 ErrorCode OrderManager::RecordSendResult(const std::string& order_id, ErrorCode result) {
@@ -199,10 +195,8 @@ ErrorCode OrderManager::RecordSendResult(const std::string& order_id, ErrorCode 
       it->second.order.submit_status = trader::OrderSubmitStatusType::kInsertRejected;
     }
   }
-  return PersistTransition(it->second,
-                           target_state,
-                           OrderJournalEventType::kSendResult,
-                           std::to_string(static_cast<int>(result)));
+  return PersistTransition(
+    it->second, target_state, OrderJournalEventType::kSendResult, std::to_string(static_cast<int>(result)));
 }
 
 ErrorCode OrderManager::RecordCancelResult(const std::string& order_id, ErrorCode result) {
@@ -219,12 +213,10 @@ ErrorCode OrderManager::RecordCancelResult(const std::string& order_id, ErrorCod
   }
 
   it->second.order.submit_status = trader::OrderSubmitStatusType::kCancelRejected;
-  const auto fallback = it->second.order.traded_volume > 0 ? OrderLifecycleState::kPartiallyFilled
-                                                           : OrderLifecycleState::kWorking;
-  return PersistTransition(it->second,
-                           fallback,
-                           OrderJournalEventType::kCancelResult,
-                           std::to_string(static_cast<int>(result)));
+  const auto fallback =
+    it->second.order.traded_volume > 0 ? OrderLifecycleState::kPartiallyFilled : OrderLifecycleState::kWorking;
+  return PersistTransition(
+    it->second, fallback, OrderJournalEventType::kCancelResult, std::to_string(static_cast<int>(result)));
 }
 
 std::optional<trader::Order> OrderManager::GetOrder(const std::string& order_id) const {
@@ -390,10 +382,8 @@ void OrderManager::ApplyTradeReport(const trader::Trade& report) {
   local.left_volume = std::max<std::int64_t>(0, local.volume - local.traded_volume);
   local.trade_amount += report.trade_amount;
   local.status = local.left_volume == 0 ? trader::OrderStatusType::kFilled : trader::OrderStatusType::kPartiallyFilled;
-  const auto target =
-    local.left_volume == 0 ? OrderLifecycleState::kFilled : OrderLifecycleState::kPartiallyFilled;
-  if (PersistTransition(updated, target, OrderJournalEventType::kTradeReport, {}, report) ==
-      ErrorCode::kSuccess) {
+  const auto target = local.left_volume == 0 ? OrderLifecycleState::kFilled : OrderLifecycleState::kPartiallyFilled;
+  if (PersistTransition(updated, target, OrderJournalEventType::kTradeReport, {}, report) == ErrorCode::kSuccess) {
     it->second = std::move(updated);
     applied_trade_ids_.insert(dedup_key);
   }

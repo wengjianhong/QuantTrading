@@ -63,7 +63,6 @@ class OrderReservation final : public ITableDdl {
   OrderReservation& operator=(const OrderReservation&) = delete;
   ~OrderReservation() noexcept override = default;
 
-
   /// @brief 获取逻辑数据库名
   /// @return 固定为 "account_risk"
   const std::string& DatabaseName() const override;

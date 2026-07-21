@@ -52,16 +52,13 @@ void AccountManager::ApplyTrade(const Trade& trade) {
   }
 
   // 1. 构造幂等键与成交金额
-  const std::string dedup_key =
-    !trade.trade_id.empty()
-      ? trade.trade_id
-      : trade.order_id + ":" + std::to_string(trade.report_index) + ":" +
-          std::to_string(trade.client_order_id) + ":" + trade.instrument + ":" +
-          std::to_string(trade.trade_time) + ":" + std::to_string(trade.price) + ":" +
-          std::to_string(trade.volume);
-  const double amount =
-    trade.trade_amount > 0.0 ? trade.trade_amount
-                             : trade.price * static_cast<double>(trade.volume);
+  const std::string dedup_key = !trade.trade_id.empty()
+                                  ? trade.trade_id
+                                  : trade.order_id + ":" + std::to_string(trade.report_index) + ":" +
+                                      std::to_string(trade.client_order_id) + ":" + trade.instrument + ":" +
+                                      std::to_string(trade.trade_time) + ":" + std::to_string(trade.price) + ":" +
+                                      std::to_string(trade.volume);
+  const double amount = trade.trade_amount > 0.0 ? trade.trade_amount : trade.price * static_cast<double>(trade.volume);
 
   // 2. 幂等写入后按方向更新净现金流
   std::lock_guard<std::mutex> lock(mutex_);
@@ -69,8 +66,7 @@ void AccountManager::ApplyTrade(const Trade& trade) {
     return;
   }
   filled_amount_ += amount;
-  if (trade.side == qtrade_sdk::trader::SideType::kBuy ||
-      trade.side == qtrade_sdk::trader::SideType::kMarginTrade ||
+  if (trade.side == qtrade_sdk::trader::SideType::kBuy || trade.side == qtrade_sdk::trader::SideType::kMarginTrade ||
       trade.side == qtrade_sdk::trader::SideType::kPurchase) {
     net_cash_flow_ -= amount;
   } else if (trade.side == qtrade_sdk::trader::SideType::kSell ||

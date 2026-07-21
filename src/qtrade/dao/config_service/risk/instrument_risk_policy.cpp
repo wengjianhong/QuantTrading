@@ -43,7 +43,6 @@ const std::vector<std::string> kIndexSqls = {
 
 }  // namespace
 
-
 const std::string& InstrumentRiskPolicy::DatabaseName() const {
   return kDatabaseName;
 }

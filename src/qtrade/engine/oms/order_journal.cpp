@@ -12,9 +12,9 @@
 #include <algorithm>
 #include <cerrno>
 #include <chrono>
+#include <fcntl.h>
 #include <filesystem>
 #include <fstream>
-#include <fcntl.h>
 #include <string_view>
 #include <unistd.h>
 
@@ -81,12 +81,10 @@ template <typename Enum>
   order.trade_amount = value.value("trade_amount", 0.0);
   order.price_type = static_cast<qtrade_sdk::trader::PriceType>(value.value("price_type", 255));
   order.side = static_cast<qtrade_sdk::trader::SideType>(value.value("side", 50));
-  order.position_effect =
-    static_cast<qtrade_sdk::trader::PositionEffectType>(value.value("position_effect", 12));
+  order.position_effect = static_cast<qtrade_sdk::trader::PositionEffectType>(value.value("position_effect", 12));
   order.business_type = static_cast<qtrade_sdk::trader::BusinessType>(value.value("business_type", 255));
   order.status = static_cast<qtrade_sdk::trader::OrderStatusType>(value.value("status", 255));
-  order.submit_status =
-    static_cast<qtrade_sdk::trader::OrderSubmitStatusType>(value.value("submit_status", 0));
+  order.submit_status = static_cast<qtrade_sdk::trader::OrderSubmitStatusType>(value.value("submit_status", 0));
   order.insert_time = value.value("insert_time", std::int64_t{0});
   order.update_time = value.value("update_time", std::int64_t{0});
   order.cancel_time = value.value("cancel_time", std::int64_t{0});
@@ -135,8 +133,7 @@ template <typename Enum>
   trade.trade_amount = value.value("trade_amount", 0.0);
   trade.trade_time = value.value("trade_time", std::int64_t{0});
   trade.side = static_cast<qtrade_sdk::trader::SideType>(value.value("side", 50));
-  trade.position_effect =
-    static_cast<qtrade_sdk::trader::PositionEffectType>(value.value("position_effect", 12));
+  trade.position_effect = static_cast<qtrade_sdk::trader::PositionEffectType>(value.value("position_effect", 12));
   trade.trade_type = static_cast<qtrade_sdk::trader::TradeType>(value.value("trade_type", 255));
   trade.business_type = static_cast<qtrade_sdk::trader::BusinessType>(value.value("business_type", 255));
   trade.report_index = value.value("report_index", std::uint64_t{0});
@@ -207,9 +204,8 @@ template <typename Enum>
       records.push_back(std::move(*record));
     }
   }
-  std::sort(records.begin(), records.end(), [](const auto& lhs, const auto& rhs) {
-    return lhs.sequence < rhs.sequence;
-  });
+  std::sort(
+    records.begin(), records.end(), [](const auto& lhs, const auto& rhs) { return lhs.sequence < rhs.sequence; });
   return records;
 }
 
@@ -274,9 +270,7 @@ ErrorCode OrderJournal::Append(OrderJournalRecord record) {
   // 1. 覆盖序号与时间戳后序列化
   record.sequence = next_sequence_;
   record.timestamp_ns = static_cast<std::uint64_t>(
-    std::chrono::duration_cast<std::chrono::nanoseconds>(
-      std::chrono::system_clock::now().time_since_epoch())
-      .count());
+    std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count());
   std::string line = SerializeRecord(record);
   line.push_back('\n');
 

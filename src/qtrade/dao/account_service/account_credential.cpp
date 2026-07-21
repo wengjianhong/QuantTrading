@@ -10,7 +10,6 @@
 namespace qtrade::framework::dao {
 namespace {
 
-
 /// @brief 建表 SQL 脚本
 const std::string kCreateTableSql = R"(
 CREATE TABLE IF NOT EXISTS account_credential (
@@ -36,9 +35,6 @@ const std::vector<std::string> kCreateTableSqls = {kCreateTableSql};
 const std::vector<std::string> kIndexSqls = {};
 
 }  // namespace
-
-
-
 
 const std::string& AccountCredential::DatabaseName() const {
   return kDatabaseName;

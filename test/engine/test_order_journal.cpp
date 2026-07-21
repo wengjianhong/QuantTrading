@@ -91,10 +91,8 @@ TEST(OrderJournal, ExposesUncertainOrdersForReconciliation) {
     ASSERT_TRUE(order.has_value());
     ASSERT_EQ(manager.MarkEmsQueued(order->order_id), qtrade::ErrorCode::kSuccess);
     ASSERT_EQ(manager.MarkSendPending(order->order_id), qtrade::ErrorCode::kSuccess);
-    ASSERT_EQ(manager.RecordSendResult(order->order_id, qtrade::ErrorCode::kTimeout),
-              qtrade::ErrorCode::kSuccess);
-    EXPECT_EQ(manager.GetLifecycleState(order->order_id),
-              qtrade::engine::oms::OrderLifecycleState::kSendUnknown);
+    ASSERT_EQ(manager.RecordSendResult(order->order_id, qtrade::ErrorCode::kTimeout), qtrade::ErrorCode::kSuccess);
+    EXPECT_EQ(manager.GetLifecycleState(order->order_id), qtrade::engine::oms::OrderLifecycleState::kSendUnknown);
     manager.Shutdown();
   }
 

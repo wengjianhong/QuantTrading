@@ -58,7 +58,6 @@ class InstanceRiskPolicy final : public ITableDdl {
   InstanceRiskPolicy& operator=(const InstanceRiskPolicy&) = delete;
   ~InstanceRiskPolicy() noexcept override = default;
 
-
   /// @brief 获取逻辑数据库名
   /// @return 固定为 "config"
   const std::string& DatabaseName() const override;
