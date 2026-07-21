@@ -5,30 +5,20 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/engine/core/engine_boot.hpp"
 
-#include "qtrade/common/app/process_boot.hpp"
+#include "qtrade/common/boot/process_boot.hpp"
+#include "qtrade/common/config/qtrade_engine_config.hpp"
+#include "qtrade/common/json/json_util.hpp"
+#include "qtrade/common/system/signal.hpp"
 #include "qtrade/engine/trading_engine.hpp"
+#include "qtrade/engine/trading_engine_define.hpp"
 #include "strategy/example_strategy.hpp"
 
 #include <spdlog/spdlog.h>
 
 namespace qtrade::engine::boot {
-namespace {
 
-constexpr const char* kServiceName = "qtrade_engine";
-
-}  // namespace
-
-bool LoadBootstrapConfig(TradingEngine& engine, const std::string& config_path) {
-  spdlog::info("[engine_boot] LoadBootstrapConfig path={}", config_path);
-  const ErrorCode error_code = engine.ReloadFromJson(config_path);
-  if (error_code != ErrorCode::kSuccess) {
-    spdlog::warn("[engine_boot] LoadBootstrapConfig failed, code={}, using defaults", static_cast<int>(error_code));
-  }
-  return true;
-}
-
-bool RegisterDemoStrategies(TradingEngine& engine) {
-  spdlog::info("[engine_boot] RegisterDemoStrategies");
+bool RegisterStrategies(TradingEngine& engine) {
+  spdlog::info("[engine_boot] RegisterStrategies");
 
   auto order_sender = [&engine](const qtrade_sdk::trader::OrderRequest& request) {
     return engine.SubmitOrder(request);
@@ -42,7 +32,7 @@ bool RegisterDemoStrategies(TradingEngine& engine) {
 
   if (strategy_engine.RegisterFactory("example", example_factory) != ErrorCode::kSuccess ||
       strategy_engine.RegisterFactory("example_strategy", example_factory) != ErrorCode::kSuccess) {
-    spdlog::error("[engine_boot] RegisterDemoStrategies: factory register failed");
+    spdlog::error("[engine_boot] RegisterStrategies: factory register failed");
     return false;
   }
 
@@ -50,24 +40,39 @@ bool RegisterDemoStrategies(TradingEngine& engine) {
   qtrade::strategy::StrategyConfig strategy_config;
   strategy_config.name = "ExampleStrategy";
   if (strategy->Init(strategy_config) != ErrorCode::kSuccess) {
-    spdlog::error("[engine_boot] RegisterDemoStrategies: strategy Init failed");
+    spdlog::error("[engine_boot] RegisterStrategies: strategy Init failed");
     return false;
   }
   if (strategy_engine.RegisterStrategy("demo-example", std::move(strategy)) != ErrorCode::kSuccess) {
-    spdlog::error("[engine_boot] RegisterDemoStrategies: strategy register failed");
+    spdlog::error("[engine_boot] RegisterStrategies: strategy register failed");
     return false;
   }
   strategy_engine.SetOrderSender(order_sender);
   return true;
 }
 
-bool InitEngine(TradingEngine& engine) {
-  spdlog::info("[engine_boot] InitEngine");
-  const ErrorCode error_code = engine.Init();
+bool InitEngine(TradingEngine& engine, const std::string& config_path) {
+  // 1. 加载配置文件
+  const auto config_node = qtrade::common::LoadJsonFile(config_path);
+  if (!config_node) {
+    spdlog::error("[engine_boot] InitEngine: failed to load config file");
+    return false;
+  }
+
+  // 2. 解析配置文件
+  const auto config = qtrade::common::config::ParseQtradeEngineConfig(config_node.value());
+  if (!config) {
+    spdlog::error("[engine_boot] InitEngine: failed to parse config");
+    return false;
+  }
+
+  // 3. 初始化引擎
+  const ErrorCode error_code = engine.Init(config.value());
   if (error_code != ErrorCode::kSuccess) {
     spdlog::error("[engine_boot] InitEngine failed, code={}", static_cast<int>(error_code));
     return false;
   }
+
   return true;
 }
 
@@ -89,11 +94,13 @@ bool StartEngine(TradingEngine& engine) {
 }
 
 void RunUntilShutdown(TradingEngine& engine) {
-  spdlog::info("[engine_boot] RunUntilShutdown");
-  (void)qtrade::common::process_boot::WaitForInterruptAndNotifyStopping(kServiceName);
+  spdlog::info("[{}] running until SIGINT/SIGTERM...", qtrade::engine::kServiceName);
+
+  const int signal = qtrade::common::system::WaitInterruptSignals();
+  spdlog::info("[{}] received signal {}, stopping...", qtrade::engine::kServiceName, signal);
 
   (void)engine.Stop();
-  qtrade::common::process_boot::LogProcessStopped(kServiceName);
+  qtrade::common::process_boot::LogProcessStopped(qtrade::engine::kServiceName);
 }
 
 }  // namespace qtrade::engine::boot

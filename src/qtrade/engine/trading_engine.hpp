@@ -59,15 +59,6 @@ class TradingEngine {
   /// @return ErrorCode::kSuccess 表示成功
   ErrorCode Init(const qtrade::common::config::QtradeEngineConfig& config);
 
-  /// @brief 使用已加载的 config_ 初始化（须先 ReloadFromJson 或手动设置 config）
-  /// @return ErrorCode::kSuccess 表示成功
-  ErrorCode Init();
-
-  /// @brief 从本地 JSON 文件加载/重载引擎配置（如 config/qtrade_engine.json）
-  /// @param json_path 配置文件路径
-  /// @return ErrorCode::kSuccess 表示成功；文件不存在返回 ErrorCode::kNotFound
-  ErrorCode ReloadFromJson(const std::string& json_path);
-
   /// @brief 返回当前进程引导配置快照
   /// @return 配置只读引用
   [[nodiscard]] const qtrade::common::config::QtradeEngineConfig& GetConfig() const;

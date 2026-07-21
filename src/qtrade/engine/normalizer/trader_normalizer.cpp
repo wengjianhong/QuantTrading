@@ -14,7 +14,7 @@
 namespace qtrade::engine::normalizer {
 
 TraderNormalizer::TraderNormalizer(event_bus::ReturnEventReactor& return_event_reactor)
-  : return_event_reactor_(return_event_reactor), running_(false) {
+  : running_(false), return_event_reactor_(return_event_reactor) {
   (void)return_event_reactor_;
 }
 
@@ -71,23 +71,21 @@ qtrade_sdk::trader::TraderApi* TraderNormalizer::GetTraderApi() {
 
 bool TraderNormalizer::IsHealthy() const {
   std::lock_guard lock(mutex_);
-  return running_.load(std::memory_order_acquire) && trader_api_ != nullptr &&
-         trader_api_->IsConnected();
+  return running_.load(std::memory_order_acquire) && trader_api_ != nullptr && trader_api_->IsConnected();
 }
 
 void TraderNormalizer::OnOrder(const qtrade_sdk::trader::Order& order) {
   if (!running_.load(std::memory_order_acquire) ||
-      (order.order_id.empty() && order.order_emt_id == 0 && order.client_order_id == 0) ||
-      order.volume < 0 || order.traded_volume < 0 || order.left_volume < 0 ||
-      (order.volume > 0 && order.traded_volume > order.volume)) {
+      (order.order_id.empty() && order.order_emt_id == 0 && order.client_order_id == 0) || order.volume < 0 ||
+      order.traded_volume < 0 || order.left_volume < 0 || (order.volume > 0 && order.traded_volume > order.volume)) {
     return;
   }
   return_event_reactor_.PublishOrder(order);
 }
 
 void TraderNormalizer::OnTrade(const qtrade_sdk::trader::Trade& trade) {
-  if (!running_.load(std::memory_order_acquire) || trade.instrument.empty() ||
-      trade.volume <= 0 || !std::isfinite(trade.price) || trade.price < 0.0 ||
+  if (!running_.load(std::memory_order_acquire) || trade.instrument.empty() || trade.volume <= 0 ||
+      !std::isfinite(trade.price) || trade.price < 0.0 ||
       (trade.order_id.empty() && trade.order_emt_id == 0 && trade.client_order_id == 0)) {
     return;
   }

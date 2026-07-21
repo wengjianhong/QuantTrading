@@ -1,4 +1,4 @@
-/// @file      support_boot.hpp
+/// @file      support_service_boot.hpp
 /// @brief     支撑服务进程启动阶段（业务相关）
 /// @details   共用阶段见 process_boot；本文件仅 ISupportService 生命周期编排。
 /// @author    wengjianhong
@@ -7,13 +7,15 @@
 #ifndef QTRADE_COMMON_APP_SUPPORT_BOOT_HPP_
 #define QTRADE_COMMON_APP_SUPPORT_BOOT_HPP_
 
+#include "qtrade/common/boot/process_boot.hpp"
+
 #include <qtrade_framework/support/support_service.hpp>
 
 #include <string>
 
 namespace qtrade::common::support_boot {
 
-/// @brief 调用 service.Initialize
+/// @brief 使用配置文件调用 service.Initialize
 [[nodiscard]] bool InitializeService(support::ISupportService& service, const std::string& config_path);
 
 /// @brief 调用 service.Start
@@ -23,14 +25,14 @@ namespace qtrade::common::support_boot {
 void RunUntilShutdown(support::ISupportService& service);
 
 /// @brief 支撑服务独立进程入口
-/// @details block 信号 → InitProgramEnv → InitializeService → StartService → RunUntilShutdown
+/// @details block 信号 → InitProgramEnvironment → InitializeService → StartService → RunUntilShutdown
 ///
-/// @param config_path 配置文件路径
+/// @param options 程序选项
 /// @param log_dir 日志目录
 /// @param log_filename 日志文件名
 /// @param service 支撑服务实例
 /// @return 正常退出返回 EXIT_SUCCESS，初始化或启动失败返回 EXIT_FAILURE
-int RunSupportServiceMain(const std::string& config_path,
+int RunSupportServiceMain(const process_boot::ProgramOptions& options,
                           const std::string& log_dir,
                           const std::string& log_filename,
                           support::ISupportService& service);

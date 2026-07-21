@@ -17,13 +17,12 @@ class TradingEngine;
 namespace boot {
 
 /// @brief 加载本地引导配置（qtrade_engine.json）；文件缺失时打警告并沿用默认配置
-[[nodiscard]] bool LoadBootstrapConfig(TradingEngine& engine, const std::string& config_path);
 
 /// @brief 注册演示策略工厂与默认策略实例
-[[nodiscard]] bool RegisterDemoStrategies(TradingEngine& engine);
+[[nodiscard]] bool RegisterStrategies(TradingEngine& engine);
 
 /// @brief 调用 TradingEngine::Init
-[[nodiscard]] bool InitEngine(TradingEngine& engine);
+[[nodiscard]] bool InitEngine(TradingEngine& engine, const std::string& config_path);
 
 /// @brief 调用 TradingEngine::Start（含演示行情订阅）
 [[nodiscard]] bool StartEngine(TradingEngine& engine);

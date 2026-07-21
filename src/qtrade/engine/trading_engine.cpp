@@ -52,23 +52,21 @@ TradingEngine::TradingEngine()
     [this](const std::string& order_id, ErrorCode result) {
       (void)order_manager_.RecordSendResult(order_id, result);
       if (result != ErrorCode::kSuccess && account_risk_client_.IsInitialized()) {
-        (void)account_risk_release_worker_.Enqueue(
-          order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
+        (void)account_risk_release_worker_.Enqueue(order_id,
+                                                   qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
       }
     },
     [this](const std::string& order_id, ErrorCode result) {
       (void)order_manager_.RecordCancelResult(order_id, result);
     });
   quote_normalizer_.SetHealthHandler([this](bool healthy) { OnMarketHealthChanged(healthy); });
-  risk_manager_.SetStateProviders(
-    [this] { return order_manager_.GetActiveOrderCount(); },
-    [this] { return order_manager_.GetOpenNotional(); });
+  risk_manager_.SetStateProviders([this] { return order_manager_.GetActiveOrderCount(); },
+                                  [this] { return order_manager_.GetOpenNotional(); });
 
   event_lanes_.Return().SubscribeOrder([this](const qtrade_sdk::trader::Order& order) {
     order_manager_.ApplyOrderReport(order);
-    const auto local_order = order.order_id.empty()
-                               ? order_manager_.GetOrderByClientId(order.client_order_id)
-                               : order_manager_.GetOrder(order.order_id);
+    const auto local_order = order.order_id.empty() ? order_manager_.GetOrderByClientId(order.client_order_id)
+                                                    : order_manager_.GetOrder(order.order_id);
     if (local_order.has_value()) {
       account_manager_.ApplyOrder(*local_order);
     }
@@ -87,13 +85,11 @@ TradingEngine::TradingEngine()
     account_manager_.ApplyTrade(trade);
     position_manager_.ApplyTrade(trade);
     if (account_risk_client_.IsInitialized()) {
-      const auto local_order = trade.order_id.empty()
-                                 ? order_manager_.GetOrderByClientId(trade.client_order_id)
-                                 : order_manager_.GetOrder(trade.order_id);
-      if (local_order.has_value() &&
-          local_order->status == qtrade_sdk::trader::OrderStatusType::kFilled) {
-        (void)account_risk_release_worker_.Enqueue(
-          local_order->order_id, qtrade::account_risk::v1::ReleaseOrderRequest::SETTLED);
+      const auto local_order = trade.order_id.empty() ? order_manager_.GetOrderByClientId(trade.client_order_id)
+                                                      : order_manager_.GetOrder(trade.order_id);
+      if (local_order.has_value() && local_order->status == qtrade_sdk::trader::OrderStatusType::kFilled) {
+        (void)account_risk_release_worker_.Enqueue(local_order->order_id,
+                                                   qtrade::account_risk::v1::ReleaseOrderRequest::SETTLED);
       }
     }
   });
@@ -147,24 +143,6 @@ position::PositionManager& TradingEngine::GetPositionManager() {
   return position_manager_;
 }
 
-ErrorCode TradingEngine::ReloadFromJson(const std::string& json_path) {
-  const auto config_node = qtrade::common::LoadJsonFile(json_path);
-  if (!config_node.has_value()) {
-    return ErrorCode::kNotFound;
-  }
-  const auto loaded = qtrade::common::config::ParseQtradeEngineConfig(*config_node);
-  if (!loaded.has_value()) {
-    return ErrorCode::kNotFound;
-  }
-  config_ = *loaded;
-  spdlog::info("[TradingEngine] config loaded from {}", json_path);
-  return ErrorCode::kSuccess;
-}
-
-ErrorCode TradingEngine::Init() {
-  return Init(config_);
-}
-
 ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineConfig& config) {
   if (initialized_) {
     return ErrorCode::kSystemError;
@@ -201,8 +179,7 @@ ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineConfig& 
 
   initialized_ = true;
   log_client_.Emit("info", "trading engine initialized");
-  spdlog::info("[TradingEngine] Init pipeline completed, state={}",
-               static_cast<int>(lifecycle_.State()));
+  spdlog::info("[TradingEngine] Init pipeline completed, state={}", static_cast<int>(lifecycle_.State()));
   return ErrorCode::kSuccess;
 }
 
@@ -224,11 +201,9 @@ ErrorCode TradingEngine::BootstrapLocalRuntime(const qtrade::common::config::Qtr
 
 ErrorCode TradingEngine::AcquireInstanceFence() {
   spdlog::info("[TradingEngine] Init-2 AcquireInstanceFence");
-  const std::string fence_path =
-    std::string(kRuntimeDataDirectory) + config_.identity.tenant_id + "-" +
-    config_.identity.account_id + "-engine.fence";
-  if (const auto rc = engine_fence_.Acquire(fence_path, kInitialEngineEpoch);
-      rc != ErrorCode::kSuccess) {
+  const std::string fence_path = std::string(kRuntimeDataDirectory) + config_.identity.tenant_id + "-" +
+                                 config_.identity.account_id + "-engine.fence";
+  if (const auto rc = engine_fence_.Acquire(fence_path, kInitialEngineEpoch); rc != ErrorCode::kSuccess) {
     lifecycle_.Fail("ENGINE_FENCE_ACQUIRE_FAILED");
     return rc;
   }
@@ -242,9 +217,8 @@ ErrorCode TradingEngine::AcquireInstanceFence() {
 
 ErrorCode TradingEngine::ReplayLocalOrderFacts() {
   spdlog::info("[TradingEngine] Init-3 ReplayLocalOrderFacts");
-  const std::string journal_path =
-    std::string(kRuntimeDataDirectory) + config_.identity.tenant_id + "-" +
-    config_.identity.engine_id + "-orders.jsonl";
+  const std::string journal_path = std::string(kRuntimeDataDirectory) + config_.identity.tenant_id + "-" +
+                                   config_.identity.engine_id + "-orders.jsonl";
   oms::OrderManagerOptions order_options;
   order_options.tenant_id = config_.identity.tenant_id;
   order_options.engine_id = config_.identity.engine_id;
@@ -258,8 +232,7 @@ ErrorCode TradingEngine::ReplayLocalOrderFacts() {
   }
   const auto unreconciled_orders = order_manager_.GetOrdersRequiringReconciliation();
   if (!unreconciled_orders.empty()) {
-    spdlog::warn("[TradingEngine] {} orders require broker reconciliation",
-                 unreconciled_orders.size());
+    spdlog::warn("[TradingEngine] {} orders require broker reconciliation", unreconciled_orders.size());
   }
   if (lifecycle_.Advance(EngineLifecycleState::kReplayed) != ErrorCode::kSuccess) {
     lifecycle_.Fail("ORDER_REPLAY_FAILED");
@@ -305,21 +278,18 @@ ErrorCode TradingEngine::InitControlPlaneClients() {
       return rc;
     }
     order_pipeline_.SetAccountRiskClient(&account_risk_client_);
-    const std::string release_outbox_path =
-      std::string(kRuntimeDataDirectory) + config_.identity.tenant_id + "-" +
-      config_.identity.engine_id + "-risk-release-outbox.jsonl";
-    if (const auto rc = account_risk_release_worker_.Initialize(
-          &account_risk_client_, release_outbox_path, kSyncOrderFacts);
+    const std::string release_outbox_path = std::string(kRuntimeDataDirectory) + config_.identity.tenant_id + "-" +
+                                            config_.identity.engine_id + "-risk-release-outbox.jsonl";
+    if (const auto rc =
+          account_risk_release_worker_.Initialize(&account_risk_client_, release_outbox_path, kSyncOrderFacts);
         rc != ErrorCode::kSuccess) {
-      spdlog::error("[TradingEngine] account risk release outbox init failed, code={}",
-                    static_cast<int>(rc));
+      spdlog::error("[TradingEngine] account risk release outbox init failed, code={}", static_cast<int>(rc));
       lifecycle_.Fail("ACCOUNT_RISK_OUTBOX_INIT_FAILED");
       return rc;
     }
-    order_pipeline_.SetReleaseHandler(
-      [this](const std::string& order_id, int reason) {
-        return account_risk_release_worker_.Enqueue(order_id, reason);
-      });
+    order_pipeline_.SetReleaseHandler([this](const std::string& order_id, int reason) {
+      return account_risk_release_worker_.Enqueue(order_id, reason);
+    });
   }
   return ErrorCode::kSuccess;
 }
@@ -395,8 +365,7 @@ ErrorCode TradingEngine::EnsureAdaptersConnected() {
     return result;
   }
   auto* trader_api = trader_normalizer_.GetTraderApi();
-  if (kRequireTraderConnection &&
-      (trader_api == nullptr || !trader_api->IsConnected())) {
+  if (kRequireTraderConnection && (trader_api == nullptr || !trader_api->IsConnected())) {
     lifecycle_.Fail("TRADER_NOT_CONNECTED");
     return ErrorCode::kNotConnected;
   }
@@ -406,13 +375,10 @@ ErrorCode TradingEngine::EnsureAdaptersConnected() {
 ErrorCode TradingEngine::ReconcileBrokerState() {
   spdlog::info("[TradingEngine] Start-2 ReconcileBrokerState");
   auto* trader_api = trader_normalizer_.GetTraderApi();
-  const bool has_unreconciled_orders =
-    !order_manager_.GetOrdersRequiringReconciliation().empty();
-  if (trader_api != nullptr &&
-      (kRequireBrokerSnapshot || has_unreconciled_orders)) {
+  const bool has_unreconciled_orders = !order_manager_.GetOrdersRequiringReconciliation().empty();
+  if (trader_api != nullptr && (kRequireBrokerSnapshot || has_unreconciled_orders)) {
     const auto sync_result = SynchronizeBrokerState(trader_api);
-    if (sync_result != ErrorCode::kSuccess &&
-        (kRequireBrokerSnapshot || !kAllowUnreconciledOrders)) {
+    if (sync_result != ErrorCode::kSuccess && (kRequireBrokerSnapshot || !kAllowUnreconciledOrders)) {
       lifecycle_.Fail("BROKER_RECONCILIATION_FAILED");
       return sync_result;
     }
@@ -484,8 +450,7 @@ ErrorCode TradingEngine::InitConfigClient(const qtrade::common::config::QtradeEn
   }
 
   // 2. 拉取快照并启动配置监视
-  config_client_.SetOnSnapshot(
-    [this](const qtrade::config::v1::EngineConfig& config) { OnEngineConfig(config); });
+  config_client_.SetOnSnapshot([this](const qtrade::config::v1::EngineConfig& config) { OnEngineConfig(config); });
 
   if (const auto rc = config_client_.FetchSnapshot(); rc != ErrorCode::kSuccess) {
     return rc;
@@ -510,8 +475,7 @@ ErrorCode TradingEngine::InitAccountRiskClient(const qtrade::common::config::Qtr
 
 ErrorCode TradingEngine::InitAdapters() {
   // 1. 已装配则直接成功；否则读取运行时配置
-  if (quote_normalizer_.GetQuoteApi() != nullptr &&
-      trader_normalizer_.GetTraderApi() != nullptr) {
+  if (quote_normalizer_.GetQuoteApi() != nullptr && trader_normalizer_.GetTraderApi() != nullptr) {
     return ErrorCode::kSuccess;
   }
 
@@ -520,8 +484,7 @@ ErrorCode TradingEngine::InitAdapters() {
     std::lock_guard lock(runtime_config_mutex_);
     runtime_config = runtime_config_;
   }
-  if (runtime_config.execution_adapter().empty() ||
-      runtime_config.quote_connection_string().empty()) {
+  if (runtime_config.execution_adapter().empty() || runtime_config.quote_connection_string().empty()) {
     return ErrorCode::kNotInitialized;
   }
 
@@ -535,31 +498,27 @@ ErrorCode TradingEngine::InitAdapters() {
     trader_request.account_id = config_.identity.account_id;
     trader_request.connection_string = runtime_config.quote_connection_string();
     quote_normalizer_.SetQuoteApi(qtrade::adapter::mock::quote::CreateMockQuoteApi());
-    trader_normalizer_.SetTraderApi(
-      qtrade::adapter::mock::trader::CreateMockTraderApi());
+    trader_normalizer_.SetTraderApi(qtrade::adapter::mock::trader::CreateMockTraderApi());
   } else if (runtime_config.execution_adapter() == "emt") {
     const auto& account_service = config_.support_services.account_service;
-    if (!account_service.enabled || account_service.host.empty() ||
-        account_service.port <= 0) {
+    if (!account_service.enabled || account_service.host.empty() || account_service.port <= 0) {
       return ErrorCode::kNotInitialized;
     }
     client::AccountClientOptions options;
     options.server_address = account_service.Address();
     options.tenant_id = config_.identity.tenant_id;
     options.engine_id = config_.identity.engine_id;
-    if (const auto result = account_client_.Init(options);
-        result != ErrorCode::kSuccess) {
+    if (const auto result = account_client_.Init(options); result != ErrorCode::kSuccess) {
       return result;
     }
     qtrade::account::v1::GetCredentialResponse credential_response;
-    if (const auto result =
-          account_client_.GetCredential(config_.identity.account_id, credential_response);
+    if (const auto result = account_client_.GetCredential(config_.identity.account_id, credential_response);
         result != ErrorCode::kSuccess) {
       return result;
     }
     const auto& credential = credential_response.credential();
-    if (credential.account_id() != config_.identity.account_id ||
-        credential.connection_string().empty() || credential.password().empty()) {
+    if (credential.account_id() != config_.identity.account_id || credential.connection_string().empty() ||
+        credential.password().empty()) {
       return ErrorCode::kInternal;
     }
     trader_request.broker_id = credential.broker_id();
@@ -571,8 +530,7 @@ ErrorCode TradingEngine::InitAdapters() {
     quote_request.user = credential.account_id();
     quote_request.password = credential.password();
     quote_normalizer_.SetQuoteApi(std::make_unique<qtrade::adapter::quote::EmtQuoteApi>());
-    trader_normalizer_.SetTraderApi(
-      std::make_unique<qtrade::adapter::trader::EmtTraderApi>());
+    trader_normalizer_.SetTraderApi(std::make_unique<qtrade::adapter::trader::EmtTraderApi>());
   } else {
     return ErrorCode::kNotSupported;
   }
@@ -583,13 +541,11 @@ ErrorCode TradingEngine::InitAdapters() {
   if (quote_api == nullptr || trader_api == nullptr) {
     return ErrorCode::kNotInitialized;
   }
-  if (const auto result = quote_api->Connect(quote_request);
-      result != ErrorCode::kSuccess) {
+  if (const auto result = quote_api->Connect(quote_request); result != ErrorCode::kSuccess) {
     quote_api->Disconnect();
     return result;
   }
-  if (const auto result = trader_api->Connect(trader_request);
-      result != ErrorCode::kSuccess) {
+  if (const auto result = trader_api->Connect(trader_request); result != ErrorCode::kSuccess) {
     quote_api->Disconnect();
     trader_api->Disconnect();
     return result;
@@ -597,8 +553,7 @@ ErrorCode TradingEngine::InitAdapters() {
   return ErrorCode::kSuccess;
 }
 
-ErrorCode TradingEngine::SynchronizeBrokerState(
-  qtrade_sdk::trader::TraderApi* trader_api) {
+ErrorCode TradingEngine::SynchronizeBrokerState(qtrade_sdk::trader::TraderApi* trader_api) {
   // 1. 查询柜台订单、成交、持仓与资金快照
   if (trader_api == nullptr || !trader_api->IsConnected()) {
     return ErrorCode::kNotConnected;
@@ -622,9 +577,8 @@ ErrorCode TradingEngine::SynchronizeBrokerState(
   // 2. 应用回报并校验待对账订单已清空
   for (const auto& report : orders_response.orders) {
     order_manager_.ApplyOrderReport(report);
-    const auto local = report.order_id.empty()
-                         ? order_manager_.GetOrderByClientId(report.client_order_id)
-                         : order_manager_.GetOrder(report.order_id);
+    const auto local = report.order_id.empty() ? order_manager_.GetOrderByClientId(report.client_order_id)
+                                               : order_manager_.GetOrder(report.order_id);
     if (local.has_value()) {
       order_manager_.MarkReconciled(local->order_id);
       account_manager_.ApplyOrder(*local);
@@ -632,18 +586,15 @@ ErrorCode TradingEngine::SynchronizeBrokerState(
   }
   for (const auto& report : trades_response.trades) {
     order_manager_.ApplyTradeReport(report);
-    const auto local = report.order_id.empty()
-                         ? order_manager_.GetOrderByClientId(report.client_order_id)
-                         : order_manager_.GetOrder(report.order_id);
+    const auto local = report.order_id.empty() ? order_manager_.GetOrderByClientId(report.client_order_id)
+                                               : order_manager_.GetOrder(report.order_id);
     if (local.has_value()) {
       order_manager_.MarkReconciled(local->order_id);
     }
   }
   position_manager_.ApplyPositionSnapshot(positions_response.positions);
   account_manager_.ApplyAssetSnapshot(asset_response.asset);
-  return order_manager_.GetOrdersRequiringReconciliation().empty()
-           ? ErrorCode::kSuccess
-           : ErrorCode::kInternal;
+  return order_manager_.GetOrdersRequiringReconciliation().empty() ? ErrorCode::kSuccess : ErrorCode::kInternal;
 }
 
 void TradingEngine::OnEngineConfig(const qtrade::config::v1::EngineConfig& config) {
@@ -662,9 +613,7 @@ void TradingEngine::OnEngineConfig(const qtrade::config::v1::EngineConfig& confi
     return;
   }
   const auto now_ms =
-    std::chrono::duration_cast<std::chrono::milliseconds>(
-      std::chrono::system_clock::now().time_since_epoch())
-      .count();
+    std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
   if (engine.valid_until_unix_ms() > 0 && now_ms >= engine.valid_until_unix_ms()) {
     spdlog::error("[TradingEngine] rejected expired engine config version={}", config.version());
     lifecycle_.Freeze("CONFIG_EXPIRED");
