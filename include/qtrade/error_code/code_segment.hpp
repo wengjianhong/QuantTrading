@@ -26,11 +26,11 @@ enum class CodeSystem : uint64_t {
 
 /// @brief 服务编号
 enum class ServiceNumber : uint64_t {
-  /// 通用层（AAA=000）
-  /// 通用错误码段
+  /// ============================ 通用错误码 ============================
+  /// 通用错误码
   kCommon = MakeServiceId(static_cast<uint64_t>(CodeSystem::kCommon), 0),
 
-  /// qtrade系统(AAA=1)
+  /// ============================ qtrade系统 ============================
   /// 核心交易引擎服务
   kEngine = MakeServiceId(static_cast<uint64_t>(CodeSystem::kQTrade), 1),
   /// 账户服务
@@ -64,16 +64,17 @@ enum class ServiceNumber : uint64_t {
 /// @brief 模块编号
 /// @details 模块编号在各服务内独立复用；当前枚举先定义公共模块与qtrade系统模块。
 enum class ModuleNumber : uint64_t {
-  /// 通用层（AAA=0,BBB=0)
-  /// 通用错误
+  /// ============================ 通用错误码 ============================
+  /// 通用错误码模块
   kCommon = MakeModuleId(static_cast<uint64_t>(ServiceNumber::kCommon), 0),
-  /// 底层错误码
+  /// 系统模块
   kSystemError = MakeModuleId(static_cast<uint64_t>(ServiceNumber::kCommon), 1),
-  /// 网络错误码段
+  /// 网络错误码模块
   kNetworkError = MakeModuleId(static_cast<uint64_t>(ServiceNumber::kCommon), 2),
-  /// SQL 错误码段
+  /// SQL 错误码模块
   kSqlError = MakeModuleId(static_cast<uint64_t>(ServiceNumber::kCommon), 3),
 
+  /// ============================ 核心交易引擎服务 ============================
   /// 行情适配器模块
   kQuoteAdapter = MakeModuleId(static_cast<uint64_t>(ServiceNumber::kEngine), 0),
   /// 交易执行适配器模块
@@ -100,8 +101,6 @@ enum class ModuleNumber : uint64_t {
   kStrategyEngine = MakeModuleId(static_cast<uint64_t>(ServiceNumber::kEngine), 11),
   /// 交易标准化模块（TraderNormalizer）
   kTraderNormalizer = MakeModuleId(static_cast<uint64_t>(ServiceNumber::kEngine), 12),
-  /// 结束标记
-  kEnd = MakeModuleId(static_cast<uint64_t>(ServiceNumber::kEngine), 13),
 };
 
 }  // namespace qtrade

@@ -15,7 +15,7 @@ using cpputils::error_code::MakeErrorCode;
 
 /// 错误码：AABBBCCC 八位整数，AA=10（系统级），BBB=模块，CCC=具体错误；0 表示成功
 enum class ErrorCode : int32_t {
-  /// 公共模块
+  /// ============================ 通用错误码模块 ============================
   /// 成功
   kSuccess = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 0),
   /// 通用错误
@@ -33,7 +33,7 @@ enum class ErrorCode : int32_t {
   /// 不支持
   kNotSupported = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 7),
 
-  /// 系统错误码段
+  /// ============================ 系统错误码模块 ============================
   /// 操作系统或运行时错误
   kSystemError = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kSystemError), 0),
   /// 参数无效
@@ -45,7 +45,7 @@ enum class ErrorCode : int32_t {
   /// 操作被取消
   kCancelled = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kSystemError), 4),
 
-  /// 网络错误码段
+  /// ============================ 网络错误码模块 ============================
   /// 通用网络错误
   kNetworkError = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kNetworkError), 0),
   /// 网络连接失败
@@ -57,7 +57,7 @@ enum class ErrorCode : int32_t {
   /// 网络接收失败
   kNetworkReceiveError = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kNetworkError), 4),
 
-  /// SQL错误码段
+  /// ============================ SQL错误码模块 ============================
   /// 通用SQL错误
   kSqlError = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kSqlError), 0),
   /// 连接错误
