@@ -22,7 +22,7 @@ Result<GetAccountServerData> GetAccountHandler::ConvertToServerData(
 
 Result<void> GetAccountHandler::ValidateParams(GetAccountServerData& server_data) {
   if (server_data.tenant_id.empty() || server_data.account_id.empty()) {
-    return Result<void>{ErrorCode::kInternal, "tenant_id and account_id are required"};
+    return Result<void>{ErrorCode::kInternalError, "tenant_id and account_id are required"};
   }
   return Result<void>{ErrorCode::kSuccess, "success"};
 }

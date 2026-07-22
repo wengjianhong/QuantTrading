@@ -42,7 +42,7 @@ class AccountRiskClient {
 
   /// @brief 按选项建立 gRPC 通道与 stub
   /// @param options 连接与账户上下文
-  /// @return ErrorCode::kSuccess 表示成功；参数非法或重复 Init 返回 ErrorCode::kInternal
+  /// @return ErrorCode::kSuccess 表示成功；参数非法或重复 Init 返回 ErrorCode::kInternalError
   ErrorCode Init(const AccountRiskClientOptions& options);
 
   /// @brief 释放通道与 stub

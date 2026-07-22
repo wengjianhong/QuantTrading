@@ -95,7 +95,7 @@ Result<std::int64_t> TradingAccount::Delete(cpputils::database::IConnection& con
 }
 
 Result<std::int64_t> TradingAccount::BatchDelete(cpputils::database::IConnection&, const std::vector<std::int64_t>&) {
-  return Result<std::int64_t>{ErrorCode::kInternal, "composite primary key"};
+  return Result<std::int64_t>{ErrorCode::kInternalError, "composite primary key"};
 }
 
 Result<std::int64_t> TradingAccount::Update(cpputils::database::IConnection& connection,

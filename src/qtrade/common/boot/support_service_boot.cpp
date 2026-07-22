@@ -66,7 +66,7 @@ int RunSupportServiceMain(const process_boot::ProgramOptions& options,
                           support::ISupportService& service) {
   const std::string service_name = service.GetStatus().service_name;
 
-  // 1. 尽早阻塞 SIGINT/SIGTERM
+  // 1. 阻塞 SIGINT/SIGTERM，避免信号打到子线程导致直接退出
   system::BlockInterruptSignals();
 
   // 2. 初始化程序全局环境（日志、启动横幅）

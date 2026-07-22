@@ -25,7 +25,7 @@ Result<AddAccountServerData> AddAccountHandler::ConvertToServerData(
   ::grpc::ServerContext* context, const qtrade::account::v1::AddAccountRequest* request) {
   (void)context;
   if (!request->has_account()) {
-    return Result<AddAccountServerData>{ErrorCode::kInternal, "account is missing"};
+    return Result<AddAccountServerData>{ErrorCode::kInternalError, "account is missing"};
   }
 
   AddAccountServerData data;
@@ -37,7 +37,7 @@ Result<AddAccountServerData> AddAccountHandler::ConvertToServerData(
 Result<void> AddAccountHandler::ValidateParams(AddAccountServerData& server_data) {
   if (OptionalStringEmpty(server_data.account.tenant_id) || OptionalStringEmpty(server_data.account.account_id) ||
       server_data.password.empty()) {
-    return Result<void>{ErrorCode::kInternal, "tenant_id, account_id and password are required"};
+    return Result<void>{ErrorCode::kInternalError, "tenant_id, account_id and password are required"};
   }
   return Result<void>{ErrorCode::kSuccess, "success"};
 }
@@ -78,7 +78,7 @@ Result<void> AddAccountHandler::ExecuteBusiness(AddAccountServerData& server_dat
   std::string ciphertext;
   if (!EncryptCredential(server_data.password, key_id, ciphertext)) {
     (void)connection->RollbackTransaction();
-    return Result<void>{ErrorCode::kInternal, "encrypt credential failed"};
+    return Result<void>{ErrorCode::kInternalError, "encrypt credential failed"};
   }
 
   // 3. 写入 trading_account

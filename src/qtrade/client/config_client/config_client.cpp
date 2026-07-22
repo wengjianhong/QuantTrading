@@ -47,7 +47,7 @@ ErrorCode ConfigClient::Init(const ConfigClientOptions& options) {
     return ErrorCode::kSystemError;
   }
   if (options.server_address.empty()) {
-    return ErrorCode::kInternal;
+    return ErrorCode::kInternalError;
   }
 
   impl_->options = options;

@@ -254,7 +254,7 @@ enum class FundQueryType : std::uint8_t {
   /// 查询主柜台可转资金。
   kJz = 0,
   /// 查询一账号两中心设置时对方节点资金。
-  kInternal = 1,
+  kInternalError = 1,
   /// 未知类型。
   kUnknown = 255
 };

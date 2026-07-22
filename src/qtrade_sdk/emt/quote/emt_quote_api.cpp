@@ -30,7 +30,7 @@ void EmtQuoteApi::UnregisterSpi() {
 
 qtrade::ErrorCode EmtQuoteApi::Connect(const sdk::ConnectRequest& request) {
   if (connected_) {
-    return qtrade::ErrorCode::kAlreadyConnected;
+    return qtrade::ErrorCode::kSuccess;
   }
   config_ = request;
   connected_ = true;

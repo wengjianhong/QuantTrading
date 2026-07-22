@@ -131,15 +131,15 @@ Result<void> GrpcHandlerInterface<RequestProto, ResponseProto, ServerData>::Run(
   /// 前置检查: 空指针检查
   if (context == nullptr) {
     spdlog::error("GrpcHandlerInterface context is nullptr: method={}", method_name_);
-    return Result<void>{ErrorCode::kInternal, "context is nullptr"};
+    return Result<void>{ErrorCode::kInternalError, "context is nullptr"};
   }
   if (request == nullptr) {
     spdlog::error("GrpcHandlerInterface request is nullptr: method={}", method_name_);
-    return Result<void>{ErrorCode::kInternal, "request is nullptr"};
+    return Result<void>{ErrorCode::kInternalError, "request is nullptr"};
   }
   if (response == nullptr) {
     spdlog::error("GrpcHandlerInterface response is nullptr: method={}", method_name_);
-    return Result<void>{ErrorCode::kInternal, "response is nullptr"};
+    return Result<void>{ErrorCode::kInternalError, "response is nullptr"};
   }
 
   std::optional<ServerData> server_data;
@@ -165,7 +165,7 @@ Result<void> GrpcHandlerInterface<RequestProto, ResponseProto, ServerData>::Run(
     }
     if (!convert_result.data.has_value()) {
       spdlog::warn("GrpcHandlerInterface ConvertToServerData data missing: method={}", method_name_);
-      return Result<void>{ErrorCode::kInternal, "data is null"};
+      return Result<void>{ErrorCode::kInternalError, "data is null"};
     }
 
     /// 提取转换后的业务层数据结构体

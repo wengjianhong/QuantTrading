@@ -42,7 +42,7 @@ ErrorCode LogService::Initialize(const std::string& config_path) {
   const auto loaded = qtrade::common::config::ParseQtradeLogServiceConfig(*config_node);
   if (!loaded.has_value()) {
     status_.state = qtrade::common::support::SupportServiceState::kFailed;
-    status_.last_error = ErrorCode::kInternal;
+    status_.last_error = ErrorCode::kInternalError;
     status_.last_error_message = "invalid log service config";
     return status_.last_error;
   }

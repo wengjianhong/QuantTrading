@@ -28,7 +28,7 @@ Result<GetCredentialServerData> GetCredentialHandler::ConvertToServerData(
 
 Result<void> GetCredentialHandler::ValidateParams(GetCredentialServerData& server_data) {
   if (server_data.tenant_id.empty() || server_data.engine_id.empty() || server_data.account_id.empty()) {
-    return Result<void>{ErrorCode::kInternal, "tenant_id, engine_id and account_id are required"};
+    return Result<void>{ErrorCode::kInternalError, "tenant_id, engine_id and account_id are required"};
   }
   return Result<void>{ErrorCode::kSuccess, "success"};
 }
@@ -59,7 +59,7 @@ Result<void> GetCredentialHandler::ExecuteBusiness(GetCredentialServerData& serv
 
   server_data.account = account_result.data->front();
   if (server_data.account.status.value_or("") == "disabled") {
-    return Result<void>{ErrorCode::kInternal, "account is disabled"};
+    return Result<void>{ErrorCode::kInternalError, "account is disabled"};
   }
 
   /// 查询并解密 account_credential（默认取交易密码）
@@ -78,11 +78,11 @@ Result<void> GetCredentialHandler::ExecuteBusiness(GetCredentialServerData& serv
 
   const auto& cred_row = cred_result.data->front();
   if (!cred_row.key_id.has_value() || !cred_row.ciphertext.has_value()) {
-    return Result<void>{ErrorCode::kInternal, "credential data invalid"};
+    return Result<void>{ErrorCode::kInternalError, "credential data invalid"};
   }
 
   if (!DecryptCredential(cred_row.key_id.value(), cred_row.ciphertext.value(), server_data.password)) {
-    return Result<void>{ErrorCode::kInternal, "decrypt credential failed"};
+    return Result<void>{ErrorCode::kInternalError, "decrypt credential failed"};
   }
 
   return Result<void>{ErrorCode::kSuccess, "success"};

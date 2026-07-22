@@ -35,7 +35,7 @@ ErrorCode AccountRiskService::Initialize(const std::string& config_path) {
   const auto config = qtrade::common::config::ParseQtradeAccountRiskServiceConfig(*config_node);
   if (!config.has_value()) {
     state_ = qtrade::common::support::SupportServiceState::kFailed;
-    return last_error_ = ErrorCode::kInternal;
+    return last_error_ = ErrorCode::kInternalError;
   }
   listen_address_ = config->grpc.Address();
 
@@ -46,7 +46,7 @@ ErrorCode AccountRiskService::Initialize(const std::string& config_path) {
       !connection_pool_mgr_->IsReady()) {
     connection_pool_mgr_.reset();
     state_ = qtrade::common::support::SupportServiceState::kFailed;
-    return last_error_ = ErrorCode::kInternal;
+    return last_error_ = ErrorCode::kInternalError;
   }
 
   dao_mgr_ = std::make_shared<qtrade::framework::dao::DaoManager>();
@@ -55,7 +55,7 @@ ErrorCode AccountRiskService::Initialize(const std::string& config_path) {
     dao_mgr_.reset();
     connection_pool_mgr_.reset();
     state_ = qtrade::common::support::SupportServiceState::kFailed;
-    return last_error_ = ErrorCode::kInternal;
+    return last_error_ = ErrorCode::kInternalError;
   }
   auto* database = schema_connection.get();
   if (qtrade::framework::dao::EnsureTableSchema(database, dao_mgr_->Get<qtrade::framework::dao::AccountRiskPolicy>()) !=
@@ -67,7 +67,7 @@ ErrorCode AccountRiskService::Initialize(const std::string& config_path) {
     dao_mgr_.reset();
     connection_pool_mgr_.reset();
     state_ = qtrade::common::support::SupportServiceState::kFailed;
-    return last_error_ = ErrorCode::kInternal;
+    return last_error_ = ErrorCode::kInternalError;
   }
   return last_error_ = ErrorCode::kSuccess;
 }

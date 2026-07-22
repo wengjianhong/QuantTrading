@@ -75,7 +75,7 @@ void StrategyEngine::RegisterStrategy(std::unique_ptr<qtrade::strategy::IStrateg
 ErrorCode StrategyEngine::RegisterStrategy(std::unique_ptr<qtrade::strategy::IStrategy> strategy,
                                            const std::vector<std::string>& instruments) {
   if (!strategy || instruments.empty()) {
-    return ErrorCode::kInternal;
+    return ErrorCode::kInternalError;
   }
   std::lock_guard<std::mutex> lock(mutex_);
   for (const auto& instrument : instruments) {
@@ -96,7 +96,7 @@ ErrorCode StrategyEngine::RegisterStrategy(const std::string& strategy_id,
                                            std::unique_ptr<qtrade::strategy::IStrategy> strategy,
                                            const std::vector<std::string>& instruments) {
   if (strategy_id.empty() || !strategy) {
-    return ErrorCode::kInternal;
+    return ErrorCode::kInternalError;
   }
   std::lock_guard lock(mutex_);
   if (strategies_.contains(strategy_id)) {
@@ -117,7 +117,7 @@ ErrorCode StrategyEngine::RegisterStrategy(const std::string& strategy_id,
 
 ErrorCode StrategyEngine::RegisterFactory(const std::string& plugin, StrategyFactory factory) {
   if (plugin.empty() || !factory) {
-    return ErrorCode::kInternal;
+    return ErrorCode::kInternalError;
   }
   std::lock_guard lock(mutex_);
   return factories_.emplace(plugin, std::move(factory)).second ? ErrorCode::kSuccess : ErrorCode::kSystemError;
@@ -151,13 +151,13 @@ ErrorCode StrategyEngine::ApplyConfiguration(const std::vector<StrategyRuntimeCo
     if (entry_it == strategies_.end()) {
       auto strategy = factories_.at(config.plugin)();
       if (!strategy) {
-        return ErrorCode::kInternal;
+        return ErrorCode::kInternalError;
       }
       qtrade::strategy::StrategyConfig init_config;
       init_config.name = config.strategy_id;
       init_config.parameter_blob = nlohmann::json(config.params).dump();
       if (strategy->Init(init_config) != ErrorCode::kSuccess) {
-        return ErrorCode::kInternal;
+        return ErrorCode::kInternalError;
       }
       entry_it =
         strategies_.emplace(config.strategy_id, StrategyEntry{std::move(strategy), false, false, true, {}}).first;
@@ -166,7 +166,7 @@ ErrorCode StrategyEngine::ApplyConfiguration(const std::vector<StrategyRuntimeCo
     StrategyEntry& entry = entry_it->second;
     for (const auto& [key, value] : config.params) {
       if (entry.strategy->SetParameter(key, value) != ErrorCode::kSuccess) {
-        return ErrorCode::kInternal;
+        return ErrorCode::kInternalError;
       }
     }
 
@@ -178,7 +178,7 @@ ErrorCode StrategyEngine::ApplyConfiguration(const std::vector<StrategyRuntimeCo
         } else if (entry.strategy->Start() == ErrorCode::kSuccess) {
           entry.started = true;
         } else {
-          return ErrorCode::kInternal;
+          return ErrorCode::kInternalError;
         }
       } else if (!config.enabled && entry.enabled && entry.started) {
         entry.strategy->Pause();

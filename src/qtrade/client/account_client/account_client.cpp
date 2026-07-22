@@ -32,7 +32,7 @@ ErrorCode AccountClient::Init(const AccountClientOptions& options) {
     return ErrorCode::kSystemError;
   }
   if (options.server_address.empty()) {
-    return ErrorCode::kInternal;
+    return ErrorCode::kInternalError;
   }
 
   impl_->options = options;
@@ -54,7 +54,7 @@ ErrorCode AccountClient::GetCredential(const std::string& account_id,
     return ErrorCode::kNotInitialized;
   }
   if (account_id.empty()) {
-    return ErrorCode::kInternal;
+    return ErrorCode::kInternalError;
   }
 
   qtrade::account::v1::GetCredentialRequest request;

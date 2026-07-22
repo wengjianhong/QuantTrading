@@ -144,37 +144,49 @@ position::PositionManager& TradingEngine::GetPositionManager() {
 }
 
 ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineConfig& config) {
+  ErrorCode error_code = ErrorCode::kSuccess;
   if (initialized_) {
-    return ErrorCode::kSystemError;
+    return error_code;
   }
 
   // Init-1: 引导配置与行情健康阈值
-  if (const auto rc = BootstrapLocalRuntime(config); rc != ErrorCode::kSuccess) {
-    return rc;
+  error_code = BootstrapLocalRuntime(config);
+  if (error_code != ErrorCode::kSuccess) {
+    return error_code;
   }
+
   // Init-2: 单实例围栏
-  if (const auto rc = AcquireInstanceFence(); rc != ErrorCode::kSuccess) {
-    return rc;
+  error_code = AcquireInstanceFence();
+  if (error_code != ErrorCode::kSuccess) {
+    return error_code;
   }
+
   // Init-3: 订单事实回放
-  if (const auto rc = ReplayLocalOrderFacts(); rc != ErrorCode::kSuccess) {
+  error_code = ReplayLocalOrderFacts();
+  if (error_code != ErrorCode::kSuccess) {
     ReleaseInitResources();
-    return rc;
+    return error_code;
   }
+
   // Init-4: D 段旁路
-  if (const auto rc = InitBypassClients(); rc != ErrorCode::kSuccess) {
+  error_code = InitBypassClients();
+  if (error_code != ErrorCode::kSuccess) {
     ReleaseInitResources();
-    return rc;
+    return error_code;
   }
+
   // Init-5: 控制面 client
-  if (const auto rc = InitControlPlaneClients(); rc != ErrorCode::kSuccess) {
+  error_code = InitControlPlaneClients();
+  if (error_code != ErrorCode::kSuccess) {
     ReleaseInitResources();
-    return rc;
+    return error_code;
   }
+
   // Init-6: 按需连接适配器
-  if (const auto rc = ConnectAdaptersIfConfigured(); rc != ErrorCode::kSuccess) {
+  error_code = ConnectAdaptersIfConfigured();
+  if (error_code != ErrorCode::kSuccess) {
     ReleaseInitResources();
-    return rc;
+    return error_code;
   }
 
   initialized_ = true;
@@ -367,7 +379,7 @@ ErrorCode TradingEngine::EnsureAdaptersConnected() {
   auto* trader_api = trader_normalizer_.GetTraderApi();
   if (kRequireTraderConnection && (trader_api == nullptr || !trader_api->IsConnected())) {
     lifecycle_.Fail("TRADER_NOT_CONNECTED");
-    return ErrorCode::kNotConnected;
+    return ErrorCode::kConnectionError;
   }
   return ErrorCode::kSuccess;
 }
@@ -519,7 +531,7 @@ ErrorCode TradingEngine::InitAdapters() {
     const auto& credential = credential_response.credential();
     if (credential.account_id() != config_.identity.account_id || credential.connection_string().empty() ||
         credential.password().empty()) {
-      return ErrorCode::kInternal;
+      return ErrorCode::kInternalError;
     }
     trader_request.broker_id = credential.broker_id();
     trader_request.account_id = credential.account_id();
@@ -556,7 +568,7 @@ ErrorCode TradingEngine::InitAdapters() {
 ErrorCode TradingEngine::SynchronizeBrokerState(qtrade_sdk::trader::TraderApi* trader_api) {
   // 1. 查询柜台订单、成交、持仓与资金快照
   if (trader_api == nullptr || !trader_api->IsConnected()) {
-    return ErrorCode::kNotConnected;
+    return ErrorCode::kConnectionError;
   }
 
   qtrade_sdk::trader::QueryOrdersResponse orders_response;
@@ -594,7 +606,7 @@ ErrorCode TradingEngine::SynchronizeBrokerState(qtrade_sdk::trader::TraderApi* t
   }
   position_manager_.ApplyPositionSnapshot(positions_response.positions);
   account_manager_.ApplyAssetSnapshot(asset_response.asset);
-  return order_manager_.GetOrdersRequiringReconciliation().empty() ? ErrorCode::kSuccess : ErrorCode::kInternal;
+  return order_manager_.GetOrdersRequiringReconciliation().empty() ? ErrorCode::kSuccess : ErrorCode::kInternalError;
 }
 
 void TradingEngine::OnEngineConfig(const qtrade::config::v1::EngineConfig& config) {

@@ -23,21 +23,40 @@ const std::string_view GetErrorCodeMessage(ErrorCode code);
 
 /// @brief   错误码描述
 const std::unordered_map<ErrorCode, const std::string_view> kErrorCodeMessages = {
+  /// 公共模块
   {ErrorCode::kSuccess, "Success"},
-
-  /// 系统层（BBB=000~099）
-  /// 行情适配器模块（错误码范围=10100000~10100999）
-  {ErrorCode::kSystemError, "SystemError"},
-  {ErrorCode::kNotInitialized, "NotInitialized"},
-  {ErrorCode::kInternal, "Internal"},
+  {ErrorCode::kError, "Error"},
+  {ErrorCode::kNotInitialized, "Not Initialized"},
+  {ErrorCode::kInternalError, "Internal Error"},
   {ErrorCode::kTimeout, "Timeout"},
-  {ErrorCode::kResourceExhausted, "ResourceExhausted"},
-  {ErrorCode::kNotFound, "NotFound"},
+  {ErrorCode::kResourceExhausted, "Resource Exhausted"},
+  {ErrorCode::kNotFound, "Not Found"},
+  {ErrorCode::kNotSupported, "Not Supported"},
 
-  /// 适配器层（BBB=100~199）
-  /// 行情适配器模块（错误码范围=10100000~10100999）
-  {ErrorCode::kAlreadyConnected, "AlreadyConnected"},
-  {ErrorCode::kNotConnected, "NotConnected"},
+  /// 系统错误码段
+  {ErrorCode::kSystemError, "System Error"},
+  {ErrorCode::kInvalidArgument, "Invalid Argument"},
+  {ErrorCode::kInvalidState, "Invalid State"},
+  {ErrorCode::kPermissionDenied, "Permission Denied"},
+  {ErrorCode::kCancelled, "Cancelled"},
+
+  /// 网络错误码段
+  {ErrorCode::kNetworkError, "Network Error"},
+  {ErrorCode::kNetworkConnectError, "Network Connect Error"},
+  {ErrorCode::kNetworkDisconnected, "Network Disconnected"},
+  {ErrorCode::kNetworkSendError, "Network Send Error"},
+  {ErrorCode::kNetworkReceiveError, "Network Receive Error"},
+
+  /// Sql错误码段
+  {ErrorCode::kConnectionError, "Connection Error"},
+  {ErrorCode::kSqlExecuteError, "SqlExecute Error"},
+  {ErrorCode::kSqlQueryError, "Sql Query Error"},
+  {ErrorCode::kSqlBeginTransactionError, "Sql BeginTransaction Error"},
+  {ErrorCode::kSqlCommitTransactionError, "Sql CommitTransaction Error"},
+  {ErrorCode::kSqlRollbackTransactionError, "Sql RollbackTransaction Error"},
+  {ErrorCode::kSqlNotFound, "Sql Not Found"},
+  {ErrorCode::kSqlConflict, "Sql Conflict"},
+  {ErrorCode::kCommitError, "Commit Error"},
 };
 
 }  // namespace qtrade

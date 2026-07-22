@@ -17,7 +17,7 @@
 #include <string>
 
 int main(int argc, char** argv) {
-  // 1. 阻塞 SIGINT/SIGTERM，避免信号打到已创建线程导致直接退出
+  // 1. 阻塞 SIGINT/SIGTERM，避免信号打到子线程导致直接退出
   qtrade::common::system::BlockInterruptSignals();
 
   // 2. 解析命令行参数
@@ -37,7 +37,6 @@ int main(int argc, char** argv) {
   }
 
   qtrade::engine::TradingEngine engine;
-
   // 4. 初始化引擎（围栏、订单回放、控制面、适配器）
   if (!qtrade::engine::boot::InitEngine(engine, options_result.data.value().config_path)) {
     qtrade::common::system::NotifyError(0, "Failed to initialize engine");

@@ -20,7 +20,9 @@ struct ProgramOptions {
 };
 
 /// @brief 解析命令行中的 --config 参数
-/// @return 找到并成功解析 --config <path> 时返回 true
+/// @param argc 命令行参数个数
+/// @param argv 命令行参数数组
+/// @return 解析结果
 [[nodiscard]] Result<ProgramOptions> ParseProgramOptions(int argc, char** argv);
 
 /// @brief 初始化服务全局环境（日志）

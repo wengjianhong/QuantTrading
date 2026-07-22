@@ -16,18 +16,24 @@ class TradingEngine;
 /// @brief 引擎业务启动阶段（供 main 编排调用）
 namespace boot {
 
-/// @brief 加载本地引导配置（qtrade_engine.json）；文件缺失时打警告并沿用默认配置
-
-/// @brief 注册演示策略工厂与默认策略实例
+/// @brief 注册策略工厂与策略实例
+/// @param engine 交易引擎
+/// @return 是否成功
 [[nodiscard]] bool RegisterStrategies(TradingEngine& engine);
 
 /// @brief 调用 TradingEngine::Init
+/// @param engine 交易引擎
+/// @param config_path 配置文件路径
+/// @return 是否成功
 [[nodiscard]] bool InitEngine(TradingEngine& engine, const std::string& config_path);
 
 /// @brief 调用 TradingEngine::Start（含演示行情订阅）
+/// @param engine 交易引擎
+/// @return 是否成功
 [[nodiscard]] bool StartEngine(TradingEngine& engine);
 
 /// @brief 阻塞至停机信号后调用 TradingEngine::Stop
+/// @param engine 交易引擎
 void RunUntilShutdown(TradingEngine& engine);
 
 }  // namespace boot

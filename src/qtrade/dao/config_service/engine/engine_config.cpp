@@ -96,7 +96,7 @@ Result<std::int64_t> EngineConfig::Delete(cpputils::database::IConnection& conne
 
 Result<std::int64_t> EngineConfig::BatchDelete(cpputils::database::IConnection&, const std::vector<std::int64_t>&) {
   spdlog::error("[EngineConfig] batch delete unsupported: composite primary key");
-  return Result<std::int64_t>{ErrorCode::kInternal, "composite primary key"};
+  return Result<std::int64_t>{ErrorCode::kInternalError, "composite primary key"};
 }
 
 Result<std::int64_t> EngineConfig::Update(cpputils::database::IConnection& connection,

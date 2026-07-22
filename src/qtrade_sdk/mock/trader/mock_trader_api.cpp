@@ -127,7 +127,7 @@ std::uint64_t MockTraderApi::InsertOrder(const sdk::OrderRequest& order, std::ui
 
 qtrade::ErrorCode MockTraderApi::SendOrder(const sdk::OrderRequest& request) {
   if (!connected_) {
-    return qtrade::ErrorCode::kNotConnected;
+    return qtrade::ErrorCode::kConnectionError;
   }
   const std::uint64_t order_emt_id = request.order_emt_id != 0 ? request.order_emt_id : next_order_emt_id_++;
   sdk::Order order;
@@ -183,7 +183,7 @@ std::uint64_t MockTraderApi::CancelOrder(std::uint64_t order_emt_id, std::uint64
 
 qtrade::ErrorCode MockTraderApi::CancelOrder(const sdk::CancelOrderRequest& request) {
   if (!connected_) {
-    return qtrade::ErrorCode::kNotConnected;
+    return qtrade::ErrorCode::kConnectionError;
   }
   sdk::Order canceled;
   {

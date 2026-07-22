@@ -52,7 +52,7 @@ qtrade_config_service --config config/qtrade_config_service.json
 
 ### 方式二：目录隔离安装（/usr/local/qtrade）
 
-cpputils 已安装到 `/usr/local/cpputils`（见 [cpputils README](https://github.com/wengjianhong/cpputils#方式二目录隔离usrlocalcpputils)）时使用。
+cpputils 已安装到 `/usr/local/cpputils`（见 [cpputils README](https://github.com/wengjianhong/cpputils#方式二目录隔离usrlocalcpputils)）时使用。显式指定 `cpputils_DIR` 会覆盖已有 `build/` 目录中缓存的旧依赖路径，因此首次配置和重复配置均可使用。
 
 ```shell
 # 编译安装

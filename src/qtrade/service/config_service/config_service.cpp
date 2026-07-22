@@ -46,7 +46,7 @@ ErrorCode ConfigService::Initialize(const std::string& config_path) {
       !connection_pool_mgr_->IsReady()) {
     connection_pool_mgr_.reset();
     state_ = qtrade::common::support::SupportServiceState::kFailed;
-    last_error_ = ErrorCode::kInternal;
+    last_error_ = ErrorCode::kInternalError;
     return last_error_;
   }
 
@@ -56,7 +56,7 @@ ErrorCode ConfigService::Initialize(const std::string& config_path) {
     dao_mgr_.reset();
     connection_pool_mgr_.reset();
     state_ = qtrade::common::support::SupportServiceState::kFailed;
-    last_error_ = ErrorCode::kInternal;
+    last_error_ = ErrorCode::kInternalError;
     return last_error_;
   }
   auto* database = schema_connection.get();
@@ -77,7 +77,7 @@ ErrorCode ConfigService::Initialize(const std::string& config_path) {
     dao_mgr_.reset();
     connection_pool_mgr_.reset();
     state_ = qtrade::common::support::SupportServiceState::kFailed;
-    last_error_ = ErrorCode::kInternal;
+    last_error_ = ErrorCode::kInternalError;
     return last_error_;
   }
 

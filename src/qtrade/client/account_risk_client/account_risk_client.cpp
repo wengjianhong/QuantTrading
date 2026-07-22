@@ -31,7 +31,7 @@ AccountRiskClient::~AccountRiskClient() {
 ErrorCode AccountRiskClient::Init(const AccountRiskClientOptions& options) {
   if (impl_->stub || options.server_address.empty() || options.tenant_id.empty() || options.account_id.empty() ||
       options.timeout_ms <= 0) {
-    return ErrorCode::kInternal;
+    return ErrorCode::kInternalError;
   }
   impl_->options = options;
   impl_->channel = grpc::CreateChannel(options.server_address, grpc::InsecureChannelCredentials());

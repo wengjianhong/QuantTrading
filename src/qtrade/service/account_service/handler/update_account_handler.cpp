@@ -25,7 +25,7 @@ Result<UpdateAccountServerData> UpdateAccountHandler::ConvertToServerData(
   ::grpc::ServerContext* context, const qtrade::account::v1::UpdateAccountRequest* request) {
   (void)context;
   if (!request->has_account()) {
-    return Result<UpdateAccountServerData>{ErrorCode::kInternal, "account is missing"};
+    return Result<UpdateAccountServerData>{ErrorCode::kInternalError, "account is missing"};
   }
 
   UpdateAccountServerData data;
@@ -37,7 +37,7 @@ Result<UpdateAccountServerData> UpdateAccountHandler::ConvertToServerData(
 
 Result<void> UpdateAccountHandler::ValidateParams(UpdateAccountServerData& server_data) {
   if (OptionalStringEmpty(server_data.account.tenant_id) || OptionalStringEmpty(server_data.account.account_id)) {
-    return Result<void>{ErrorCode::kInternal, "tenant_id and account_id are required"};
+    return Result<void>{ErrorCode::kInternalError, "tenant_id and account_id are required"};
   }
   return Result<void>{ErrorCode::kSuccess, "success"};
 }
@@ -80,7 +80,7 @@ Result<void> UpdateAccountHandler::ExecuteBusiness(UpdateAccountServerData& serv
     std::string ciphertext;
     if (!EncryptCredential(server_data.password, key_id, ciphertext)) {
       (void)connection->RollbackTransaction();
-      return Result<void>{ErrorCode::kInternal, "encrypt credential failed"};
+      return Result<void>{ErrorCode::kInternalError, "encrypt credential failed"};
     }
 
     qtrade::framework::dao::AccountCredentialRecord credential_key;

@@ -98,7 +98,7 @@ Result<std::int64_t> AccountCredential::Delete(cpputils::database::IConnection& 
 
 Result<std::int64_t> AccountCredential::BatchDelete(cpputils::database::IConnection&,
                                                     const std::vector<std::int64_t>&) {
-  return Result<std::int64_t>{ErrorCode::kInternal, "composite primary key"};
+  return Result<std::int64_t>{ErrorCode::kInternalError, "composite primary key"};
 }
 
 Result<std::int64_t> AccountCredential::Update(cpputils::database::IConnection& connection,

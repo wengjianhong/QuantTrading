@@ -39,7 +39,7 @@ void OrderPipeline::SetReleaseHandler(ReleaseHandler handler) {
 ErrorCode OrderPipeline::Submit(const qtrade_sdk::trader::OrderRequest& request) {
   // 1. 审计门禁、合规与实例风控
   if (log_client_ != nullptr && log_client_->IsAuditHalted()) {
-    return ErrorCode::kInternal;
+    return ErrorCode::kInternalError;
   }
   if (const auto rc = compliance_.CheckOrder(request); rc != ErrorCode::kSuccess) {
     return rc;
@@ -68,7 +68,7 @@ ErrorCode OrderPipeline::Submit(const qtrade_sdk::trader::OrderRequest& request)
       }
     } else if (reserve_result != ErrorCode::kSuccess ||
                response.decision() != qtrade::account_risk::v1::ReserveOrderResponse::APPROVED) {
-      return reserve_result == ErrorCode::kSuccess ? ErrorCode::kInternal : reserve_result;
+      return reserve_result == ErrorCode::kSuccess ? ErrorCode::kInternalError : reserve_result;
     }
   }
 
