@@ -9,7 +9,6 @@
 #include "qtrade/common/system/signal.hpp"
 #include "qtrade/common/system/systemd_notify.hpp"
 
-#include <qtrade/error_code/code_message.hpp>
 #include <qtrade/error_code/error_codes.hpp>
 
 #include <spdlog/spdlog.h>

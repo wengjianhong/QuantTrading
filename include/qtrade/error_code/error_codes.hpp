@@ -9,6 +9,7 @@
 #include <qtrade/error_code/code_segment.hpp>
 
 #include <cstdint>
+#include <string_view>
 
 namespace qtrade {
 using cpputils::error_code::MakeErrorCode;
@@ -79,6 +80,11 @@ enum class ErrorCode : int32_t {
   /// 数据库提交失败
   kCommitError = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kSqlError), 9),
 };
+
+/// @brief 获取错误码描述
+/// @param code 错误码
+/// @return 错误码对应的字符串描述；未定义的错误码返回 "UnknownError"
+[[nodiscard]] const std::string_view GetErrorCodeMessage(ErrorCode code);
 
 }  // namespace qtrade
 

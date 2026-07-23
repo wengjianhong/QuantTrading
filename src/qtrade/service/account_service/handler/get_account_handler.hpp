@@ -10,8 +10,8 @@
 
 #include <qtrade/dao/account_service/trading_account.hpp>
 #include <qtrade/dao/dao_manager.hpp>
-#include <qtrade/proto/account/v1/account.pb.h>
 #include <qtrade/grpc/grpc_handler_interface.hpp>
+#include <qtrade/proto/account/v1/account.pb.h>
 
 #include <string>
 
