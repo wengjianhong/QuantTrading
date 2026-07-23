@@ -100,7 +100,6 @@ void RunUntilShutdown(TradingEngine& engine) {
   spdlog::info("[{}] received signal {}, stopping...", qtrade::engine::kServiceName, signal);
 
   (void)engine.Stop();
-  qtrade::common::process_boot::LogProcessStopped(qtrade::engine::kServiceName);
 }
 
 }  // namespace qtrade::engine::boot

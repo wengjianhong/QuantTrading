@@ -43,12 +43,11 @@ qtrade/
 │   ├── qtrade/                 # 【对外公共头文件】插件接口、共享数据结构、错误码
 │   │   ├── structs/            # 框架通用结构（如 result.hpp）
 │   │   ├── error_code/         # 错误码：error_codes.hpp、code_segment.hpp、code_message.hpp
+│   │   ├── grpc/               # gRPC Handler 与状态映射工具
 │   │   ├── strategy/           # 策略基类接口：IStrategy
+│   │   ├── support/            # 支撑服务生命周期接口（ISupportService）
 │   │   └── dao/                # DAO 接口声明（ddl.hpp / dml.hpp）；表实现头在 src/qtrade/dao/
 │   ├── qtrade_sdk/             # 插件 Target 接口：quote/、trader/（Api + Spi）
-│   └── qtrade_framework/       # 【内部框架头文件】不 install；#include <qtrade_framework/...>
-│       ├── grpc/               # GrpcHandlerInterface、grpc_status_utils 等
-│       └── support/            # 支撑服务生命周期接口（ISupportService）
 ├── src/
 │   ├── qtrade/                     # 【交易平台产品实现】
 │   │   ├── apps/                   # 【可部署二进制入口】仅含 main，目录名 = 产物名
@@ -89,7 +88,7 @@ qtrade/
 │   │   │   │   └── risk/            # A 段风险策略（含 instance_risk_policy）
 │   │   │   ├── account_risk_service/ # E 段账户硬限制 policy/ledger/reservation
 │   │   │   └── risk_tables.hpp     # 风控表总览 include
-│   │   ├── framework/              # 【内部框架实现】实现头在 src；公开接口头在 include/qtrade_framework/
+│   │   ├── framework/              # 【内部框架实现】实现头在 src；公开接口头在 include/qtrade/
 │   │   │   ├── support/            # SupportSyncServiceImpl / SupportAsyncServiceImpl
 │   │   │   ├── database/           # 连接选项、DbConnectionHolder、bootstrap
 │   │   │   ├── dao/                # dml_utils、ddl_utils、sql_utils（DAO 基建，非表级 DAO）
@@ -319,7 +318,7 @@ Api 适配器实现 QTrade 的稳定接口并转发调用；Spi 适配器继承�
 - `include/qtrade/` 下需 `.cpp` 的公共 API 实现，目录镜像放在 `src/qtrade/framework/error_code/`（如 `code_message.cpp`）；SDK 适配器实现在 `src/qtrade_sdk/<vendor>/`；引擎内部 client 头文件与实现均在 `src/qtrade/client/`
 - 模块内部头文件与 `.cpp` 同目录放在 `src/` 下，不放入 `include/`；**`src/` 内部引用**统一以 `src/` 为 include 根，路径带层前缀，例如：
   - `#include "qtrade/service/account_service/account_service.hpp"`
-  - `#include <qtrade_framework/grpc/grpc_handler_interface.hpp>`（`include/qtrade_framework/`，不 install）
+  - `#include <qtrade/grpc/grpc_handler_interface.hpp>`（`include/qtrade/`，随公共头安装）
   - `#include "qtrade/dao/account_service/trading_account.hpp"`
   - `#include "qtrade_sdk/mock/quote/mock_quote_api.hpp"`
   （CMake 对实现库使用 `target_include_directories(... PRIVATE ${QTRADE_SRC_DIR})`；公共头使用 `${QTRADE_INCLUDE_DIR}`）
@@ -409,7 +408,7 @@ Api 适配器实现 QTrade 的稳定接口并转发调用；Spi 适配器继承�
 
 - 支撑服务可使用异常，但必须在边界处捕获并转换为错误码返回
 
-- 所有错误码统一在 `include/qtrade/error_code/` 中定义，采用 **AABBBCCC** 三级编码：AA=10（qtrade 系统级）、BBB=模块编号（engine/service 等从 001 起）、CCC=具体错误码
+- 所有错误码统一在 `include/qtrade/error_code/` 中定义，采用 **AAA BBB CCC DDD** 四级编码：AAA=系统、BBB=服务、CCC=模块、DDD=具体错误码；底层布局由 `cpputils/error_code/error_code_layout.hpp` 提供
 
 - 错误信息必须清晰、具体，便于问题定位
 

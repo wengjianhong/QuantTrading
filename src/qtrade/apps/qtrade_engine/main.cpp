@@ -23,7 +23,7 @@ int main(int argc, char** argv) {
   // 2. 解析命令行参数
   auto options_result = qtrade::common::process_boot::ParseProgramOptions(argc, argv);
   if (options_result.error_code != qtrade::ErrorCode::kSuccess || !options_result.data.has_value()) {
-    std::cerr << "[qtrade_engine] missing required argument: --config <path>\n";
+    std::cerr << "[qtrade_engine] Failed to parse program options:" << options_result.error_message << std::endl;
     return EXIT_FAILURE;
   }
 
@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
   }
 
   qtrade::engine::TradingEngine engine;
-  // 4. 初始化引擎（围栏、订单回放、控制面、适配器）
+  // 4. 初始化引擎（订单回放、控制面、适配器）
   if (!qtrade::engine::boot::InitEngine(engine, options_result.data.value().config_path)) {
     qtrade::common::system::NotifyError(0, "Failed to initialize engine");
     return EXIT_FAILURE;
@@ -58,5 +58,8 @@ int main(int argc, char** argv) {
 
   // 7. 阻塞运行直至停机信号，并释放引擎资源
   qtrade::engine::boot::RunUntilShutdown(engine);
+
+  // 8. 记录进程停止日志
+  qtrade::common::process_boot::LogProcessStopped(qtrade::engine::kServiceName);
   return EXIT_SUCCESS;
 }

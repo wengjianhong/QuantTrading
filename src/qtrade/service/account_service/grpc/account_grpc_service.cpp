@@ -12,7 +12,7 @@
 #include "qtrade/service/account_service/handler/list_accounts_handler.hpp"
 #include "qtrade/service/account_service/handler/update_account_handler.hpp"
 
-#include <qtrade_framework/grpc/grpc_status_utils.hpp>
+#include <qtrade/grpc/grpc_status_utils.hpp>
 
 #include <spdlog/spdlog.h>
 
