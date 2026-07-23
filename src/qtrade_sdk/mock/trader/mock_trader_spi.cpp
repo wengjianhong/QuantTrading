@@ -1,5 +1,9 @@
 /// @file      mock_trader_spi.cpp
 /// @brief     Mock 交易 SPI 实现
+/// @details   将 Mock 交易事件安全转发至已注册的标准交易 SPI。
+/// @author    wengjianhong
+/// @date      2026-07-19
+/// @copyright CC BY-NC-SA 4.0
 #include "qtrade_sdk/mock/trader/mock_trader_spi.hpp"
 
 namespace qtrade::adapter::mock::trader {

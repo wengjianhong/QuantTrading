@@ -1,13 +1,13 @@
 /// @file      event_reactor_loop.hpp
 /// @brief     EventBus FIFO 有界队列 Reactor 循环（Demultiplex + RunOnce）
+/// @details   单线程消费有界队列；满队列策略由 Policy（丢最旧或拒写）决定；
+///            实现位于 .cpp，并对 EventPtr + Market/ReturnLanePolicy 显式实例化
 /// @author    wengjianhong
 /// @date      2026-06-25
 /// @copyright CC BY-NC-SA 4.0
 
 #ifndef QTRADE_TRADING_ENGINE_EVENT_REACTOR_LOOP_HPP_
 #define QTRADE_TRADING_ENGINE_EVENT_REACTOR_LOOP_HPP_
-
-#include <spdlog/spdlog.h>
 
 #include <atomic>
 #include <condition_variable>
@@ -49,134 +49,60 @@ struct ReturnLanePolicy {
 };
 
 /// @brief FIFO 有界队列 + condition_variable 的 Reactor 循环
+/// @tparam Event 队列元素类型
+/// @tparam Policy 容量与满队列策略（需提供 kCapacity / kDropOldestOnFull）
 template <typename Event, typename Policy>
 class EventReactorLoop {
  public:
   /// @brief 构造 Reactor 循环
   /// @param name 日志与诊断用的车道名
-  explicit EventReactorLoop(std::string_view name) : name_(name) {}
+  explicit EventReactorLoop(std::string_view name);
 
+  /// @brief 禁止拷贝构造
   EventReactorLoop(const EventReactorLoop&) = delete;
+
+  /// @brief 禁止拷贝赋值
   EventReactorLoop& operator=(const EventReactorLoop&) = delete;
 
   /// @brief 析构时 Stop，确保 Reactor 线程退出
-  ~EventReactorLoop() {
-    Stop();
-  }
+  ~EventReactorLoop();
 
   /// @brief 启动 Reactor 线程
   /// @param handle_event 出队事件的处理回调
-  void Start(std::function<void(const Event&)> handle_event) {
-    if (running_.exchange(true)) {
-      return;
-    }
-    accepting_.store(true, std::memory_order_release);
-    reactor_thread_ = std::thread([this, handler = std::move(handle_event)] { RunLoop(handler); });
-    spdlog::info("[{}] reactor thread started", name_);
-  }
+  void Start(std::function<void(const Event&)> handle_event);
 
   /// @brief 停止接收入队并 join Reactor 线程，清空队列
-  void Stop() {
-    if (!running_.exchange(false)) {
-      return;
-    }
-    accepting_.store(false, std::memory_order_release);
-    cv_.notify_all();
-    if (reactor_thread_.joinable()) {
-      reactor_thread_.join();
-    }
-    std::lock_guard<std::mutex> lock(mutex_);
-    queue_.clear();
-    spdlog::info("[{}] reactor stopped cleanly", name_);
-  }
+  void Stop();
 
   /// @brief 生产者入队；满队列策略由 Policy 决定
   /// @param event 待入队事件
   /// @return 入队成功返回 true；停写或拒写返回 false
-  bool Publish(Event event) {
-    {
-      std::lock_guard<std::mutex> lock(mutex_);
-      if (!accepting_.load(std::memory_order_acquire)) {
-        ++rejected_;
-        return false;
-      }
-      if (queue_.size() >= Policy::kCapacity) {
-        if constexpr (Policy::kDropOldestOnFull) {
-          queue_.pop_front();
-          ++dropped_;
-          spdlog::warn("[{}] queue full, dropped oldest event", name_);
-        } else {
-          ++rejected_;
-          spdlog::error("[{}] queue full, rejected publish", name_);
-          return false;
-        }
-      }
-      queue_.push_back(std::move(event));
-    }
-    cv_.notify_one();
-    return true;
-  }
+  bool Publish(Event event);
 
   /// @brief Reactor 线程单次迭代：等待就绪 → 出队一个事件
   /// @return 迭代结果与可选事件（kHandled 时 event 有值）
-  [[nodiscard]] std::pair<RunOnceResult, std::optional<Event>> RunOnce() {
-    Event event;
-    {
-      std::unique_lock<std::mutex> lock(mutex_);
-      cv_.wait(lock, [this] { return !running_.load() || !queue_.empty(); });
-      if (!running_.load() && queue_.empty()) {
-        return {RunOnceResult::kStopped, std::nullopt};
-      }
-      if (queue_.empty()) {
-        return {RunOnceResult::kIdle, std::nullopt};
-      }
-      event = std::move(queue_.front());
-      queue_.pop_front();
-    }
-    return {RunOnceResult::kHandled, std::move(event)};
-  }
+  [[nodiscard]] std::pair<RunOnceResult, std::optional<Event>> RunOnce();
 
   /// @brief 查询队列是否仍有待处理事件
   /// @return 队列非空时返回 true
-  [[nodiscard]] bool HasPending() const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    return !queue_.empty();
-  }
+  [[nodiscard]] bool HasPending() const;
 
   /// @brief 获取当前队列深度
   /// @return 待处理事件个数
-  [[nodiscard]] std::size_t PendingCount() const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    return queue_.size();
-  }
+  [[nodiscard]] std::size_t PendingCount() const;
 
   /// @brief 获取因队列满而丢弃最旧事件的累计次数
   /// @return 丢弃计数
-  [[nodiscard]] std::uint64_t DroppedCount() const {
-    return dropped_.load(std::memory_order_relaxed);
-  }
+  [[nodiscard]] std::uint64_t DroppedCount() const;
 
   /// @brief 获取因停写或拒写而未入队的累计次数
   /// @return 拒写计数
-  [[nodiscard]] std::uint64_t RejectedCount() const {
-    return rejected_.load(std::memory_order_relaxed);
-  }
+  [[nodiscard]] std::uint64_t RejectedCount() const;
 
  private:
   /// @brief Reactor 线程主循环：反复 RunOnce 并回调业务 Handler
   /// @param handle_event 事件处理回调
-  void RunLoop(const std::function<void(const Event&)>& handle_event) {
-    while (true) {
-      auto [result, event] = RunOnce();
-      if (result == RunOnceResult::kStopped) {
-        break;
-      }
-      if (result == RunOnceResult::kIdle) {
-        continue;
-      }
-      handle_event(*event);
-    }
-  }
+  void RunLoop(const std::function<void(const Event&)>& handle_event);
 
   /// 日志与诊断用的车道名
   std::string_view name_;

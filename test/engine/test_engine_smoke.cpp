@@ -6,24 +6,91 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/common/config/qtrade_engine_config.hpp"
 #include "qtrade/engine/trading_engine.hpp"
+#include "qtrade_sdk/mock/quote/mock_quote_api.hpp"
+#include "qtrade_sdk/mock/trader/mock_trader_api.hpp"
 
 #include <qtrade_sdk/quote/quote_struct.hpp>
 
 #include <gtest/gtest.h>
 
+#include <chrono>
+#include <functional>
+#include <string>
+#include <thread>
+
+namespace {
+
+void WaitUntil(const std::function<bool()>& predicate) {
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+  while (std::chrono::steady_clock::now() < deadline) {
+    if (predicate()) {
+      return;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+}
+
+void InstallMockAdapters(qtrade::engine::TradingEngine& engine) {
+  auto quote_api = qtrade::adapter::mock::quote::CreateMockQuoteApi();
+  qtrade_sdk::quote::ConnectRequest quote_request;
+  quote_request.connection_string = "mock://quote";
+  EXPECT_EQ(quote_api->Connect(quote_request), qtrade::ErrorCode::kSuccess);
+  engine.GetQuoteNormalizer().SetQuoteApi(std::move(quote_api));
+
+  auto trader_api = qtrade::adapter::mock::trader::CreateMockTraderApi();
+  qtrade_sdk::trader::ConnectRequest trader_request;
+  trader_request.connection_string = "mock://trader";
+  EXPECT_EQ(trader_api->Connect(trader_request), qtrade::ErrorCode::kSuccess);
+  engine.GetTraderNormalizer().SetTraderApi(std::move(trader_api));
+}
+
+}  // namespace
+
 TEST(EngineSmoke, TradingEngineStartStop) {
   qtrade::common::config::QtradeEngineConfig config;
-  config.log_topic = "test";
+  config.identity.tenant_id = "test";
+  config.identity.engine_id =
+    "test-engine-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+  config.identity.account_id = "test-account";
+  config.support_services.config_service.enabled = false;
+  config.support_services.account_risk_service.enabled = false;
+  config.support_services.log_service.extensions["topic"] = "test";
   qtrade::engine::TradingEngine engine;
   ASSERT_EQ(engine.Init(config), qtrade::ErrorCode::kSuccess);
+  InstallMockAdapters(engine);
   ASSERT_EQ(engine.Start(), qtrade::ErrorCode::kSuccess);
+  engine.GetQuoteNormalizer().Subscribe({"IF2506"});
+  WaitUntil([&] { return engine.IsReady(); });
   ASSERT_TRUE(engine.IsRunning());
+  ASSERT_TRUE(engine.IsReady());
+  EXPECT_EQ(engine.LifecycleState(), qtrade::engine::EngineLifecycleState::kReady);
   engine.Stop();
   ASSERT_FALSE(engine.IsRunning());
+  EXPECT_EQ(engine.LifecycleState(), qtrade::engine::EngineLifecycleState::kStopped);
 }
 
 TEST(EngineSmoke, MarketTickSize) {
   qtrade_sdk::quote::MarketTick tick;
   (void)tick;
   SUCCEED();
+}
+
+TEST(EngineSmoke, InjectedMockAdaptersReachReady) {
+  const std::string suffix = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+  qtrade::common::config::QtradeEngineConfig config;
+  config.identity.tenant_id = "test";
+  config.identity.engine_id = "configured-mock-" + suffix;
+  config.identity.account_id = "test-account";
+  config.support_services.config_service.enabled = false;
+  config.support_services.account_risk_service.enabled = false;
+  config.support_services.log_service.extensions["topic"] = "test";
+  qtrade::engine::TradingEngine engine;
+  ASSERT_EQ(engine.Init(config), qtrade::ErrorCode::kSuccess);
+  InstallMockAdapters(engine);
+  ASSERT_EQ(engine.Start(), qtrade::ErrorCode::kSuccess);
+  engine.GetQuoteNormalizer().Subscribe({"IF2506"});
+  WaitUntil([&] { return engine.IsReady(); });
+  EXPECT_TRUE(engine.IsReady());
+  EXPECT_TRUE(engine.GetTraderNormalizer().IsHealthy());
+  EXPECT_EQ(engine.Stop(), qtrade::ErrorCode::kSuccess);
 }

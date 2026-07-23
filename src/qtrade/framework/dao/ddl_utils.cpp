@@ -12,12 +12,14 @@ ErrorCode EnsureTableSchema(cpputils::database::IConnection* connection, const I
     return ErrorCode::kSystemError;
   }
 
+  // 1. 执行建表 SQL
   for (const auto& sql : schema.GetCreateTableSqls()) {
     if (!connection->Execute(sql)) {
       return ErrorCode::kSystemError;
     }
   }
 
+  // 2. 创建索引
   for (const auto& sql : schema.GetIndexSqls()) {
     if (!connection->Execute(sql)) {
       return ErrorCode::kSystemError;

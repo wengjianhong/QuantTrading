@@ -6,9 +6,12 @@
 #ifndef QTRADE_SERVICE_ACCOUNT_HANDLER_LIST_ACCOUNTS_HANDLER_HPP_
 #define QTRADE_SERVICE_ACCOUNT_HANDLER_LIST_ACCOUNTS_HANDLER_HPP_
 
-#include <qtrade/dao/trading_account.hpp>
+#include "qtrade/framework/database/db_connection_pool_manager.hpp"
+
+#include <qtrade/dao/account_service/trading_account.hpp>
+#include <qtrade/dao/dao_manager.hpp>
+#include <qtrade/grpc/grpc_handler_interface.hpp>
 #include <qtrade/proto/account/v1/account.pb.h>
-#include <qtrade_framework/grpc/grpc_handler_interface.hpp>
 
 #include <string>
 #include <vector>
@@ -30,7 +33,10 @@ class ListAccountsHandler final
                                                          qtrade::account::v1::ListAccountsResponse,
                                                          ListAccountsServerData> {
  public:
-  explicit ListAccountsHandler(const std::string& method_name) : GrpcHandlerInterface(method_name) {}
+  ListAccountsHandler(const std::string& method_name,
+                      qtrade::framework::dao::DbConnectionPoolManager& pool_manager,
+                      qtrade::framework::dao::DaoManager& dao_manager)
+    : GrpcHandlerInterface(method_name), pool_manager_(pool_manager), dao_manager_(dao_manager) {}
   ~ListAccountsHandler() noexcept override = default;
 
  protected:
@@ -44,7 +50,7 @@ class ListAccountsHandler final
   /// 步骤3: 检查前置条件
   Result<void> CheckPreconditions(ListAccountsServerData& server_data) override;
 
-  /// 步骤4: 执行业务逻辑（查 trading_account 列表）
+  /// 步骤4: 执行业务逻辑（取连接并查 trading_account 列表）
   Result<void> ExecuteBusiness(ListAccountsServerData& server_data) override;
 
   /// 步骤5: 校验操作是否真正生效
@@ -59,6 +65,10 @@ class ListAccountsHandler final
   /// 步骤8: 构造响应
   Result<void> BuildResponse(ListAccountsServerData& server_data,
                              qtrade::account::v1::ListAccountsResponse* response) override;
+
+ private:
+  qtrade::framework::dao::DbConnectionPoolManager& pool_manager_;
+  qtrade::framework::dao::DaoManager& dao_manager_;
 };
 
 }  // namespace qtrade::service

@@ -1,5 +1,6 @@
 /// @file      market_event_reactor.cpp
 /// @brief     Lane-M 行情 EventReactor 实现
+/// @details   负责启停循环、订阅注册、Publish 入队，以及按 EventType 回调 Handler
 /// @author    wengjianhong
 /// @date      2026-06-25
 /// @copyright CC BY-NC-SA 4.0
@@ -54,6 +55,7 @@ std::size_t MarketEventReactor::PendingCount() const {
 }
 
 void MarketEventReactor::HandleEvent(const Event& event) {
+  // 1. 在锁内快照订阅列表，避免回调期间长时间持锁
   std::vector<TickEventHandler> tick_handlers;
   std::vector<BarEventHandler> bar_handlers;
   {
@@ -62,6 +64,7 @@ void MarketEventReactor::HandleEvent(const Event& event) {
     bar_handlers = bar_handlers_;
   }
 
+  // 2. 按 EventType 分发并隔离 Handler 异常
   switch (event.type) {
     case EventType::kTickData: {
       const auto& payload = static_cast<const TickEvent&>(event).tick;

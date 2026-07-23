@@ -7,13 +7,11 @@
 #ifndef QTRADE_COMMON_GRPC_COMPLETION_QUEUE_LOOP_HPP_
 #define QTRADE_COMMON_GRPC_COMPLETION_QUEUE_LOOP_HPP_
 
+#include <grpcpp/completion_queue.h>
+
 #include <cstddef>
 #include <thread>
 #include <vector>
-
-namespace grpc {
-class ServerCompletionQueue;
-}  // namespace grpc
 
 namespace qtrade::common::grpc_async {
 

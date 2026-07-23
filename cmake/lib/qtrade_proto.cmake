@@ -65,9 +65,11 @@ if(QTRADE_PROTO_FILES)
            "${QTRADE_PROTO_PUBLIC_INCLUDE_DIR}/qtrade/proto/${_child}/*.h")
       foreach(_hdr ${_staged_headers})
         file(READ ${_hdr} _hdr_content)
-        string(REPLACE "#include \"${_child}/"
-                       "#include \"qtrade/proto/${_child}/"
-                       _hdr_content "${_hdr_content}")
+        foreach(_include_child ${_proto_gen_children})
+          string(REPLACE "#include \"${_include_child}/"
+                         "#include \"qtrade/proto/${_include_child}/"
+                         _hdr_content "${_hdr_content}")
+        endforeach()
         file(WRITE ${_hdr} "${_hdr_content}")
       endforeach()
     endif()

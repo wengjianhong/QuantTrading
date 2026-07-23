@@ -24,7 +24,7 @@ ErrorCode GrpcSyncServer::Start(const std::string& listen_address, grpc::Service
     return ErrorCode::kSystemError;
   }
   if (listen_address.empty() || sync_service == nullptr) {
-    return ErrorCode::kInternal;
+    return ErrorCode::kInternalError;
   }
 
   // 2. 构建并启动 Server
@@ -35,7 +35,7 @@ ErrorCode GrpcSyncServer::Start(const std::string& listen_address, grpc::Service
   builder.RegisterService(sync_service);
   server_ = builder.BuildAndStart();
   if (!server_) {
-    return ErrorCode::kInternal;
+    return ErrorCode::kInternalError;
   }
 
   // 3. 标记运行并记录日志

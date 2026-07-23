@@ -27,7 +27,7 @@ ErrorCode GrpcAsyncServer::Start(const Options& options, grpc::Service* async_se
     return ErrorCode::kSystemError;
   }
   if (options.listen_address.empty() || async_service == nullptr) {
-    return ErrorCode::kInternal;
+    return ErrorCode::kInternalError;
   }
 
   // 2. 构建 Server、注册 Service 并创建 CQ
@@ -41,7 +41,7 @@ ErrorCode GrpcAsyncServer::Start(const Options& options, grpc::Service* async_se
   if (!server_ || !cq_) {
     cq_.reset();
     server_.reset();
-    return ErrorCode::kInternal;
+    return ErrorCode::kInternalError;
   }
 
   // 3. 启动 CQ 轮询线程

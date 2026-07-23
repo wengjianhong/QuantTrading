@@ -1,5 +1,9 @@
 /// @file      emt_quote_api.cpp
 /// @brief     EMT QuoteApi 适配器实现
+/// @details   实现 EMT 行情接口的适配框架，并为厂商 SDK 接入预留转发位置。
+/// @author    wengjianhong
+/// @date      2026-07-19
+/// @copyright CC BY-NC-SA 4.0
 #include "qtrade_sdk/emt/quote/emt_quote_api.hpp"
 
 namespace qtrade::adapter::quote {
@@ -26,7 +30,7 @@ void EmtQuoteApi::UnregisterSpi() {
 
 qtrade::ErrorCode EmtQuoteApi::Connect(const sdk::ConnectRequest& request) {
   if (connected_) {
-    return qtrade::ErrorCode::kAlreadyConnected;
+    return qtrade::ErrorCode::kSuccess;
   }
   config_ = request;
   connected_ = true;

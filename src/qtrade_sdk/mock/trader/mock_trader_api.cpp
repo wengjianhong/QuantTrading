@@ -1,5 +1,9 @@
 /// @file      mock_trader_api.cpp
 /// @brief     Mock TraderApi 适配器实现
+/// @details   实现模拟交易接口的连接、委托、查询及回调分发行为。
+/// @author    wengjianhong
+/// @date      2026-07-19
+/// @copyright CC BY-NC-SA 4.0
 #include "qtrade_sdk/mock/trader/mock_trader_api.hpp"
 
 namespace qtrade::adapter::mock::trader {
@@ -123,26 +127,30 @@ std::uint64_t MockTraderApi::InsertOrder(const sdk::OrderRequest& order, std::ui
 
 qtrade::ErrorCode MockTraderApi::SendOrder(const sdk::OrderRequest& request) {
   if (!connected_) {
-    return qtrade::ErrorCode::kNotConnected;
+    return qtrade::ErrorCode::kConnectionError;
   }
   const std::uint64_t order_emt_id = request.order_emt_id != 0 ? request.order_emt_id : next_order_emt_id_++;
+  sdk::Order order;
+  order.client_order_id = request.client_order_id;
+  order.instrument = request.instrument;
+  order.market = request.market;
+  order.order_emt_id = order_emt_id;
+  order.price = request.price;
+  order.volume = request.volume;
+  order.left_volume = request.volume;
+  order.side = request.side;
+  order.position_effect = request.position_effect;
+  order.business_type = request.business_type;
+  order.status = sdk::OrderStatusType::kNotTradedQueueing;
+  order.submit_status = sdk::OrderSubmitStatusType::kInsertAccepted;
+  {
+    std::lock_guard lock(orders_mutex_);
+    orders_[order_emt_id] = order;
+  }
   if (on_order_) {
-    sdk::Order order;
-    order.client_order_id = request.client_order_id;
-    order.instrument = request.instrument;
-    order.market = request.market;
-    order.order_emt_id = order_emt_id;
-    order.price = request.price;
-    order.volume = request.volume;
-    order.left_volume = request.volume;
-    order.side = request.side;
-    order.position_effect = request.position_effect;
-    order.business_type = request.business_type;
-    order.status = sdk::OrderStatusType::kNotTradedQueueing;
-    order.submit_status = sdk::OrderSubmitStatusType::kInsertAccepted;
     on_order_(order);
   }
-  if (on_trade_) {
+  if (auto_fill_.load(std::memory_order_acquire) && on_trade_) {
     sdk::Trade trade;
     trade.trade_id = "MOCK-TRADE-" + std::to_string(next_trade_id_++);
     trade.order_emt_id = order_emt_id;
@@ -156,6 +164,13 @@ qtrade::ErrorCode MockTraderApi::SendOrder(const sdk::OrderRequest& request) {
     trade.position_effect = request.position_effect;
     trade.business_type = request.business_type;
     on_trade_(trade);
+    std::lock_guard lock(orders_mutex_);
+    trades_.push_back(trade);
+    auto& stored = orders_.at(order_emt_id);
+    stored.traded_volume = stored.volume;
+    stored.left_volume = 0;
+    stored.trade_amount = trade.trade_amount;
+    stored.status = sdk::OrderStatusType::kFilled;
   }
   return qtrade::ErrorCode::kSuccess;
 }
@@ -167,7 +182,28 @@ std::uint64_t MockTraderApi::CancelOrder(std::uint64_t order_emt_id, std::uint64
 }
 
 qtrade::ErrorCode MockTraderApi::CancelOrder(const sdk::CancelOrderRequest& request) {
-  (void)request;
+  if (!connected_) {
+    return qtrade::ErrorCode::kConnectionError;
+  }
+  sdk::Order canceled;
+  {
+    std::lock_guard lock(orders_mutex_);
+    const auto it = orders_.find(request.order_emt_id);
+    if (it == orders_.end()) {
+      return qtrade::ErrorCode::kNotFound;
+    }
+    if (it->second.status == sdk::OrderStatusType::kFilled || it->second.status == sdk::OrderStatusType::kCanceled ||
+        it->second.status == sdk::OrderStatusType::kRejected) {
+      return qtrade::ErrorCode::kSystemError;
+    }
+    it->second.order_id = request.order_id;
+    it->second.status = sdk::OrderStatusType::kCanceled;
+    it->second.submit_status = sdk::OrderSubmitStatusType::kCancelAccepted;
+    canceled = it->second;
+  }
+  if (on_order_) {
+    on_order_(canceled);
+  }
   return qtrade::ErrorCode::kSuccess;
 }
 
@@ -187,9 +223,17 @@ int MockTraderApi::QueryOrders(const sdk::QueryOrdersRequest& query_param, std::
 
 qtrade::ErrorCode MockTraderApi::QueryOrders(const sdk::QueryOrdersRequest& request,
                                              sdk::QueryOrdersResponse& response) {
-  (void)request;
   response.orders.clear();
-  return qtrade::ErrorCode::kNotSupported;
+  std::lock_guard lock(orders_mutex_);
+  for (const auto& [order_emt_id, order] : orders_) {
+    if ((!request.instrument.empty() && order.instrument != request.instrument) ||
+        (request.order_emt_id != 0 && order_emt_id != request.order_emt_id) ||
+        (request.status != sdk::OrderStatusType::kUnknown && order.status != request.status)) {
+      continue;
+    }
+    response.orders.push_back(order);
+  }
+  return qtrade::ErrorCode::kSuccess;
 }
 
 int MockTraderApi::QueryUnfinishedOrders(std::uint64_t session_id, int request_id) {
@@ -223,9 +267,17 @@ int MockTraderApi::QueryTrades(const sdk::QueryTradesRequest& query_param, std::
 
 qtrade::ErrorCode MockTraderApi::QueryTrades(const sdk::QueryTradesRequest& request,
                                              sdk::QueryTradesResponse& response) {
-  (void)request;
   response.trades.clear();
-  return qtrade::ErrorCode::kNotSupported;
+  std::lock_guard lock(orders_mutex_);
+  for (const auto& trade : trades_) {
+    if ((!request.instrument.empty() && trade.instrument != request.instrument) ||
+        (!request.order_id.empty() && trade.order_id != request.order_id) ||
+        (request.order_emt_id != 0 && trade.order_emt_id != request.order_emt_id)) {
+      continue;
+    }
+    response.trades.push_back(trade);
+  }
+  return qtrade::ErrorCode::kSuccess;
 }
 
 int MockTraderApi::QueryPosition(const std::string& ticker,
@@ -241,9 +293,32 @@ int MockTraderApi::QueryPosition(const std::string& ticker,
 
 qtrade::ErrorCode MockTraderApi::QueryPositions(const sdk::QueryPositionRequest& request,
                                                 sdk::QueryPositionResponse& response) {
-  (void)request;
   response.positions.clear();
-  return qtrade::ErrorCode::kNotSupported;
+  std::unordered_map<std::string, sdk::Position> positions;
+  {
+    std::lock_guard lock(orders_mutex_);
+    for (const auto& trade : trades_) {
+      if (!request.instrument.empty() && request.instrument != trade.instrument) {
+        continue;
+      }
+      auto& position = positions[trade.instrument];
+      position.instrument = trade.instrument;
+      position.market = trade.market;
+      position.direction = sdk::PositionDirectionType::kNet;
+      position.total_volume += trade.side == sdk::SideType::kBuy ? trade.volume : -trade.volume;
+    }
+  }
+  for (auto& [instrument, position] : positions) {
+    (void)instrument;
+    if (position.total_volume < 0) {
+      position.direction = sdk::PositionDirectionType::kShort;
+      position.total_volume = -position.total_volume;
+    } else {
+      position.direction = sdk::PositionDirectionType::kLong;
+    }
+    response.positions.push_back(std::move(position));
+  }
+  return qtrade::ErrorCode::kSuccess;
 }
 
 int MockTraderApi::QueryAsset(std::uint64_t session_id, int request_id) {
@@ -253,9 +328,11 @@ int MockTraderApi::QueryAsset(std::uint64_t session_id, int request_id) {
 }
 
 qtrade::ErrorCode MockTraderApi::QueryAsset(const sdk::QueryAssetRequest& request, sdk::QueryAssetResponse& response) {
-  (void)request;
   response.asset = {};
-  return qtrade::ErrorCode::kNotSupported;
+  response.asset.account_id = request.account_id.empty() ? account_id_ : request.account_id;
+  response.asset.total_asset = 1000000.0;
+  response.asset.buying_power = 1000000.0;
+  return qtrade::ErrorCode::kSuccess;
 }
 
 std::uint64_t MockTraderApi::FundTransfer(const sdk::FundTransferRequest& fund_transfer, std::uint64_t session_id) {
@@ -304,6 +381,10 @@ void MockTraderApi::SetOrderCallback(OrderCallback cb) {
 
 void MockTraderApi::SetTradeCallback(TradeCallback cb) {
   on_trade_ = std::move(cb);
+}
+
+void MockTraderApi::SetAutoFill(bool auto_fill) {
+  auto_fill_.store(auto_fill, std::memory_order_release);
 }
 
 }  // namespace qtrade::adapter::mock::trader

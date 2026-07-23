@@ -7,25 +7,25 @@
 #define QTRADE_COMMON_CONFIG_QTRADE_CONFIG_SERVICE_CONFIG_HPP_
 
 #include "qtrade/common/config/database_config.hpp"
-#include "qtrade/common/config/grpc_config.hpp"
+#include "qtrade/common/config/service_config.hpp"
 
 #include <optional>
-#include <string>
 
 namespace qtrade::common::config {
 
 /// @brief 对应 config/qtrade_config_service.json
 struct QtradeConfigServiceConfig {
   /// gRPC 监听
-  GrpcConfig grpc;
+  ServiceConfig grpc;
   /// 数据库连接与连接池
   DatabaseConfig database;
 };
 
-/// @brief 从 JSON 字符串解析配置中心服务配置
-/// @param json JSON 文本
-/// @return 解析结果；JSON 非法或缺少 grpc 段时返回 nullopt
-[[nodiscard]] std::optional<QtradeConfigServiceConfig> ParseQtradeConfigServiceConfig(const std::string& json);
+/// @brief 从配置中心服务配置 JSON 对象解析
+/// @param config_node 形如 { "grpc", "database" } 的对象
+/// @return 解析结果；非对象或缺少 grpc 段时返回 nullopt
+[[nodiscard]] std::optional<QtradeConfigServiceConfig> ParseQtradeConfigServiceConfig(
+  const nlohmann::json& config_node);
 
 }  // namespace qtrade::common::config
 

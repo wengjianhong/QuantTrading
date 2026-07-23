@@ -6,7 +6,7 @@
 #ifndef QTRADE_COMMON_CONFIG_QTRADE_LOG_SERVICE_CONFIG_HPP_
 #define QTRADE_COMMON_CONFIG_QTRADE_LOG_SERVICE_CONFIG_HPP_
 
-#include "qtrade/common/config/grpc_config.hpp"
+#include "qtrade/common/config/service_config.hpp"
 
 #include <optional>
 #include <string>
@@ -16,7 +16,7 @@ namespace qtrade::common::config {
 /// @brief 对应 config/qtrade_log_service.json
 struct QtradeLogServiceConfig {
   /// gRPC 监听
-  GrpcConfig grpc;
+  ServiceConfig grpc;
   /// 存储后端类型
   std::string storage_type;
   /// 存储路径
@@ -29,10 +29,10 @@ struct QtradeLogServiceConfig {
   int flush_interval_ms = 0;
 };
 
-/// @brief 从 JSON 字符串解析日志服务配置
-/// @param json JSON 文本
-/// @return 解析结果；JSON 非法或必填字段无效时返回 nullopt
-[[nodiscard]] std::optional<QtradeLogServiceConfig> ParseQtradeLogServiceConfig(const std::string& json);
+/// @brief 从日志服务配置 JSON 对象解析
+/// @param config_node 形如 { "grpc", "storage", "ingest" } 的对象
+/// @return 解析结果；非对象或必填字段无效时返回 nullopt
+[[nodiscard]] std::optional<QtradeLogServiceConfig> ParseQtradeLogServiceConfig(const nlohmann::json& config_node);
 
 }  // namespace qtrade::common::config
 

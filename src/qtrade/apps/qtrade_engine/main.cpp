@@ -1,114 +1,65 @@
 /// @file      main.cpp
 /// @brief     交易引擎独立进程入口（qtrade_engine）
-/// @details   解析配置、初始化日志与交易引擎，挂载示例策略并运行主循环
+/// @details   参考 ugos_serv/main.cc：本文件只做分阶段 fail-fast 编排；
+///            共用阶段见 process_boot，引擎特有阶段见 engine_boot。
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade/common/app/app_runner.hpp"
-#include "qtrade/common/logging/logger.hpp"
+#include "qtrade/common/boot/process_boot.hpp"
+#include "qtrade/common/system/signal.hpp"
+#include "qtrade/common/system/systemd_notify.hpp"
+#include "qtrade/engine/core/engine_boot.hpp"
 #include "qtrade/engine/trading_engine.hpp"
-#include "qtrade_sdk/mock/quote/mock_quote_api.hpp"
-#include "qtrade_sdk/mock/trader/mock_trader_api.hpp"
-#include "strategy/example_strategy.hpp"
+#include "qtrade/engine/trading_engine_define.hpp"
 
-#include <spdlog/spdlog.h>
-
-#include <atomic>
 #include <cstdlib>
 #include <iostream>
 #include <string>
-#include <unistd.h>
 
 int main(int argc, char** argv) {
-  /// 解析 --config
-  std::string config_path;
-  if (!qtrade::common::ParseConfigPath(argc, argv, config_path)) {
-    std::cerr << "[qtrade_engine] missing required argument: --config <path>\n";
+  // 1. 阻塞 SIGINT/SIGTERM，避免信号打到子线程导致直接退出
+  qtrade::common::system::BlockInterruptSignals();
+
+  // 2. 解析命令行参数
+  auto options_result = qtrade::common::process_boot::ParseProgramOptions(argc, argv);
+  if (options_result.error_code != qtrade::ErrorCode::kSuccess || !options_result.data.has_value()) {
+    std::cerr << "[qtrade_engine] Failed to parse program options:" << options_result.error_message << std::endl;
     return EXIT_FAILURE;
   }
 
-  /// 初始化日志
-  if (!qtrade::common::init_spdlog_logger("logs", "trading-engine.log")) {
-    std::cerr << "failed to initialize logger, service_name=qtrade_engine" << std::endl;
+  // 3. 初始化程序全局环境（日志）
+  if (!qtrade::common::process_boot::InitProgramEnvironment(qtrade::engine::kServiceName,
+                                                            qtrade::engine::kLogDir,
+                                                            qtrade::engine::kLogFilename,
+                                                            options_result.data.value())) {
+    qtrade::common::system::NotifyError(0, "Failed to initialize program environment");
     return EXIT_FAILURE;
   }
-  spdlog::info("======================= Starting =========================");
-  spdlog::info("service_name=qtrade_engine");
-  spdlog::info("config_path={}", config_path);
-  spdlog::info("service_pid={}", getpid());
 
-  /// 加载引擎配置（失败则继续用默认值）
   qtrade::engine::TradingEngine engine;
-  qtrade::ErrorCode error_code = engine.ReloadFromJson(config_path);
-  if (error_code != qtrade::ErrorCode::kSuccess) {
-    spdlog::warn("engine config load failed, code={}, using defaults", static_cast<int>(error_code));
-  }
-
-  /// 安装退出信号处理器（须在业务线程起来前）
-  std::atomic<bool> stop_flag{false};
-  qtrade::common::InstallShutdownHandler(stop_flag);
-
-  /// 初始化引擎内部模块
-  error_code = engine.Init();
-  if (error_code != qtrade::ErrorCode::kSuccess) {
-    spdlog::error("init failed, code={}", static_cast<int>(error_code));
+  // 4. 初始化引擎（订单回放、控制面、适配器）
+  if (!qtrade::engine::boot::InitEngine(engine, options_result.data.value().config_path)) {
+    qtrade::common::system::NotifyError(0, "Failed to initialize engine");
     return EXIT_FAILURE;
   }
 
-  /// 挂载 demo：Mock 行情源 + 示例策略 + 打日志发单
-  auto& quote_normalizer = engine.GetQuoteNormalizer();
-  auto& trader_normalizer = engine.GetTraderNormalizer();
-  auto& strategy_engine = engine.GetStrategyEngine();
-
-  auto quote_api = qtrade::adapter::mock::quote::CreateMockQuoteApi();
-  quote_normalizer.SetQuoteApi(std::move(quote_api));
-  trader_normalizer.SetTraderApi(qtrade::adapter::mock::trader::CreateMockTraderApi());
-  if (auto* trader_api = trader_normalizer.GetTraderApi()) {
-    qtrade_sdk::trader::ConnectRequest trader_config;
-    trader_config.broker_id = "mock";
-    trader_config.connection_string = "mock://localhost";
-    trader_api->Connect(trader_config);
-  }
-
-  auto strategy = qtrade::demo::CreateExampleStrategy();
-  qtrade::strategy::StrategyConfig strategy_cfg;
-  strategy_cfg.name = "ExampleStrategy";
-  strategy->Init(strategy_cfg);
-
-  auto* example_strategy = static_cast<qtrade::demo::ExampleStrategy*>(strategy.get());
-  auto order_sender = [&engine](const qtrade_sdk::trader::OrderRequest& request) {
-    return engine.SubmitOrder(request);
-  };
-  example_strategy->SetOrderSender(order_sender);
-  strategy_engine.RegisterStrategy(std::move(strategy));
-  strategy_engine.SetOrderSender(order_sender);
-
-  /// 启动引擎事件循环
-  if (const auto rc = engine.Start(); rc != qtrade::ErrorCode::kSuccess) {
-    spdlog::error("[qtrade_engine] start failed, code={}", static_cast<int>(rc));
+  // 5. 注册策略工厂与演示策略实例
+  if (!qtrade::engine::boot::RegisterStrategies(engine)) {
+    qtrade::common::system::NotifyError(0, "Failed to register demo strategies");
     return EXIT_FAILURE;
   }
 
-  /// 连接 Mock 行情并订阅示例合约
-  if (auto* source_ptr = quote_normalizer.GetQuoteApi()) {
-    qtrade_sdk::quote::ConnectRequest source_cfg;
-    source_cfg.name = "MockDataSource";
-    source_cfg.connection_string = "mock://localhost";
-    source_ptr->Connect(source_cfg);
-    quote_normalizer.Subscribe({"IF2401", "IC2401"});
+  // 6. 启动运行时（柜台对账、事件通道、策略/EMS）
+  if (!qtrade::engine::boot::StartEngine(engine)) {
+    qtrade::common::system::NotifyError(0, "Failed to start engine");
+    return EXIT_FAILURE;
   }
+  (void)qtrade::common::system::NotifyReady("qtrade_engine ready");
 
-  /// 主线程放开信号并阻塞直至 SIGINT/SIGTERM
-  qtrade::common::UnblockShutdownSignals();
+  // 7. 阻塞运行直至停机信号，并释放引擎资源
+  qtrade::engine::boot::RunUntilShutdown(engine);
 
-  spdlog::info("[qtrade_engine] running until SIGINT/SIGTERM...");
-
-  qtrade::common::RunUntilStop(stop_flag);
-
-  /// 优雅停止引擎
-  engine.Stop();
-  spdlog::info("service_pid={}", getpid());
-  spdlog::info("service_name=qtrade_engine");
-  spdlog::info("======================= Stopped =========================");
+  // 8. 记录进程停止日志
+  qtrade::common::process_boot::LogProcessStopped(qtrade::engine::kServiceName);
   return EXIT_SUCCESS;
 }

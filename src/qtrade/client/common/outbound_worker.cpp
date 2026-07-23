@@ -16,7 +16,7 @@ ErrorCode OutboundWorker::Start(SinkFn sink, std::size_t max_queue_size) {
     return ErrorCode::kSystemError;
   }
   if (!sink) {
-    return ErrorCode::kInternal;
+    return ErrorCode::kInternalError;
   }
 
   max_queue_size_ = max_queue_size > 0 ? max_queue_size : 4096;

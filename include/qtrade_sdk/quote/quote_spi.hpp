@@ -1,6 +1,9 @@
 /// @file      quote_spi.hpp
 /// @brief     行情回调接口
 /// @details   参考 EMQ::API::QuoteSpi；业务数据使用 const 引用，可空字段保留指针。
+/// @author    qtrade
+/// @date      2026-07-19
+/// @copyright CC BY-NC-SA 4.0
 #ifndef QTRADE_SDK_QUOTE_SPI_HPP_
 #define QTRADE_SDK_QUOTE_SPI_HPP_
 
@@ -11,9 +14,10 @@
 
 namespace qtrade_sdk::quote {
 
-/// 行情回调接口。
+/// @brief 行情回调接口。
 class QuoteSpi {
  public:
+  /// @brief 析构行情回调接口实例。
   virtual ~QuoteSpi() = default;
 
   /// @brief 错误应答。

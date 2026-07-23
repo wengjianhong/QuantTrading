@@ -5,19 +5,20 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/common/config/qtrade_config_service_config.hpp"
 
-#include "qtrade/common/json/json_util.hpp"
 #include "spdlog/spdlog.h"
 
 namespace qtrade::common::config {
 
-std::optional<QtradeConfigServiceConfig> ParseQtradeConfigServiceConfig(const std::string& json) {
-  const auto root = ParseJsonString(json);
-  if (!root.has_value()) {
-    spdlog::error("parse json failed");
+std::optional<QtradeConfigServiceConfig> ParseQtradeConfigServiceConfig(const nlohmann::json& config_node) {
+  if (!config_node.is_object()) {
+    spdlog::error("config service config must be an object");
     return std::nullopt;
   }
-  const auto& root_json = root.value();
-  const auto grpc = ParseGrpcConfig(root_json);
+  if (!config_node.contains("grpc") || !config_node.at("grpc").is_object()) {
+    spdlog::error("grpc config missing or not an object");
+    return std::nullopt;
+  }
+  const auto grpc = ParseServiceEndpoint(config_node.at("grpc"));
   if (!grpc.has_value()) {
     spdlog::error("parse grpc config failed");
     return std::nullopt;
@@ -25,7 +26,9 @@ std::optional<QtradeConfigServiceConfig> ParseQtradeConfigServiceConfig(const st
 
   QtradeConfigServiceConfig out;
   out.grpc = grpc.value();
-  out.database = ParseDatabaseConfigFromRoot(root_json);
+  if (config_node.contains("database") && config_node.at("database").is_object()) {
+    out.database = ParseDatabaseConfigFromSection(config_node.at("database"));
+  }
   return out;
 }
 

@@ -26,7 +26,7 @@ struct ConfigClient::Impl {
   std::shared_ptr<grpc::Channel> channel;
   /// gRPC 存根
   std::unique_ptr<qtrade::config::v1::ConfigService::Stub> stub;
-  /// SubscribeConfig 控制线程
+  /// SubscribeEngineConfig 控制线程
   std::thread watch_thread;
   /// Watch 线程运行标志
   std::atomic<bool> watch_running{false};
@@ -47,7 +47,7 @@ ErrorCode ConfigClient::Init(const ConfigClientOptions& options) {
     return ErrorCode::kSystemError;
   }
   if (options.server_address.empty()) {
-    return ErrorCode::kInternal;
+    return ErrorCode::kInternalError;
   }
 
   impl_->options = options;
@@ -57,10 +57,10 @@ ErrorCode ConfigClient::Init(const ConfigClientOptions& options) {
   return ErrorCode::kSuccess;
 }
 
-void ConfigClient::ApplySnapshot(const qtrade::config::v1::ConfigSnapshot& snapshot) {
-  impl_->version.store(snapshot.version(), std::memory_order_release);
+void ConfigClient::ApplyConfig(const qtrade::config::v1::EngineConfig& config) {
+  impl_->version.store(config.version(), std::memory_order_release);
   if (impl_->on_snapshot) {
-    impl_->on_snapshot(snapshot);
+    impl_->on_snapshot(config);
   }
 }
 
@@ -69,23 +69,23 @@ ErrorCode ConfigClient::FetchSnapshot() {
     return ErrorCode::kNotInitialized;
   }
 
-  qtrade::config::v1::GetConfigRequest request;
+  qtrade::config::v1::GetEngineConfigRequest request;
   request.set_engine_id(impl_->options.engine_id);
 
-  qtrade::config::v1::ConfigSnapshot response;
+  qtrade::config::v1::GetEngineConfigResponse response;
   grpc::ClientContext context;
   context.set_deadline(std::chrono::system_clock::now() + std::chrono::seconds(5));
 
-  const grpc::Status status = impl_->stub->GetConfig(&context, request, &response);
+  const grpc::Status status = impl_->stub->GetEngineConfig(&context, request, &response);
   if (!status.ok()) {
-    spdlog::warn("[ConfigClient] GetConfig failed: {}", status.error_message());
+    spdlog::warn("[ConfigClient] GetEngineConfig failed: {}", status.error_message());
     return ErrorCode::kTimeout;
   }
 
-  ApplySnapshot(response);
-  spdlog::info("[ConfigClient] snapshot loaded, version={}, strategies={}",
-               response.version(),
-               response.has_engine() ? response.engine().strategies_size() : 0);
+  ApplyConfig(response.engine());
+  spdlog::info("[ConfigClient] config loaded, version={}, strategies={}",
+               response.engine().version(),
+               response.engine().strategies_size());
   return ErrorCode::kSuccess;
 }
 
@@ -108,21 +108,21 @@ ErrorCode ConfigClient::StartWatch() {
         continue;
       }
 
-      qtrade::config::v1::SubscribeConfigRequest request;
+      qtrade::config::v1::SubscribeEngineConfigRequest request;
       request.set_engine_id(impl_->options.engine_id);
       request.set_since_version(impl_->version.load(std::memory_order_acquire));
 
       grpc::ClientContext context;
-      qtrade::config::v1::ConfigSnapshot snapshot;
-      std::unique_ptr<grpc::ClientReader<qtrade::config::v1::ConfigSnapshot>> reader(
-        impl_->stub->SubscribeConfig(&context, request));
+      qtrade::config::v1::SubscribeEngineConfigResponse response;
+      std::unique_ptr<grpc::ClientReader<qtrade::config::v1::SubscribeEngineConfigResponse>> reader(
+        impl_->stub->SubscribeEngineConfig(&context, request));
 
-      while (impl_->watch_running.load(std::memory_order_acquire) && reader->Read(&snapshot)) {
+      while (impl_->watch_running.load(std::memory_order_acquire) && reader->Read(&response)) {
         backoff_ms = 500;
-        ApplySnapshot(snapshot);
-        spdlog::debug("[ConfigClient] applied snapshot version={}, strategies={}",
-                      snapshot.version(),
-                      snapshot.has_engine() ? snapshot.engine().strategies_size() : 0);
+        ApplyConfig(response.engine());
+        spdlog::debug("[ConfigClient] applied config version={}, strategies={}",
+                      response.engine().version(),
+                      response.engine().strategies_size());
       }
 
       const grpc::Status status = reader->Finish();
@@ -131,7 +131,7 @@ ErrorCode ConfigClient::StartWatch() {
       }
 
       if (!status.ok() && status.error_code() != grpc::StatusCode::CANCELLED) {
-        spdlog::warn("[ConfigClient] SubscribeConfig disconnected: {}", status.error_message());
+        spdlog::warn("[ConfigClient] SubscribeEngineConfig disconnected: {}", status.error_message());
       }
 
       if (!status.ok() && impl_->watch_running.load(std::memory_order_acquire)) {

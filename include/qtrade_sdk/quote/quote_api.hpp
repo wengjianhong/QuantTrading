@@ -1,6 +1,9 @@
 /// @file      quote_api.hpp
 /// @brief     行情 API 抽象接口
 /// @details   参考 EMQ::API::QuoteApi，所有接口均为纯虚函数。
+/// @author    qtrade
+/// @date      2026-07-19
+/// @copyright CC BY-NC-SA 4.0
 #ifndef QTRADE_SDK_QUOTE_API_HPP_
 #define QTRADE_SDK_QUOTE_API_HPP_
 
@@ -10,18 +13,20 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <memory>
 #include <string>
 #include <vector>
 
 namespace qtrade_sdk::quote {
 
-/// 行情 API 抽象接口。
+/// @brief 行情 API 抽象接口。
 class QuoteApi {
  public:
+  /// @brief Tick 推送回调类型。
   using TickCallback = std::function<void(const MarketTick&)>;
+  /// @brief Bar 推送回调类型。
   using BarCallback = std::function<void(const Bar&)>;
 
+  /// @brief 析构行情 API 接口实例。
   virtual ~QuoteApi() = default;
 
   /// @brief 注册行情回调接口；应在登录前调用。

@@ -31,7 +31,7 @@ AccountRiskClient::~AccountRiskClient() {
 ErrorCode AccountRiskClient::Init(const AccountRiskClientOptions& options) {
   if (impl_->stub || options.server_address.empty() || options.tenant_id.empty() || options.account_id.empty() ||
       options.timeout_ms <= 0) {
-    return ErrorCode::kInternal;
+    return ErrorCode::kInternalError;
   }
   impl_->options = options;
   impl_->channel = grpc::CreateChannel(options.server_address, grpc::InsecureChannelCredentials());
@@ -71,6 +71,26 @@ ErrorCode AccountRiskClient::ReserveOrder(const std::string& order_id,
   context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(impl_->options.timeout_ms));
   const grpc::Status status = impl_->stub->ReserveOrder(&context, rpc_request, &response);
   return status.ok() ? ErrorCode::kSuccess : ErrorCode::kTimeout;
+}
+
+ErrorCode AccountRiskClient::GetReservation(const std::string& order_id,
+                                            qtrade::account_risk::v1::Reservation& reservation) {
+  if (!IsInitialized() || order_id.empty()) {
+    return ErrorCode::kNotInitialized;
+  }
+  qtrade::account_risk::v1::GetReservationRequest request;
+  request.set_tenant_id(impl_->options.tenant_id);
+  request.set_account_id(impl_->options.account_id);
+  request.set_order_id(order_id);
+  grpc::ClientContext context;
+  context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(impl_->options.timeout_ms));
+  qtrade::account_risk::v1::GetReservationResponse response;
+  const grpc::Status status = impl_->stub->GetReservation(&context, request, &response);
+  if (status.ok()) {
+    reservation = response.reservation();
+    return ErrorCode::kSuccess;
+  }
+  return status.error_code() == grpc::StatusCode::NOT_FOUND ? ErrorCode::kNotFound : ErrorCode::kTimeout;
 }
 
 ErrorCode AccountRiskClient::ReleaseOrder(const std::string& order_id,

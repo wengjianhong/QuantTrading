@@ -7,11 +7,11 @@
 #ifndef QTRADE_COMMON_SUPPORT_SUPPORT_ASYNC_SERVICE_IMPL_HPP_
 #define QTRADE_COMMON_SUPPORT_SUPPORT_ASYNC_SERVICE_IMPL_HPP_
 
-#include "qtrade/framework/database/db_connection.hpp"
+#include "qtrade/framework/database/db_connection_pool_manager.hpp"
 #include "qtrade/framework/grpc/async/grpc_async_server.hpp"
 
 #include <qtrade/error_code/error_codes.hpp>
-#include <qtrade_framework/support/support_service.hpp>
+#include <qtrade/support/support_service.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -49,12 +49,12 @@ class SupportAsyncServiceImpl : public ISupportService {
 
   /// @brief 启动 Async Server、注入 Handler 并开始接受请求
   /// @return 成功返回 ErrorCode::kSuccess；状态非法、DB 未就绪或监听失败返回错误码
-  /// @details 要求状态为 kInitializing 且 connection_ 已就绪；失败时写入 last_error_ 并置为 kFailed
+  /// @details 要求状态为 kInitializing 且 connection_pool_mgr_ 已就绪；失败时写入 last_error_ 并置为 kFailed
   ErrorCode Start() override {
     std::lock_guard lock(mutex_);
 
     // 1. 校验生命周期状态与数据库连接
-    if (state_ != SupportServiceState::kInitializing || !connection_ || !connection_->IsReady()) {
+    if (state_ != SupportServiceState::kInitializing || !connection_pool_mgr_ || !connection_pool_mgr_->IsReady()) {
       return ErrorCode::kSystemError;
     }
 
@@ -78,8 +78,8 @@ class SupportAsyncServiceImpl : public ISupportService {
       return rc;
     }
 
-    // 3. 绑定 CQ / 连接后启动 Handler，并标记就绪
-    handler_->Init(&async_service_, grpc_server_->CompletionQueue(), connection_);
+    // 3. 绑定 CQ / 连接（及子类额外依赖）后启动 Handler，并标记就绪
+    InitHandler();
     handler_->Start();
 
     state_ = SupportServiceState::kReady;
@@ -94,7 +94,7 @@ class SupportAsyncServiceImpl : public ISupportService {
     std::lock_guard lock(mutex_);
     if (!grpc_server_ || !grpc_server_->IsRunning()) {
       if (state_ == SupportServiceState::kInitializing) {
-        connection_.reset();
+        connection_pool_mgr_.reset();
         state_ = SupportServiceState::kTerminated;
       }
       return;
@@ -106,7 +106,7 @@ class SupportAsyncServiceImpl : public ISupportService {
       handler_.reset();
     }
     grpc_server_->Shutdown();
-    connection_.reset();
+    connection_pool_mgr_.reset();
     state_ = SupportServiceState::kTerminated;
   }
 
@@ -133,6 +133,11 @@ class SupportAsyncServiceImpl : public ISupportService {
   }
 
  protected:
+  /// @brief 向 Handler 注入 AsyncService / CQ / 连接等依赖（子类可追加 DaoManager）
+  virtual void InitHandler() {
+    handler_->Init(&async_service_, grpc_server_->CompletionQueue(), connection_pool_mgr_);
+  }
+
   /// 配置文件路径
   std::string config_path_;
   /// 服务名
@@ -155,8 +160,8 @@ class SupportAsyncServiceImpl : public ISupportService {
   std::unique_ptr<HandlerT> handler_;
   /// 异步 gRPC Server（含 CQ）
   std::unique_ptr<grpc_async::GrpcAsyncServer> grpc_server_;
-  /// 数据库连接持有者
-  std::shared_ptr<qtrade::framework::dao::DbConnectionHolder> connection_;
+  /// 数据库连接池管理器
+  std::shared_ptr<qtrade::framework::dao::DbConnectionPoolManager> connection_pool_mgr_;
 };
 
 }  // namespace qtrade::common::support

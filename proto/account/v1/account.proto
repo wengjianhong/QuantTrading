@@ -8,6 +8,8 @@ syntax = "proto3";
 
 package qtrade.account.v1;
 
+import "common/v1/meta.proto";
+
 option cc_enable_arenas = true;
 
 // 交易账户（券商资金账号，租户内唯一）
@@ -28,56 +30,76 @@ message TradingAccount {
 
 // 添加交易账户请求
 message AddAccountRequest {
+    // 统一请求链路元数据
+    qtrade.common.meta.v1.RequestMeta meta = 1;
     // 账户信息
-    TradingAccount account = 1;
+    TradingAccount account = 2;
 }
 
 // 添加交易账户响应
-message AddAccountResponse {}
+message AddAccountResponse {
+    // 统一响应链路元数据
+    qtrade.common.meta.v1.ResponseMeta meta = 1;
+}
 
 // 查询单个交易账户请求
 message GetAccountRequest {
+    // 统一请求链路元数据
+    qtrade.common.meta.v1.RequestMeta meta = 1;
     // 租户标识
-    string tenant_id = 1;
+    string tenant_id = 2;
     // 交易账户号
-    string account_id = 2;
+    string account_id = 3;
 }
 
 // 查询单个交易账户响应
 message GetAccountResponse {
+    // 统一响应链路元数据
+    qtrade.common.meta.v1.ResponseMeta meta = 1;
     // 账户元数据
-    TradingAccount account = 1;
+    TradingAccount account = 2;
 }
 
 // 查询交易账户列表请求
 message ListAccountsRequest {
+    // 统一请求链路元数据
+    qtrade.common.meta.v1.RequestMeta meta = 1;
     // 租户标识（空表示不过滤）
-    string tenant_id = 1;
+    string tenant_id = 2;
 }
 
 // 查询交易账户列表响应
 message ListAccountsResponse {
+    // 统一响应链路元数据
+    qtrade.common.meta.v1.ResponseMeta meta = 1;
     // 账户列表（password 置空）
-    repeated TradingAccount accounts = 1;
+    repeated TradingAccount accounts = 2;
 }
 
 // 更新交易账户请求
 message UpdateAccountRequest {
+    // 统一请求链路元数据
+    qtrade.common.meta.v1.RequestMeta meta = 1;
     // 待更新账户
-    TradingAccount account = 1;
+    TradingAccount account = 2;
 }
 
 // 更新交易账户响应
-message UpdateAccountResponse {}
+message UpdateAccountResponse {
+    // 统一响应链路元数据
+    qtrade.common.meta.v1.ResponseMeta meta = 1;
+}
 
 // 获取登录凭证信息请求
 message GetCredentialRequest {
+    // 统一请求链路元数据
+    qtrade.common.meta.v1.RequestMeta meta = 1;
     // 租户标识
-    string tenant_id = 1;
+    string tenant_id = 2;
     // 交易账户号
-    string account_id = 2;
+    string account_id = 3;
     // 引擎实例标识
-    string engine_id = 3;
+    string engine_id = 4;
 }
 
 // 仅供已授权引擎建立柜台连接使用的短生命周期凭证材料。
@@ -92,8 +114,10 @@ message CredentialMaterial {
 
 // 获取登录凭证信息响应
 message GetCredentialResponse {
+    // 统一响应链路元数据
+    qtrade.common.meta.v1.ResponseMeta meta = 1;
     // 仅返回建立柜台连接所需材料；调用方不得记录或转发 password。
-    CredentialMaterial credential = 1;
+    CredentialMaterial credential = 2;
 }
 
 // 交易账户 gRPC 服务

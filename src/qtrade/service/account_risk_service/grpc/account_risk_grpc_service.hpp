@@ -6,7 +6,8 @@
 #ifndef QTRADE_SERVICE_ACCOUNT_RISK_GRPC_SERVICE_HPP_
 #define QTRADE_SERVICE_ACCOUNT_RISK_GRPC_SERVICE_HPP_
 
-#include "qtrade/framework/database/db_connection.hpp"
+#include "qtrade/dao/dao_manager.hpp"
+#include "qtrade/framework/database/db_connection_pool_manager.hpp"
 
 #include <qtrade/proto/account_risk/v1/account_risk.grpc.pb.h>
 
@@ -18,8 +19,10 @@ namespace qtrade::service {
 class AccountRiskGrpcService final : public qtrade::account_risk::v1::AccountRiskService::Service {
  public:
   /// @brief 构造 gRPC 服务
-  /// @param connection 数据库连接持有者；当前预占仍主要走内存账簿
-  explicit AccountRiskGrpcService(std::shared_ptr<qtrade::framework::dao::DbConnectionHolder> connection);
+  /// @param connection 数据库连接池管理器；当前预占仍主要走内存账簿
+  /// @param dao 本进程 DaoManager（表结构已在启动时确保；持久化路径后续使用）
+  AccountRiskGrpcService(std::shared_ptr<qtrade::framework::dao::DbConnectionPoolManager> connection,
+                         std::shared_ptr<qtrade::framework::dao::DaoManager> dao);
 
   /// @brief 预占账户额度
   /// @param context gRPC 上下文
@@ -29,6 +32,15 @@ class AccountRiskGrpcService final : public qtrade::account_risk::v1::AccountRis
   grpc::Status ReserveOrder(grpc::ServerContext* context,
                             const qtrade::account_risk::v1::ReserveOrderRequest* request,
                             qtrade::account_risk::v1::ReserveOrderResponse* response) override;
+
+  /// @brief 查询指定订单的预占状态
+  /// @param context gRPC 上下文
+  /// @param request 查询请求
+  /// @param response 预占状态
+  /// @return 找到返回 OK，不存在返回 NOT_FOUND
+  grpc::Status GetReservation(grpc::ServerContext* context,
+                              const qtrade::account_risk::v1::GetReservationRequest* request,
+                              qtrade::account_risk::v1::GetReservationResponse* response) override;
 
   /// @brief 释放账户预占
   /// @param context gRPC 上下文
@@ -55,7 +67,7 @@ class AccountRiskGrpcService final : public qtrade::account_risk::v1::AccountRis
   /// @return gRPC 状态
   grpc::Status GetAccountRiskPolicy(grpc::ServerContext* context,
                                     const qtrade::account_risk::v1::GetAccountRiskPolicyRequest* request,
-                                    qtrade::account_risk::v1::AccountRiskPolicy* response) override;
+                                    qtrade::account_risk::v1::GetAccountRiskPolicyResponse* response) override;
 
   /// @brief 写入或更新账户风控策略
   /// @param context gRPC 上下文
@@ -64,11 +76,13 @@ class AccountRiskGrpcService final : public qtrade::account_risk::v1::AccountRis
   /// @return gRPC 状态
   grpc::Status UpsertAccountRiskPolicy(grpc::ServerContext* context,
                                        const qtrade::account_risk::v1::UpsertAccountRiskPolicyRequest* request,
-                                       qtrade::account_risk::v1::Empty* response) override;
+                                       qtrade::account_risk::v1::UpsertAccountRiskPolicyResponse* response) override;
 
  private:
-  /// 数据库连接持有者
-  std::shared_ptr<qtrade::framework::dao::DbConnectionHolder> connection_;
+  /// 数据库连接池管理器
+  std::shared_ptr<qtrade::framework::dao::DbConnectionPoolManager> connection_pool_mgr_;
+  /// 本进程 DaoManager
+  std::shared_ptr<qtrade::framework::dao::DaoManager> dao_mgr_;
 };
 
 }  // namespace qtrade::service

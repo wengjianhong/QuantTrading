@@ -6,37 +6,12 @@
 #include "qtrade/service/account_risk_service/account_risk_service.hpp"
 
 #include "qtrade/common/config/qtrade_account_risk_service_config.hpp"
-#include "qtrade/common/file/text_file.hpp"
-#include "qtrade/framework/database/database_service_bootstrap.hpp"
+#include "qtrade/common/json/json_util.hpp"
+#include "qtrade/dao/dao_define.hpp"
+#include "qtrade/framework/dao/ddl_utils.hpp"
+#include "qtrade/framework/database/db_connection_pool_manager.hpp"
 
 namespace qtrade::service {
-namespace {
-
-/// @brief 确保账户风控策略与预占表存在
-/// @param connection 数据库连接；不可为 nullptr
-/// @return ErrorCode::kSuccess 表示成功；连接为空或 DDL 失败返回 ErrorCode::kSystemError
-ErrorCode EnsureAccountRiskSchema(cpputils::database::IConnection* connection) {
-  if (connection == nullptr) {
-    return ErrorCode::kSystemError;
-  }
-  constexpr const char* kPolicySql =
-    "CREATE TABLE IF NOT EXISTS account_risk_policy ("
-    "tenant_id TEXT NOT NULL, account_id TEXT NOT NULL, version BIGINT NOT NULL, "
-    "valid_until_unix_ms BIGINT NOT NULL, max_notional DOUBLE NOT NULL, max_margin DOUBLE NOT NULL, "
-    "max_gross_exposure DOUBLE NOT NULL, max_open_orders BIGINT NOT NULL, safety_buffer DOUBLE NOT NULL, "
-    "enabled BOOLEAN NOT NULL, PRIMARY KEY (tenant_id, account_id));";
-  constexpr const char* kReservationSql =
-    "CREATE TABLE IF NOT EXISTS order_reservation ("
-    "tenant_id TEXT NOT NULL, account_id TEXT NOT NULL, order_id TEXT NOT NULL, reservation_id TEXT NOT NULL, "
-    "status TEXT NOT NULL, reserved_notional DOUBLE NOT NULL, reserved_margin DOUBLE NOT NULL, "
-    "expires_at_unix_ms BIGINT NOT NULL, PRIMARY KEY (tenant_id, account_id, order_id));";
-  if (!connection->Execute(kPolicySql) || !connection->Execute(kReservationSql)) {
-    return ErrorCode::kSystemError;
-  }
-  return ErrorCode::kSuccess;
-}
-
-}  // namespace
 
 AccountRiskService::AccountRiskService() : SupportSyncServiceImpl("qtrade_account_risk_service", 50060) {}
 
@@ -50,29 +25,58 @@ ErrorCode AccountRiskService::Initialize(const std::string& config_path) {
   state_ = qtrade::common::support::SupportServiceState::kInitializing;
   config_path_ = config_path;
 
-  const auto json_text = qtrade::common::ReadTextFile(config_path);
-  if (!json_text.has_value()) {
+  const auto config_node = qtrade::common::LoadJsonFile(config_path);
+  if (!config_node.has_value()) {
     state_ = qtrade::common::support::SupportServiceState::kFailed;
     return last_error_ = ErrorCode::kNotFound;
   }
 
   // 2. 解析 L0 配置并解析监听地址
-  const auto config = qtrade::common::config::ParseQtradeAccountRiskServiceConfig(*json_text);
+  const auto config = qtrade::common::config::ParseQtradeAccountRiskServiceConfig(*config_node);
   if (!config.has_value()) {
     state_ = qtrade::common::support::SupportServiceState::kFailed;
-    return last_error_ = ErrorCode::kInternal;
+    return last_error_ = ErrorCode::kInternalError;
   }
-  listen_address_ = config->grpc.ListenAddress();
+  listen_address_ = config->grpc.Address();
 
-  // 3. 引导数据库连接并确保表结构
-  const auto context =
-    qtrade::common::BootstrapDatabaseConnection(config->database, EnsureAccountRiskSchema, service_name_);
-  if (!context.connection) {
+  // 3. 创建数据库连接池、DaoManager 并确保表结构
+  connection_pool_mgr_ = std::make_shared<qtrade::framework::dao::DbConnectionPoolManager>();
+  if (!connection_pool_mgr_->AddConnectionPool(qtrade::framework::dao::kAccountRiskDatabaseName,
+                                               config->database.pool) ||
+      !connection_pool_mgr_->IsReady()) {
+    connection_pool_mgr_.reset();
     state_ = qtrade::common::support::SupportServiceState::kFailed;
-    return last_error_ = ErrorCode::kInternal;
+    return last_error_ = ErrorCode::kInternalError;
   }
-  connection_ = std::move(context.connection);
+
+  dao_mgr_ = std::make_shared<qtrade::framework::dao::DaoManager>();
+  auto schema_connection = connection_pool_mgr_->Acquire(qtrade::framework::dao::kAccountRiskDatabaseName);
+  if (schema_connection == nullptr) {
+    dao_mgr_.reset();
+    connection_pool_mgr_.reset();
+    state_ = qtrade::common::support::SupportServiceState::kFailed;
+    return last_error_ = ErrorCode::kInternalError;
+  }
+  auto* database = schema_connection.get();
+  if (qtrade::framework::dao::EnsureTableSchema(database, dao_mgr_->Get<qtrade::framework::dao::AccountRiskPolicy>()) !=
+        ErrorCode::kSuccess ||
+      qtrade::framework::dao::EnsureTableSchema(database, dao_mgr_->Get<qtrade::framework::dao::OrderReservation>()) !=
+        ErrorCode::kSuccess ||
+      qtrade::framework::dao::EnsureTableSchema(database, dao_mgr_->Get<qtrade::framework::dao::AccountRiskLedger>()) !=
+        ErrorCode::kSuccess) {
+    dao_mgr_.reset();
+    connection_pool_mgr_.reset();
+    state_ = qtrade::common::support::SupportServiceState::kFailed;
+    return last_error_ = ErrorCode::kInternalError;
+  }
   return last_error_ = ErrorCode::kSuccess;
+}
+
+std::unique_ptr<AccountRiskGrpcService> AccountRiskService::CreateGrpcService() {
+  if (!dao_mgr_) {
+    return nullptr;
+  }
+  return std::make_unique<AccountRiskGrpcService>(connection_pool_mgr_, dao_mgr_);
 }
 
 }  // namespace qtrade::service

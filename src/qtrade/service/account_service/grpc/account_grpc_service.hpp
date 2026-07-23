@@ -7,7 +7,8 @@
 #ifndef QTRADE_SERVICE_ACCOUNT_GRPC_SERVICE_HPP_
 #define QTRADE_SERVICE_ACCOUNT_GRPC_SERVICE_HPP_
 
-#include "qtrade/framework/database/db_connection.hpp"
+#include "qtrade/dao/dao_manager.hpp"
+#include "qtrade/framework/database/db_connection_pool_manager.hpp"
 
 #include <qtrade/proto/account/v1/account.grpc.pb.h>
 
@@ -18,7 +19,8 @@ namespace qtrade::service {
 /// @brief 交易账户 gRPC 同步 Service（proto AccountService）
 class AccountGrpcService final : public qtrade::account::v1::AccountService::Service {
  public:
-  explicit AccountGrpcService(std::shared_ptr<qtrade::framework::dao::DbConnectionHolder> connection);
+  AccountGrpcService(std::shared_ptr<qtrade::framework::dao::DbConnectionPoolManager> connection,
+                     std::shared_ptr<qtrade::framework::dao::DaoManager> dao);
 
   /// @brief 添加交易账户
   grpc::Status AddAccount(grpc::ServerContext* context,
@@ -49,8 +51,10 @@ class AccountGrpcService final : public qtrade::account::v1::AccountService::Ser
   /// @brief 检查数据库连接是否就绪
   [[nodiscard]] bool DatabaseReady() const;
 
-  /// 数据库连接持有者
-  std::shared_ptr<qtrade::framework::dao::DbConnectionHolder> connection_;
+  /// 本进程 DaoManager
+  std::shared_ptr<qtrade::framework::dao::DaoManager> dao_mgr_;
+  /// 数据库连接池管理器
+  std::shared_ptr<qtrade::framework::dao::DbConnectionPoolManager> connection_pool_mgr_;
 };
 
 }  // namespace qtrade::service

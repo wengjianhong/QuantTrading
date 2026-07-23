@@ -31,18 +31,11 @@ function(qtrade_add_support_service executable_name service_impl_dir)
 endfunction()
 
 
-# Add support microservices
+# MVP support microservices
 qtrade_add_support_service(qtrade_config_service config_service)
 qtrade_add_support_service(qtrade_account_service account_service)
 qtrade_add_support_service(qtrade_account_risk_service account_risk_service)
 qtrade_add_support_service(qtrade_log_service log_service)
-qtrade_add_support_service(qtrade_monitor_service monitor_service)
-qtrade_add_support_service(qtrade_registry_service registry_service)
-qtrade_add_support_service(qtrade_history_order_service history_order_service)
-qtrade_add_support_service(qtrade_audit_service audit_service)
-qtrade_add_support_service(qtrade_backtest_service backtest_service)
-qtrade_add_support_service(qtrade_backup_service backup_service)
-qtrade_add_support_service(qtrade_strategy_service strategy_service)
 
 # For qtrade_install.cmake: install to bin/
 set(QTRADE_SERVICE_TARGETS
@@ -50,11 +43,4 @@ set(QTRADE_SERVICE_TARGETS
     qtrade_account_service
     qtrade_account_risk_service
     qtrade_log_service
-    qtrade_monitor_service
-    qtrade_registry_service
-    qtrade_history_order_service
-    qtrade_audit_service
-    qtrade_backtest_service
-    qtrade_backup_service
-    qtrade_strategy_service
 )

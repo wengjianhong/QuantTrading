@@ -6,7 +6,7 @@
 #include "qtrade/service/config_service/grpc/config_scope.hpp"
 
 #include "qtrade/common/proto/proto_json_converter.hpp"
-#include "qtrade/dao/engine_config.hpp"
+#include "qtrade/dao/config_service/engine/engine_config.hpp"
 
 #include <spdlog/spdlog.h>
 
@@ -22,53 +22,54 @@ std::string NormalizeScopeField(const std::string& value) {
 
 }  // namespace
 
-ConfigScope MakeConfigScope(const qtrade::config::v1::GetConfigRequest& request) {
+ConfigScope MakeConfigScope(const qtrade::config::v1::GetEngineConfigRequest& request) {
   return ConfigScope{
     .tenant_id = "default",
     .engine_id = NormalizeScopeField(request.engine_id()),
   };
 }
 
-ConfigScope MakeConfigScope(const qtrade::config::v1::SubscribeConfigRequest& request) {
+ConfigScope MakeConfigScope(const qtrade::config::v1::SubscribeEngineConfigRequest& request) {
   return ConfigScope{
     .tenant_id = "default",
     .engine_id = NormalizeScopeField(request.engine_id()),
   };
 }
 
-qtrade::config::v1::ConfigSnapshot QueryConfigSnapshot(const ConfigScope& scope) {
-  qtrade::config::v1::ConfigSnapshot snapshot;
+qtrade::config::v1::EngineConfig QueryEngineConfig(const ConfigScope& scope,
+                                                   qtrade::framework::dao::EngineConfig& engine_config_dao,
+                                                   cpputils::database::IConnection& connection) {
+  qtrade::config::v1::EngineConfig config;
 
   qtrade::framework::dao::EngineConfigRecord where;
   where.tenant_id = scope.tenant_id;
   where.engine_id = scope.engine_id;
 
-  const auto result = qtrade::framework::dao::EngineConfig::Instance().Select(where);
+  const auto result = engine_config_dao.Select(connection, where);
   if (result.error_code == ErrorCode::kNotFound ||
       (result.error_code == ErrorCode::kSuccess && (!result.data.has_value() || result.data->empty()))) {
-    snapshot.set_version(1);
-    snapshot.mutable_engine()->set_engine_id(scope.engine_id);
-    return snapshot;
+    config.set_version(1);
+    config.set_engine_id(scope.engine_id);
+    return config;
   }
   if (result.error_code != ErrorCode::kSuccess) {
     spdlog::warn("[ConfigScope] query scope tenant={} engine={} failed", scope.tenant_id, scope.engine_id);
-    return snapshot;
+    return config;
   }
 
   const auto& record = result.data->front();
   qtrade::config::v1::EngineConfig engine;
   if (!record.payload.has_value() ||
-      !qtrade::common::ProtoFromJson(record.payload.value(), engine, {}, "ConfigScope")) {
+      !qtrade::common::ConvertJsonToProto(record.payload.value(), engine, {}, "ConfigScope")) {
     spdlog::error("[ConfigScope] invalid payload JSON for tenant={} engine={}", scope.tenant_id, scope.engine_id);
-    return snapshot;
+    return config;
   }
 
-  snapshot.set_version(record.version.value_or(0));
-  *snapshot.mutable_engine() = std::move(engine);
-  if (snapshot.engine().engine_id().empty()) {
-    snapshot.mutable_engine()->set_engine_id(scope.engine_id);
+  engine.set_version(record.version.value_or(0));
+  if (engine.engine_id().empty()) {
+    engine.set_engine_id(scope.engine_id);
   }
-  return snapshot;
+  return engine;
 }
 
 }  // namespace qtrade::service

@@ -17,7 +17,13 @@ class ITableDdl {
  public:
   virtual ~ITableDdl() noexcept = default;
 
-  /// @brief 逻辑表名（与数据库中实际表名一致）
+  /// @brief 获取逻辑数据库名
+  /// @return DAO 所属的逻辑数据库名；通常与 JSON database_name 一致
+  /// @details 用于描述表的部署归属，不参与运行期连接路由
+  virtual const std::string& DatabaseName() const = 0;
+
+  /// @brief 获取逻辑表名
+  /// @return 与数据库中实际表名一致
   virtual const std::string& TableName() const = 0;
 
   /// @brief 建表 SQL 语句列表

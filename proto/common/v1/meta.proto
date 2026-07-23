@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package qtrade.common.meta.v1;
+
+option cc_enable_arenas = true;
+
+// 统一链路层元数据规范：
+// 1. RequestMeta / ResponseMeta 仅承载框架、追踪、观测、超时通用信息，禁止存放任何业务字段
+// 2. gRPC StatusCode 仅用于网络、连接、鉴权等底层传输异常；业务成功/拒绝统一使用 ResponseMeta.code
+// 3. trace_id 由客户端生成，服务端原样透传给 ResponseMeta.trace_id，不可重新生成
+// 4. extras 仅临时灰度、监控标签，核心业务参数必须下沉至业务Request/Response主体
+
+// 所有接口 Request 统一前置通用链路元数据
+message RequestMeta {
+    // 全链路追踪ID，客户端生成，全链路日志串联
+    string trace_id = 1;
+    // 幂等请求唯一ID，同一笔业务操作固定不变，用于防重复提交、重复拦截
+    string request_id = 2;
+    // 调用来源标识：engine / console / open_api / admin，用于流量观测、分来源限流
+    string source = 3;
+    // 客户端实例唯一标识，区分多实例调用节点
+    string client_id = 4;
+    // 请求发起时间戳（Unix 毫秒）
+    uint64 timestamp = 5;
+    // 客户端期望服务端最大处理超时（单位：毫秒）
+    uint64 timeout = 6;
+    // 附加信息：仅用于灰度、观测埋点；禁止存放核心业务数据
+    map<string, string> extras = 7;
+}
+
+// 所有接口 Response 统一携带的通用链路元数据
+message ResponseMeta {
+    // 业务返回码
+    int64 code = 1;
+    // 可读错误/提示文案，用于日志打印、问题排查
+    string message = 2;
+    // 服务内部纯逻辑处理耗时（单位：毫秒），不含网络往返IO
+    uint64 cost_ms = 3;
+    // 链路追踪ID，与 RequestMeta.trace_id 完全一致
+    string trace_id = 4;
+    // 当前服务实例唯一标识，多集群环境快速定位故障节点
+    string server_id = 5;
+    // 响应生成时间戳（Unix 毫秒），用于端到端时序延迟分析、时钟偏移校验
+    int64 timestamp = 6;
+}

@@ -8,13 +8,10 @@
 #define QTRADE_TRADING_CLIENT_ACCOUNT_CLIENT_HPP_
 
 #include <qtrade/error_code/error_codes.hpp>
+#include <qtrade/proto/account/v1/account.pb.h>
 
 #include <memory>
 #include <string>
-
-namespace qtrade::account::v1 {
-class GetCredentialResponse;
-}
 
 namespace qtrade::client {
 

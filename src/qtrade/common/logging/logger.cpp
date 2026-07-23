@@ -12,11 +12,11 @@
 
 namespace qtrade::common {
 
-bool init_spdlog_logger(const std::string& log_dir,
-                        const std::string& log_filename,
-                        std::size_t max_size_mb,
-                        std::size_t max_files,
-                        spdlog::level::level_enum level) {
+bool InitSpdlogLogger(const std::string& log_dir,
+                      const std::string& log_filename,
+                      std::size_t max_size_mb,
+                      std::size_t max_files,
+                      spdlog::level::level_enum level) {
   try {
     const std::size_t rotate_size = max_size_mb * 1024 * 1024;
 

@@ -20,6 +20,7 @@ target_include_directories(qtrade_tests PRIVATE
 
 # Link Libraries
 target_link_libraries(qtrade_tests PRIVATE
+    qtrade_account_risk_service_static
     qtrade_core
     GTest::gtest
     GTest::gtest_main

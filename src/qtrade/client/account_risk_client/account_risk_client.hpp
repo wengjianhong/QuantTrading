@@ -8,18 +8,12 @@
 #define QTRADE_CLIENT_ACCOUNT_RISK_CLIENT_HPP_
 
 #include <qtrade/error_code/error_codes.hpp>
+#include <qtrade/proto/account_risk/v1/account_risk.pb.h>
+#include <qtrade_sdk/trader/trader_struct.hpp>
 
 #include <cstdint>
 #include <memory>
 #include <string>
-
-namespace qtrade::account_risk::v1 {
-class ReserveOrderResponse;
-class ReleaseOrderResponse;
-}  // namespace qtrade::account_risk::v1
-namespace qtrade_sdk::trader {
-struct OrderRequest;
-}
 
 namespace qtrade::client {
 
@@ -48,7 +42,7 @@ class AccountRiskClient {
 
   /// @brief 按选项建立 gRPC 通道与 stub
   /// @param options 连接与账户上下文
-  /// @return ErrorCode::kSuccess 表示成功；参数非法或重复 Init 返回 ErrorCode::kInternal
+  /// @return ErrorCode::kSuccess 表示成功；参数非法或重复 Init 返回 ErrorCode::kInternalError
   ErrorCode Init(const AccountRiskClientOptions& options);
 
   /// @brief 释放通道与 stub
@@ -77,6 +71,12 @@ class AccountRiskClient {
   ErrorCode ReleaseOrder(const std::string& order_id,
                          int reason,
                          qtrade::account_risk::v1::ReleaseOrderResponse& response);
+
+  /// @brief 查询订单预占状态
+  /// @param order_id 全局订单 ID
+  /// @param reservation 预占状态输出
+  /// @return 找到返回 kSuccess，不存在返回 kNotFound，RPC 失败返回 kTimeout
+  ErrorCode GetReservation(const std::string& order_id, qtrade::account_risk::v1::Reservation& reservation);
 
  private:
   /// 实现细节

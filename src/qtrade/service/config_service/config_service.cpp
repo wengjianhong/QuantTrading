@@ -6,20 +6,12 @@
 #include "qtrade/service/config_service/config_service.hpp"
 
 #include "qtrade/common/config/qtrade_config_service_config.hpp"
-#include "qtrade/common/file/text_file.hpp"
-#include "qtrade/dao/engine_config.hpp"
+#include "qtrade/common/json/json_util.hpp"
+#include "qtrade/dao/dao_define.hpp"
 #include "qtrade/framework/dao/ddl_utils.hpp"
-#include "qtrade/framework/database/database_service_bootstrap.hpp"
+#include "qtrade/framework/database/db_connection_pool_manager.hpp"
 
 namespace qtrade::service {
-
-namespace {
-
-ErrorCode EnsureConfigSchema(cpputils::database::IConnection* connection) {
-  return qtrade::framework::dao::EnsureTableSchema(connection, qtrade::framework::dao::EngineConfig::Instance());
-}
-
-}  // namespace
 
 ConfigService::ConfigService() : SupportAsyncServiceImpl("qtrade_config_service", 50051) {}
 
@@ -34,31 +26,67 @@ ErrorCode ConfigService::Initialize(const std::string& config_path) {
   state_ = qtrade::common::support::SupportServiceState::kInitializing;
   config_path_ = config_path;
 
-  const auto json_text = qtrade::common::ReadTextFile(config_path);
-  if (!json_text.has_value()) {
+  const auto config_node = qtrade::common::LoadJsonFile(config_path);
+  if (!config_node.has_value()) {
     state_ = qtrade::common::support::SupportServiceState::kFailed;
     last_error_ = ErrorCode::kNotFound;
     return last_error_;
   }
-  const auto config = qtrade::common::config::ParseQtradeConfigServiceConfig(*json_text);
+  const auto config = qtrade::common::config::ParseQtradeConfigServiceConfig(*config_node);
   if (!config.has_value()) {
     state_ = qtrade::common::support::SupportServiceState::kFailed;
     last_error_ = ErrorCode::kNotFound;
     return last_error_;
   }
-  listen_address_ = config->grpc.ListenAddress();
+  listen_address_ = config->grpc.Address();
 
-  const auto context = qtrade::common::BootstrapDatabaseConnection(config->database, EnsureConfigSchema, service_name_);
-  if (!context.connection) {
-    connection_.reset();
+  // 1. 创建数据库连接池；2. 创建 DaoManager 并确保全部表结构
+  connection_pool_mgr_ = std::make_shared<qtrade::framework::dao::DbConnectionPoolManager>();
+  if (!connection_pool_mgr_->AddConnectionPool(qtrade::framework::dao::kConfigDatabaseName, config->database.pool) ||
+      !connection_pool_mgr_->IsReady()) {
+    connection_pool_mgr_.reset();
     state_ = qtrade::common::support::SupportServiceState::kFailed;
-    last_error_ = ErrorCode::kInternal;
+    last_error_ = ErrorCode::kInternalError;
     return last_error_;
   }
 
-  connection_ = std::move(context.connection);
+  dao_mgr_ = std::make_shared<qtrade::framework::dao::DaoManager>();
+  auto schema_connection = connection_pool_mgr_->Acquire(qtrade::framework::dao::kConfigDatabaseName);
+  if (schema_connection == nullptr) {
+    dao_mgr_.reset();
+    connection_pool_mgr_.reset();
+    state_ = qtrade::common::support::SupportServiceState::kFailed;
+    last_error_ = ErrorCode::kInternalError;
+    return last_error_;
+  }
+  auto* database = schema_connection.get();
+  if (qtrade::framework::dao::EnsureTableSchema(database, dao_mgr_->Get<qtrade::framework::dao::EngineConfig>()) !=
+        ErrorCode::kSuccess ||
+      qtrade::framework::dao::EnsureTableSchema(database, dao_mgr_->Get<qtrade::framework::dao::TenantRiskPolicy>()) !=
+        ErrorCode::kSuccess ||
+      qtrade::framework::dao::EnsureTableSchema(
+        database, dao_mgr_->Get<qtrade::framework::dao::InstanceRiskPolicy>()) != ErrorCode::kSuccess ||
+      qtrade::framework::dao::EnsureTableSchema(
+        database, dao_mgr_->Get<qtrade::framework::dao::StrategyRiskPolicy>()) != ErrorCode::kSuccess ||
+      qtrade::framework::dao::EnsureTableSchema(
+        database, dao_mgr_->Get<qtrade::framework::dao::InstrumentRiskPolicy>()) != ErrorCode::kSuccess ||
+      qtrade::framework::dao::EnsureTableSchema(database, dao_mgr_->Get<qtrade::framework::dao::OrderRiskPolicy>()) !=
+        ErrorCode::kSuccess ||
+      qtrade::framework::dao::EnsureTableSchema(database, dao_mgr_->Get<qtrade::framework::dao::QuoteHealthPolicy>()) !=
+        ErrorCode::kSuccess) {
+    dao_mgr_.reset();
+    connection_pool_mgr_.reset();
+    state_ = qtrade::common::support::SupportServiceState::kFailed;
+    last_error_ = ErrorCode::kInternalError;
+    return last_error_;
+  }
+
   last_error_ = ErrorCode::kSuccess;
   return ErrorCode::kSuccess;
+}
+
+void ConfigService::InitHandler() {
+  handler_->Init(&async_service_, grpc_server_->CompletionQueue(), connection_pool_mgr_, dao_mgr_);
 }
 
 }  // namespace qtrade::service

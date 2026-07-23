@@ -1,5 +1,6 @@
 /// @file      return_event_reactor.hpp
 /// @brief     Lane-R 回报 EventReactor（EventBus 子系统实现）
+/// @details   以 EventPtr FIFO 入队；Reactor 线程按 EventType 分发给 Order/Trade 订阅者
 /// @author    wengjianhong
 /// @date      2026-06-25
 /// @copyright CC BY-NC-SA 4.0
@@ -19,30 +20,60 @@ namespace qtrade::engine::event_bus {
 /// @brief Lane-R EventReactor：`EventPtr` FIFO 入队，按 `EventType` 调用 EventHandler
 class ReturnEventReactor {
  public:
+  /// @brief 构造回报 EventReactor（绑定 ReturnLanePolicy 循环）
   ReturnEventReactor();
+
+  /// @brief 析构并确保 Reactor 线程已停止
   ~ReturnEventReactor();
 
+  /// @brief 禁止拷贝构造
   ReturnEventReactor(const ReturnEventReactor&) = delete;
+
+  /// @brief 禁止拷贝赋值
   ReturnEventReactor& operator=(const ReturnEventReactor&) = delete;
 
+  /// @brief 启动 Reactor 线程并开始消费队列
   void Start();
+
+  /// @brief 停止 Reactor 线程并清空已注册的 EventHandler
   void Stop();
 
+  /// @brief 订阅订单回报事件
+  /// @param handler 订单回调；在 Reactor 线程中调用
   void SubscribeOrder(OrderEventHandler handler);
+
+  /// @brief 订阅成交回报事件
+  /// @param handler 成交回调；在 Reactor 线程中调用
   void SubscribeTrade(TradeEventHandler handler);
 
+  /// @brief 将订单封装为 OrderEvent 并入队
+  /// @param order 订单回报快照
   void PublishOrder(const qtrade_sdk::trader::Order& order);
+
+  /// @brief 将成交封装为 TradeEvent 并入队
+  /// @param trade 成交回报快照
   void PublishTrade(const qtrade_sdk::trader::Trade& trade);
 
+  /// @brief 查询是否仍有待处理事件
+  /// @return 队列非空时返回 true
   [[nodiscard]] bool HasPending() const;
+
+  /// @brief 获取当前队列深度
+  /// @return 待处理事件个数
   [[nodiscard]] std::size_t PendingCount() const;
 
  private:
+  /// @brief 按 EventType 分发给已订阅的 EventHandler
+  /// @param event 出队后的事件基类引用
   void HandleEvent(const Event& event);
 
+  /// Lane-R FIFO Reactor 循环
   EventReactorLoop<EventPtr, ReturnLanePolicy> loop_;
+  /// 订单回报订阅列表
   std::vector<OrderEventHandler> order_handlers_;
+  /// 成交回报订阅列表
   std::vector<TradeEventHandler> trade_handlers_;
+  /// 保护订阅列表的互斥锁
   mutable std::mutex handlers_mutex_;
 };
 
