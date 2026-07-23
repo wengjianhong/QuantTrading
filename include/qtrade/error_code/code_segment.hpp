@@ -15,7 +15,7 @@ using cpputils::error_code::MakeModuleId;
 using cpputils::error_code::MakeServiceId;
 
 /// @brief 系统级编号（AAA=1~999）
-enum class CodeSystem : uint64_t {
+enum class SystemNumber : uint64_t {
   /// 通用错误码
   kCommon = 0,
   /// qtrade系统
@@ -28,37 +28,37 @@ enum class CodeSystem : uint64_t {
 enum class ServiceNumber : uint64_t {
   /// ============================ 通用错误码 ============================
   /// 通用错误码
-  kCommon = MakeServiceId(static_cast<uint64_t>(CodeSystem::kCommon), 0),
+  kCommon = MakeServiceId(static_cast<uint64_t>(SystemNumber::kCommon), 0),
 
   /// ============================ qtrade系统 ============================
   /// 核心交易引擎服务
-  kEngine = MakeServiceId(static_cast<uint64_t>(CodeSystem::kQTrade), 1),
+  kEngine = MakeServiceId(static_cast<uint64_t>(SystemNumber::kQTrade), 1),
   /// 账户服务
-  kAccount = MakeServiceId(static_cast<uint64_t>(CodeSystem::kQTrade), 2),
+  kAccount = MakeServiceId(static_cast<uint64_t>(SystemNumber::kQTrade), 2),
   /// 账户风控服务
-  kAccountRisk = MakeServiceId(static_cast<uint64_t>(CodeSystem::kQTrade), 3),
+  kAccountRisk = MakeServiceId(static_cast<uint64_t>(SystemNumber::kQTrade), 3),
   /// 配置服务
-  kConfig = MakeServiceId(static_cast<uint64_t>(CodeSystem::kQTrade), 4),
+  kConfig = MakeServiceId(static_cast<uint64_t>(SystemNumber::kQTrade), 4),
   /// 日志服务
-  kLog = MakeServiceId(static_cast<uint64_t>(CodeSystem::kQTrade), 5),
+  kLog = MakeServiceId(static_cast<uint64_t>(SystemNumber::kQTrade), 5),
   /// 监控服务
-  kMonitor = MakeServiceId(static_cast<uint64_t>(CodeSystem::kQTrade), 6),
+  kMonitor = MakeServiceId(static_cast<uint64_t>(SystemNumber::kQTrade), 6),
   /// 注册服务
-  kRegistry = MakeServiceId(static_cast<uint64_t>(CodeSystem::kQTrade), 7),
+  kRegistry = MakeServiceId(static_cast<uint64_t>(SystemNumber::kQTrade), 7),
   /// 审计服务
-  kAudit = MakeServiceId(static_cast<uint64_t>(CodeSystem::kQTrade), 8),
+  kAudit = MakeServiceId(static_cast<uint64_t>(SystemNumber::kQTrade), 8),
   /// 回测服务
-  kBacktest = MakeServiceId(static_cast<uint64_t>(CodeSystem::kQTrade), 9),
+  kBacktest = MakeServiceId(static_cast<uint64_t>(SystemNumber::kQTrade), 9),
   /// 备份服务
-  kBackup = MakeServiceId(static_cast<uint64_t>(CodeSystem::kQTrade), 10),
+  kBackup = MakeServiceId(static_cast<uint64_t>(SystemNumber::kQTrade), 10),
   /// 历史行情服务
-  kHistoryMarket = MakeServiceId(static_cast<uint64_t>(CodeSystem::kQTrade), 11),
+  kHistoryMarket = MakeServiceId(static_cast<uint64_t>(SystemNumber::kQTrade), 11),
   /// 历史订单服务
-  kHistoryOrder = MakeServiceId(static_cast<uint64_t>(CodeSystem::kQTrade), 12),
+  kHistoryOrder = MakeServiceId(static_cast<uint64_t>(SystemNumber::kQTrade), 12),
   /// 策略管理服务
-  kStrategy = MakeServiceId(static_cast<uint64_t>(CodeSystem::kQTrade), 13),
+  kStrategy = MakeServiceId(static_cast<uint64_t>(SystemNumber::kQTrade), 13),
   /// 服务级编号结束标记
-  kEnd = MakeServiceId(static_cast<uint64_t>(CodeSystem::kQTrade), 14),
+  kEnd = MakeServiceId(static_cast<uint64_t>(SystemNumber::kQTrade), 14),
 };
 
 /// @brief 模块编号
