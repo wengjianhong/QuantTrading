@@ -55,7 +55,10 @@ qtrade/
 │   │   │   ├── qtrade_config_service/main.cpp
 │   │   │   └── ...
 │   │   ├── engine/                 # 【核心交易引擎层】库代码，无 main
+│   │   │   ├── core/               # 启动编排、生命周期、围栏与订单流水线
 │   │   │   ├── event_bus/
+│   │   │   │   ├── quote_event_reactor.*   # Lane-M：Tick/Bar 事件
+│   │   │   │   └── trader_event_reactor.*  # Lane-R：Order/Trade 回报事件
 │   │   │   ├── normalizer/
 │   │   │   ├── strategy/
 │   │   │   ├── cms/

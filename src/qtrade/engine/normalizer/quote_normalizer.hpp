@@ -36,8 +36,8 @@ class QuoteNormalizer {
   using HealthHandler = std::function<void(bool healthy)>;
 
   /// @brief 构造行情标准化器
-  /// @param market_event_reactor Lane-M 行情事件反应器
-  explicit QuoteNormalizer(event_bus::MarketEventReactor& market_event_reactor);
+  /// @param quote_event_reactor Lane-M 行情事件反应器
+  explicit QuoteNormalizer(event_bus::QuoteEventReactor& quote_event_reactor);
 
   /// @brief 析构并停止健康监控线程
   ~QuoteNormalizer();
@@ -81,7 +81,7 @@ class QuoteNormalizer {
   /// 保护行情源与健康回调
   std::mutex mutex_;
   /// Lane-M 行情事件反应器
-  event_bus::MarketEventReactor& market_event_reactor_;
+  event_bus::QuoteEventReactor& quote_event_reactor_;
   /// 行情通道 API
   std::unique_ptr<qtrade_sdk::quote::QuoteApi> market_source_;
   /// 是否已 Start

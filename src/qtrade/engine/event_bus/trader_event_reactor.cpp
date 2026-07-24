@@ -1,60 +1,60 @@
-/// @file      return_event_reactor.cpp
+/// @file      trader_event_reactor.cpp
 /// @brief     Lane-R 回报 EventReactor 实现
 /// @details   负责启停循环、订阅注册、Publish 入队，以及按 EventType 回调 Handler
 /// @author    wengjianhong
 /// @date      2026-06-25
 /// @copyright CC BY-NC-SA 4.0
 
-#include "qtrade/engine/event_bus/return_event_reactor.hpp"
+#include "qtrade/engine/event_bus/trader_event_reactor.hpp"
 
 #include <spdlog/spdlog.h>
 
 namespace qtrade::engine::event_bus {
 
-ReturnEventReactor::ReturnEventReactor() : loop_("ReturnEventReactor") {}
+TraderEventReactor::TraderEventReactor() : loop_("TraderEventReactor") {}
 
-ReturnEventReactor::~ReturnEventReactor() {
+TraderEventReactor::~TraderEventReactor() {
   Stop();
 }
 
-void ReturnEventReactor::Start() {
+void TraderEventReactor::Start() {
   loop_.Start([this](const EventPtr& event) { HandleEvent(*event); });
 }
 
-void ReturnEventReactor::Stop() {
+void TraderEventReactor::Stop() {
   loop_.Stop();
   std::lock_guard<std::mutex> lock(handlers_mutex_);
   order_handlers_.clear();
   trade_handlers_.clear();
 }
 
-void ReturnEventReactor::SubscribeOrder(OrderEventHandler handler) {
+void TraderEventReactor::SubscribeOrder(OrderEventHandler handler) {
   std::lock_guard<std::mutex> lock(handlers_mutex_);
   order_handlers_.push_back(std::move(handler));
 }
 
-void ReturnEventReactor::SubscribeTrade(TradeEventHandler handler) {
+void TraderEventReactor::SubscribeTrade(TradeEventHandler handler) {
   std::lock_guard<std::mutex> lock(handlers_mutex_);
   trade_handlers_.push_back(std::move(handler));
 }
 
-void ReturnEventReactor::PublishOrder(const qtrade_sdk::trader::Order& order) {
+void TraderEventReactor::PublishOrder(const qtrade_sdk::trader::Order& order) {
   loop_.Publish(std::make_unique<OrderEvent>(order));
 }
 
-void ReturnEventReactor::PublishTrade(const qtrade_sdk::trader::Trade& trade) {
+void TraderEventReactor::PublishTrade(const qtrade_sdk::trader::Trade& trade) {
   loop_.Publish(std::make_unique<TradeEvent>(trade));
 }
 
-bool ReturnEventReactor::HasPending() const {
+bool TraderEventReactor::HasPending() const {
   return loop_.HasPending();
 }
 
-std::size_t ReturnEventReactor::PendingCount() const {
+std::size_t TraderEventReactor::PendingCount() const {
   return loop_.PendingCount();
 }
 
-void ReturnEventReactor::HandleEvent(const Event& event) {
+void TraderEventReactor::HandleEvent(const Event& event) {
   // 1. 在锁内快照订阅列表，避免回调期间长时间持锁
   std::vector<OrderEventHandler> order_handlers;
   std::vector<TradeEventHandler> trade_handlers;
@@ -72,7 +72,7 @@ void ReturnEventReactor::HandleEvent(const Event& event) {
         try {
           handler(payload);
         } catch (const std::exception& e) {
-          spdlog::error("[ReturnEventReactor] order event handler exception: {}", e.what());
+          spdlog::error("[TraderEventReactor] order event handler exception: {}", e.what());
         }
       }
       break;
@@ -83,13 +83,13 @@ void ReturnEventReactor::HandleEvent(const Event& event) {
         try {
           handler(payload);
         } catch (const std::exception& e) {
-          spdlog::error("[ReturnEventReactor] trade event handler exception: {}", e.what());
+          spdlog::error("[TraderEventReactor] trade event handler exception: {}", e.what());
         }
       }
       break;
     }
     default:
-      spdlog::warn("[ReturnEventReactor] ignored event type {}", static_cast<int>(event.type));
+      spdlog::warn("[TraderEventReactor] ignored event type {}", static_cast<int>(event.type));
       break;
   }
 }

@@ -27,10 +27,10 @@ void StrategyEngine::Start() {
   running_ = true;
 
   // 1. 订阅 Lane-M / Lane-R
-  event_lanes_.Market().SubscribeTick([this](const qtrade_sdk::quote::MarketTick& tick) { OnTickEvent(tick); });
-  event_lanes_.Market().SubscribeBar([this](const qtrade_sdk::quote::Bar& bar) { OnBarEvent(bar); });
-  event_lanes_.Return().SubscribeOrder([this](const qtrade_sdk::trader::Order& order) { OnOrderEvent(order); });
-  event_lanes_.Return().SubscribeTrade([this](const qtrade_sdk::trader::Trade& trade) { OnTradeEvent(trade); });
+  event_lanes_.Quote().SubscribeTick([this](const qtrade_sdk::quote::MarketTick& tick) { OnTickEvent(tick); });
+  event_lanes_.Quote().SubscribeBar([this](const qtrade_sdk::quote::Bar& bar) { OnBarEvent(bar); });
+  event_lanes_.Trader().SubscribeOrder([this](const qtrade_sdk::trader::Order& order) { OnOrderEvent(order); });
+  event_lanes_.Trader().SubscribeTrade([this](const qtrade_sdk::trader::Trade& trade) { OnTradeEvent(trade); });
 
   // 2. 启动已启用且未启动的策略
   for (auto& [strategy_id, entry] : strategies_) {

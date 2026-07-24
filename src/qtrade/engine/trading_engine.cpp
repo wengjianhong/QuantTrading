@@ -45,8 +45,8 @@ constexpr bool kAllowUnreconciledOrders = false;
 
 TradingEngine::TradingEngine()
   : strategy_engine_(event_lanes_),
-    quote_normalizer_(event_lanes_.Market()),
-    trader_normalizer_(event_lanes_.Return()) {
+    quote_normalizer_(event_lanes_.Quote()),
+    trader_normalizer_(event_lanes_.Trader()) {
   execution_manager_.SetResultHandlers(
     [this](const std::string& order_id) { return order_manager_.MarkSendPending(order_id); },
     [this](const std::string& order_id, ErrorCode result) {
@@ -63,7 +63,7 @@ TradingEngine::TradingEngine()
   risk_manager_.SetStateProviders([this] { return order_manager_.GetActiveOrderCount(); },
                                   [this] { return order_manager_.GetOpenNotional(); });
 
-  event_lanes_.Return().SubscribeOrder([this](const qtrade_sdk::trader::Order& order) {
+  event_lanes_.Trader().SubscribeOrder([this](const qtrade_sdk::trader::Order& order) {
     order_manager_.ApplyOrderReport(order);
     const auto local_order = order.order_id.empty() ? order_manager_.GetOrderByClientId(order.client_order_id)
                                                     : order_manager_.GetOrder(order.order_id);
@@ -80,7 +80,7 @@ TradingEngine::TradingEngine()
       }
     }
   });
-  event_lanes_.Return().SubscribeTrade([this](const qtrade_sdk::trader::Trade& trade) {
+  event_lanes_.Trader().SubscribeTrade([this](const qtrade_sdk::trader::Trade& trade) {
     order_manager_.ApplyTradeReport(trade);
     account_manager_.ApplyTrade(trade);
     position_manager_.ApplyTrade(trade);

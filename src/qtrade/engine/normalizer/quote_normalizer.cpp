@@ -25,8 +25,8 @@ std::int64_t SteadyNowMs() {
 
 }  // namespace
 
-QuoteNormalizer::QuoteNormalizer(event_bus::MarketEventReactor& market_event_reactor)
-  : market_event_reactor_(market_event_reactor), running_(false) {}
+QuoteNormalizer::QuoteNormalizer(event_bus::QuoteEventReactor& quote_event_reactor)
+  : quote_event_reactor_(quote_event_reactor), running_(false) {}
 
 QuoteNormalizer::~QuoteNormalizer() {
   Stop();
@@ -152,7 +152,7 @@ void QuoteNormalizer::OnTick(const qtrade_sdk::quote::MarketTick& tick) {
     spdlog::warn("[QuoteNormalizer] rejected invalid tick: instrument={}", tick.instrument);
     return;
   }
-  market_event_reactor_.PublishTick(tick);
+  quote_event_reactor_.PublishTick(tick);
 }
 
 void QuoteNormalizer::OnBar(const qtrade_sdk::quote::Bar& bar) {
@@ -161,7 +161,7 @@ void QuoteNormalizer::OnBar(const qtrade_sdk::quote::Bar& bar) {
       !std::isfinite(bar.low) || !std::isfinite(bar.close) || bar.high < bar.low || bar.volume < 0) {
     return;
   }
-  market_event_reactor_.PublishBar(bar);
+  quote_event_reactor_.PublishBar(bar);
 }
 
 void QuoteNormalizer::WatchHealth() {

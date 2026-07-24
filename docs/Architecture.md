@@ -246,15 +246,15 @@ config-service 按 `engine_id` 返回专属 `EngineConfig`。策略启停和普�
 | 组件 | 职责 |
 |---|---|
 | **Reactor Loop** | 有界队列 + 单消费线程；具体容器属于详细设计，不在架构文档固定 |
-| **`MarketEventReactor`（Lane-M）** | 接收 Tick/Bar 并投递到策略 mailbox |
-| **`ReturnEventReactor`（Lane-R）** | 接收 Order/Trade 并投递到订单状态协调器 |
+| **`QuoteEventReactor`（Lane-M）** | 接收 Tick/Bar 并投递到策略 mailbox |
+| **`TraderEventReactor`（Lane-R）** | 接收 Order/Trade 并投递到订单状态协调器 |
 | **`EventLanes`** | EventBus 门面；持有上述两条 Reactor，统一 `Start`/`Stop` |
 | **订单状态协调器** | 单线程处理新订单、订单回报、成交回报；统一更新 OMS、Account、PMS；回报事件优先于新订单 |
 
 | 通道 | 事件 | 典型路径 | 线程 |
 |---|---|---|---|
-| **Lane-M** | Tick、Bar | 适配器 → QuoteNormalizer → StrategyEngine → `OrderIntent` | `MarketEventReactor` 线程 |
-| **Lane-R** | Order、Trade | 适配器 → TraderNormalizer → 订单状态协调器 | `ReturnEventReactor` 线程 |
+| **Lane-M** | Tick、Bar | 适配器 → QuoteNormalizer → StrategyEngine → `OrderIntent` | `QuoteEventReactor` 线程 |
+| **Lane-R** | Order、Trade | 适配器 → TraderNormalizer → 订单状态协调器 | `TraderEventReactor` 线程 |
 
 - **策略执行语义**：Tick、Bar、Order、Trade 都进入对应策略的同一个串行 mailbox；策略不会被两个线程同时回调。
 - **mailbox 顺序**：订单/成交回报高于普通行情；行情可按策略声明合并过期快照。每个事件记录 `enqueue_seq` 和来源时间，回测使用同一排序规则。

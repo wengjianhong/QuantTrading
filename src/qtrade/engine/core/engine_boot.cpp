@@ -51,9 +51,9 @@ bool RegisterStrategies(TradingEngine& engine) {
   return true;
 }
 
-bool InitEngine(TradingEngine& engine, const std::string& config_path) {
+bool InitEngine(TradingEngine& engine, const qtrade::common::process_boot::ProgramOptions& options) {
   // 1. 加载配置文件
-  const auto config_node = qtrade::common::LoadJsonFile(config_path);
+  const auto config_node = qtrade::common::LoadJsonFile(options.config_path);
   if (!config_node) {
     spdlog::error("[engine_boot] InitEngine: failed to load config file");
     return false;

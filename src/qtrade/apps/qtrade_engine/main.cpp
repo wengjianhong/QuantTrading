@@ -21,7 +21,7 @@ int main(int argc, char** argv) {
   qtrade::common::system::BlockInterruptSignals();
 
   // 2. 解析命令行参数
-  auto options_result = qtrade::common::process_boot::ParseProgramOptions(argc, argv);
+  const auto options_result = qtrade::common::process_boot::ParseProgramOptions(argc, argv);
   if (options_result.error_code != qtrade::ErrorCode::kSuccess || !options_result.data.has_value()) {
     std::cerr << "[qtrade_engine] Failed to parse program options:" << options_result.error_message << std::endl;
     return EXIT_FAILURE;
@@ -38,7 +38,7 @@ int main(int argc, char** argv) {
 
   qtrade::engine::TradingEngine engine;
   // 4. 初始化引擎（订单回放、控制面、适配器）
-  if (!qtrade::engine::boot::InitEngine(engine, options_result.data.value().config_path)) {
+  if (!qtrade::engine::boot::InitEngine(engine, options_result.data.value())) {
     qtrade::common::system::NotifyError(0, "Failed to initialize engine");
     return EXIT_FAILURE;
   }

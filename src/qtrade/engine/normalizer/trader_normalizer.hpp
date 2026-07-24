@@ -22,8 +22,8 @@ namespace qtrade::engine::normalizer {
 class TraderNormalizer {
  public:
   /// @brief 构造交易标准化器
-  /// @param return_event_reactor Lane-R 回报事件反应器
-  explicit TraderNormalizer(event_bus::ReturnEventReactor& return_event_reactor);
+  /// @param trader_event_reactor Lane-R 回报事件反应器
+  explicit TraderNormalizer(event_bus::TraderEventReactor& trader_event_reactor);
 
   /// @brief 析构并停止标准化器
   ~TraderNormalizer();
@@ -60,7 +60,7 @@ class TraderNormalizer {
   /// 是否已 Start
   std::atomic_bool running_ = false;
   /// Lane-R 回报事件反应器
-  event_bus::ReturnEventReactor& return_event_reactor_;
+  event_bus::TraderEventReactor& trader_event_reactor_;
   /// 交易通道 API
   std::unique_ptr<qtrade_sdk::trader::TraderApi> trader_api_;
 };

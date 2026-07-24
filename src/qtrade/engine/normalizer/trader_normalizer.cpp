@@ -13,9 +13,9 @@
 
 namespace qtrade::engine::normalizer {
 
-TraderNormalizer::TraderNormalizer(event_bus::ReturnEventReactor& return_event_reactor)
-  : running_(false), return_event_reactor_(return_event_reactor) {
-  (void)return_event_reactor_;
+TraderNormalizer::TraderNormalizer(event_bus::TraderEventReactor& trader_event_reactor)
+  : running_(false), trader_event_reactor_(trader_event_reactor) {
+  (void)trader_event_reactor_;
 }
 
 TraderNormalizer::~TraderNormalizer() {
@@ -80,7 +80,7 @@ void TraderNormalizer::OnOrder(const qtrade_sdk::trader::Order& order) {
       order.traded_volume < 0 || order.left_volume < 0 || (order.volume > 0 && order.traded_volume > order.volume)) {
     return;
   }
-  return_event_reactor_.PublishOrder(order);
+  trader_event_reactor_.PublishOrder(order);
 }
 
 void TraderNormalizer::OnTrade(const qtrade_sdk::trader::Trade& trade) {
@@ -89,7 +89,7 @@ void TraderNormalizer::OnTrade(const qtrade_sdk::trader::Trade& trade) {
       (trade.order_id.empty() && trade.order_emt_id == 0 && trade.client_order_id == 0)) {
     return;
   }
-  return_event_reactor_.PublishTrade(trade);
+  trader_event_reactor_.PublishTrade(trade);
 }
 
 }  // namespace qtrade::engine::normalizer

@@ -12,39 +12,39 @@
 namespace qtrade::engine::event_bus {
 
 void EventLanes::Start() {
-  market_event_reactor_.Start();
-  return_event_reactor_.Start();
+  quote_event_reactor_.Start();
+  trader_event_reactor_.Start();
   spdlog::info("[EventLanes] Market + Return event reactors started");
 }
 
 void EventLanes::Stop() {
-  return_event_reactor_.Stop();
-  market_event_reactor_.Stop();
+  trader_event_reactor_.Stop();
+  quote_event_reactor_.Stop();
   spdlog::info("[EventLanes] stopped cleanly");
 }
 
-MarketEventReactor& EventLanes::Market() {
-  return market_event_reactor_;
+QuoteEventReactor& EventLanes::Quote() {
+  return quote_event_reactor_;
 }
 
-ReturnEventReactor& EventLanes::Return() {
-  return return_event_reactor_;
+TraderEventReactor& EventLanes::Trader() {
+  return trader_event_reactor_;
 }
 
-const MarketEventReactor& EventLanes::Market() const {
-  return market_event_reactor_;
+const QuoteEventReactor& EventLanes::Quote() const {
+  return quote_event_reactor_;
 }
 
-const ReturnEventReactor& EventLanes::Return() const {
-  return return_event_reactor_;
+const TraderEventReactor& EventLanes::Trader() const {
+  return trader_event_reactor_;
 }
 
-std::size_t EventLanes::MarketQueueSize() const {
-  return market_event_reactor_.PendingCount();
+std::size_t EventLanes::QuoteQueueSize() const {
+  return quote_event_reactor_.PendingCount();
 }
 
-std::size_t EventLanes::ReturnQueueSize() const {
-  return return_event_reactor_.PendingCount();
+std::size_t EventLanes::TraderQueueSize() const {
+  return trader_event_reactor_.PendingCount();
 }
 
 }  // namespace qtrade::engine::event_bus

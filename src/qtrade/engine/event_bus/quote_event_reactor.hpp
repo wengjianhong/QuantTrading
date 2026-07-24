@@ -1,4 +1,4 @@
-/// @file      market_event_reactor.hpp
+/// @file      quote_event_reactor.hpp
 /// @brief     Lane-M 行情 EventReactor（EventBus 子系统实现）
 /// @details   以 EventPtr FIFO 入队；Reactor 线程按 EventType 分发给 Tick/Bar 订阅者
 /// @author    wengjianhong
@@ -18,19 +18,19 @@
 namespace qtrade::engine::event_bus {
 
 /// @brief Lane-M EventReactor：`EventPtr` FIFO 入队，按 `EventType` 调用 EventHandler
-class MarketEventReactor {
+class QuoteEventReactor {
  public:
   /// @brief 构造行情 EventReactor（绑定 MarketLanePolicy 循环）
-  MarketEventReactor();
+  QuoteEventReactor();
 
   /// @brief 析构并确保 Reactor 线程已停止
-  ~MarketEventReactor();
+  ~QuoteEventReactor();
 
   /// @brief 禁止拷贝构造
-  MarketEventReactor(const MarketEventReactor&) = delete;
+  QuoteEventReactor(const QuoteEventReactor&) = delete;
 
   /// @brief 禁止拷贝赋值
-  MarketEventReactor& operator=(const MarketEventReactor&) = delete;
+  QuoteEventReactor& operator=(const QuoteEventReactor&) = delete;
 
   /// @brief 启动 Reactor 线程并开始消费队列
   void Start();

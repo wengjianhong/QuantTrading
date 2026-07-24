@@ -1,4 +1,4 @@
-/// @file      return_event_reactor.hpp
+/// @file      trader_event_reactor.hpp
 /// @brief     Lane-R 回报 EventReactor（EventBus 子系统实现）
 /// @details   以 EventPtr FIFO 入队；Reactor 线程按 EventType 分发给 Order/Trade 订阅者
 /// @author    wengjianhong
@@ -18,19 +18,19 @@
 namespace qtrade::engine::event_bus {
 
 /// @brief Lane-R EventReactor：`EventPtr` FIFO 入队，按 `EventType` 调用 EventHandler
-class ReturnEventReactor {
+class TraderEventReactor {
  public:
   /// @brief 构造回报 EventReactor（绑定 ReturnLanePolicy 循环）
-  ReturnEventReactor();
+  TraderEventReactor();
 
   /// @brief 析构并确保 Reactor 线程已停止
-  ~ReturnEventReactor();
+  ~TraderEventReactor();
 
   /// @brief 禁止拷贝构造
-  ReturnEventReactor(const ReturnEventReactor&) = delete;
+  TraderEventReactor(const TraderEventReactor&) = delete;
 
   /// @brief 禁止拷贝赋值
-  ReturnEventReactor& operator=(const ReturnEventReactor&) = delete;
+  TraderEventReactor& operator=(const TraderEventReactor&) = delete;
 
   /// @brief 启动 Reactor 线程并开始消费队列
   void Start();
