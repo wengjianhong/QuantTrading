@@ -91,16 +91,14 @@ enum class ModuleNumber : uint64_t {
   kExecution = MakeModuleId(static_cast<uint64_t>(ServiceNumber::kEngine), 6),
   /// 订单管理模块(oms)
   kOrder = MakeModuleId(static_cast<uint64_t>(ServiceNumber::kEngine), 7),
-  /// 行情标准化模块（QuoteNormalizer）
-  kQuoteNormalizer = MakeModuleId(static_cast<uint64_t>(ServiceNumber::kEngine), 8),
+  /// 行情健康监控模块（QuoteHealthMonitor）
+  kQuoteHealthMonitor = MakeModuleId(static_cast<uint64_t>(ServiceNumber::kEngine), 8),
   /// 持仓管理模块
   kPosition = MakeModuleId(static_cast<uint64_t>(ServiceNumber::kEngine), 9),
   /// 风险管理模块
   kRisk = MakeModuleId(static_cast<uint64_t>(ServiceNumber::kEngine), 10),
   /// 策略引擎模块
   kStrategyEngine = MakeModuleId(static_cast<uint64_t>(ServiceNumber::kEngine), 11),
-  /// 交易标准化模块（TraderNormalizer）
-  kTraderNormalizer = MakeModuleId(static_cast<uint64_t>(ServiceNumber::kEngine), 12),
 };
 
 }  // namespace qtrade

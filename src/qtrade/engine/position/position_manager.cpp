@@ -142,11 +142,13 @@ void PositionManager::ApplyTrade(const Trade& trade) {
 }
 
 std::int64_t PositionManager::GetNetPosition(const std::string& instrument) const {
+  // 净持仓 = 多头总量 - 空头总量
   const auto position = GetPosition(instrument);
   return LongTotal(position) - ShortTotal(position);
 }
 
 std::int64_t PositionManager::GetGrossPosition(const std::string& instrument) const {
+  // 总持仓 = 多头总量 + 空头总量
   const auto position = GetPosition(instrument);
   return LongTotal(position) + ShortTotal(position);
 }

@@ -117,7 +117,7 @@ J 段失败时冻结对应账户的新单，并启动预占查询/释放流程�
 
 - **分段与时序以 §2.1、§7.2 为准**：A 段在 Lane-Q 执行策略、CMS 与实例风控；订单准入线程执行 E 段；J 段日志提交成功后，订单状态协调器应用 OMS/Account/PMS 状态并交给 EMS；C 段负责出站。订单/成交回报也先提交订单主日志，再更新内存状态和通知策略。
 - **控制面**：配置与风控阈值使用本地快照 + 出站 gRPC Watch；引擎不暴露 gRPC Server。具体 RPC 与故障语义见 §7.1。
-- **模块职责**：适配器将厂商 API/结构体映射为 `qtrade_sdk`；`QuoteNormalizer`/`TraderNormalizer` 仅做语义统一和发布，不自建队列；队列由 Lane-Q/Lane-T 承担。
+- **模块职责**：适配器将厂商 API/结构体映射为 `qtrade_sdk`；`TradingEngine` 将 SDK 回调接线至 EventBus；队列由 Lane-Q/Lane-T 承担；行情健康由 `QuoteHealthMonitor` 监控。
 - **租户上下文**：事件、OMS 状态和订单 ID 均携带 `tenant_id`；策略默认不可跨租户访问内存。
 
 ### 2.3 支撑服务范围与演进
@@ -195,8 +195,8 @@ config-service 按 `engine_id` 返回专属 `EngineConfig`。策略启停和普�
 |模块|功能|边界与状态所有权|可插拔性|技术与交互要点|
 |---|---|---|---|---|
 |**事件总线（EventLanes）**|分发 Tick/Bar 与订单/成交回报|只负责事件排队；不做业务校验、账簿更新或持久化|否，核心基础设施|Lane-Q 与 Lane-T 各自使用有界队列；队列满时按 §7.1 处理|
-|**行情标准化（QuoteNormalizer）**|校验并统一厂商行情，发布到 Lane-Q|不做策略调度、风控或二次排队|模块固定；`QuoteApi` 可替换|持有 `QuoteApi`，订阅实例品种并集；断线重连/切源在此或启动编排层执行|
-|**交易标准化（TraderNormalizer）**|统一订单/成交回报，发布到 Lane-T|不直接调用 OMS，也不发送订单|模块固定；`TraderSpi` 适配器可替换|映射订单状态、数量和错误码；OMS 更新由订单状态协调器负责|
+|**行情健康监控（QuoteHealthMonitor）**|检测行情陈旧并驱动 READY 门禁|不做策略调度、订阅编排或二次排队|模块固定；`QuoteApi` 可替换|由 `TradingEngine` 持有 `QuoteApi` 并编排订阅；断线重连/切源在启动编排层执行|
+|**交易回报入站（TradingEngine）**|将 SDK 订单/成交回调发布到 Lane-T|不直接调用 OMS，也不发送订单|模块固定；`TraderApi` 可替换|OMS 更新由订单状态协调器负责|
 |**策略引擎（StrategyEngine）**|加载策略、分发事件、接收交易信号、管理生命周期|策略只能产生 `OrderIntent`，不能绕过 CMS、Risk、OMS；同一策略的 Tick/Bar/回报回调必须串行|是，`IStrategy` 动态插件|每个策略使用串行 mailbox；配置在事件边界原子生效|
 |**合规（CMS）**|校验监管与静态硬规则，如禁交易名单、限购、日内频次|不维护实时资金/持仓账簿；规则变更必须审计|规则可配置，流程不可替换|位于策略信号后的首个准入关口；拦截原因进入 B/D 段留痕|
 |**实例风控（RiskManager）**|校验实例预算、策略/品种限制、PnL、行情健康和频率|只处理本实例内存状态；不裁决账户级资金/总敞口硬限制|规则可配置，执行器固定|A 段本地原子扣减预算；账户硬限制转交 E 段 `account-risk-service`|
@@ -253,8 +253,8 @@ config-service 按 `engine_id` 返回专属 `EngineConfig`。策略启停和普�
 
 | 通道 | 事件 | 典型路径 | 线程 |
 |---|---|---|---|
-| **Lane-Q** | Tick、Bar | 适配器 → QuoteNormalizer → StrategyEngine → `OrderIntent` | `QuoteEventReactor` 线程 |
-| **Lane-T** | Order、Trade | 适配器 → TraderNormalizer → 订单状态协调器 | `TraderEventReactor` 线程 |
+| **Lane-Q** | Tick、Bar | 适配器 → TradingEngine → StrategyEngine → `OrderIntent` | `QuoteEventReactor` 线程 |
+| **Lane-T** | Order、Trade | 适配器 → TradingEngine → 订单状态协调器 | `TraderEventReactor` 线程 |
 
 - **策略执行语义**：Tick、Bar、Order、Trade 都进入对应策略的同一个串行 mailbox；策略不会被两个线程同时回调。
 - **mailbox 顺序**：订单/成交回报高于普通行情；行情可按策略声明合并过期快照。每个事件记录 `enqueue_seq` 和来源时间，回测使用同一排序规则。
@@ -398,13 +398,13 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
 
 行情和交易柜台均通过稳定的 Api/Spi 契约接入。Api 负责引擎主动请求，Spi 负责厂商异步回调；每个厂商实现一对适配器，将厂商协议转换为 QTrade 标准模型。
 
-适配器不包含策略、风控、OMS 或账户业务。行情链路为“适配器 → QuoteNormalizer → Lane-Q”，交易回报链路为“适配器 → TraderNormalizer → Lane-T → 订单状态协调器”；出站订单由 EMS 经交易 Api 发送。SDK 接口、继承关系、目录和实现示例见《[Guide.md](Guide.md)》§5.1。
+适配器不包含策略、风控、OMS 或账户业务。行情链路为“适配器 → TradingEngine → Lane-Q”，交易回报链路为“适配器 → TradingEngine → Lane-T → 订单状态协调器”；出站订单由 EMS 经交易 Api 发送。SDK 接口、继承关系、目录和实现示例见《[Guide.md](Guide.md)》§5.1。
 
-### 6.2 行情数据源（QuoteApi + QuoteNormalizer）
+### 6.2 行情数据源（QuoteApi + QuoteHealthMonitor）
 
 #### 6.2.1 设计原则
 
-行情分片由 §2.5 的部署配置决定，不引入独立行情源管理服务。每个实例通过可替换的行情适配器接收自身品种并集，`QuoteNormalizer` 统一行情语义并发布至 Lane-Q；按品种一对一投递策略。行情源重连或切换由引擎启动编排或标准化模块负责，具体 SDK 接线见《[Guide.md](Guide.md)》§5.1。
+行情分片由 §2.5 的部署配置决定，不引入独立行情源管理服务。每个实例通过可替换的行情适配器接收自身品种并集，`TradingEngine` 将回调发布至 Lane-Q 并由 `QuoteHealthMonitor` 驱动 READY；按品种一对一投递策略。行情源重连或切换由引擎启动编排负责，具体 SDK 接线见《[Guide.md](Guide.md)》§5.1。
 
 #### 6.2.2 行情源切换策略（分阶段）
 
@@ -426,7 +426,7 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
 ### 6.3 交易执行模块适配器
 
 - **稳定契约**：`qtrade_sdk::trader::TraderApi`/`TraderSpi` 屏蔽柜台连接、订单操作、查询和异步回报的厂商差异；具体方法和字段属于 SDK 接口文档，不在本架构文档展开。
-- **边界**：Api 适配器承接 EMS 的出站请求，Spi 适配器将柜台回报交给 `TraderNormalizer` → Lane-T → 订单状态协调器。适配器不裁决策略、合规或风控。
+- **边界**：Api 适配器承接 EMS 的出站请求，Spi 适配器将柜台回报交给 `TradingEngine` → Lane-T → 订单状态协调器。适配器不裁决策略、合规或风控。
 - **恢复能力**：每个交易适配器必须声明是否支持按客户端订单号查询、未终结订单查询、成交游标和断线补报。不支持完整查询的柜台必须使用本地持久化回报 inbox，并在部署评审中说明恢复边界。
 - **扩展点**：每家柜台提供一组 Api/Spi 插件实现（§6.1）；执行通道可按品种或成本路由。连接健康、限流、协议兼容、执行审计和性能监控是适配器必须暴露的运行能力。
 
@@ -527,17 +527,17 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
 
 ### 7.2 核心数据流（最关键）
 
-引擎内数据面统一为 **适配器 → Normalizer → EventBus → Handler**（双 Reactor 见 §3.3）。
+引擎内数据面统一为 **适配器 → TradingEngine → EventBus → Handler**（双 Reactor 见 §3.3）。
 
-| 通道 | 适配器 → Normalizer → `Publish*` | 出队后 Handler |
+| 通道 | 适配器 → TradingEngine → `Publish*` | 出队后 Handler |
 |---|---|---|
-| **Lane-Q** | 行情适配器 → `QuoteNormalizer` | `StrategyEngine` → CMS → 实例 Risk → `OrderIntent` |
-| **Lane-T** | 交易适配器 → `TraderNormalizer` | 订单状态协调器 → OMS/Account/PMS → 策略 mailbox |
+| **Lane-Q** | 行情适配器 → `TradingEngine` | `StrategyEngine` → CMS → 实例 Risk → `OrderIntent` |
+| **Lane-T** | 交易适配器 → `TradingEngine` | 订单状态协调器 → OMS/Account/PMS → 策略 mailbox |
 
 **1. 行情 → 发单（A → [E] → J → C）**
 
 ```text
-外部行情 → 适配器 → QuoteNormalizer → Lane-Q
+外部行情 → 适配器 → TradingEngine → Lane-Q
   → StrategyEngine → CMS → 实例 Risk → OrderIntent 入队          [A 段]
   → 订单准入线程 → EMS admission token
   → account-risk-service ReserveOrder（Production 强制）         [E 段]
@@ -549,7 +549,7 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
 **2. 订单/成交回报（Lane-T）**
 
 ```text
-交易所 → 适配器 → TraderNormalizer → Lane-T
+交易所 → 适配器 → TradingEngine → Lane-T
   → 订单主日志提交规范化事件
   → 订单状态协调器 → OMS / Account / PMS
   → 对应策略的串行 mailbox
@@ -633,7 +633,7 @@ A 段 enqueue → Outbound → log_client / monitor_client / …（fire-and-forg
 - **Lite 档位（开发/单租户）**：允许 config-service、observability 与 engine 同 VM 部署，不承诺生产级隔离和性能
 - **Production/Institutional 档位**：支撑服务与 engine 分机部署；强隔离租户使用专属实例或 VM
 - **网络隔离**：交易引擎独立内网，与支撑服务、接入层防火墙隔离
-- **行情**：每实例 `QuoteNormalizer` + `QuoteApi` 适配器；failover 与跨机房接入点选择分阶段增强（§6.2.2）
+- **行情**：每实例 `QuoteApi` 适配器 + `QuoteHealthMonitor`；failover 与跨机房接入点选择分阶段增强（§6.2.2）
 
 ### 8.2 当前故障恢复策略
 

@@ -18,6 +18,9 @@ namespace qtrade::engine::event_bus {
 /// @brief EventBus 子系统入口：持有 QuoteEventReactor + TraderEventReactor
 class EventLanes {
  public:
+  /// @brief 构造 Lane-Q / Lane-T
+  EventLanes() = default;
+
   /// @brief 启动 Lane-Q 与 Lane-T 两条 EventReactor
   void Start();
 

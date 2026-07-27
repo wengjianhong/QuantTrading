@@ -20,8 +20,8 @@ namespace qtrade::engine::event_bus {
 /// @brief Lane-Q EventReactor：`EventPtr` FIFO 入队，按 `EventType` 调用 EventHandler
 class QuoteEventReactor {
  public:
-  /// @brief 构造行情 EventReactor（满队列时丢弃最旧行情）
-  QuoteEventReactor(LanePolicy policy);
+  /// @brief 构造行情 EventReactor
+  QuoteEventReactor();
 
   /// @brief 析构并确保 Reactor 线程已停止
   ~QuoteEventReactor();
@@ -31,6 +31,13 @@ class QuoteEventReactor {
   QuoteEventReactor(const QuoteEventReactor&) = delete;
   QuoteEventReactor& operator=(QuoteEventReactor&&) = delete;
   QuoteEventReactor& operator=(const QuoteEventReactor&) = delete;
+
+  /// @brief 设置队列策略
+  /// @note 默认队列容量为 8192，满队列时丢弃最旧事件
+  /// @warning 仅未 Start 时生效，Reactor 正在运行时忽略设置
+  ///
+  /// @param policy 队列容量与满队列处理策略
+  void SetLanePolicy(LanePolicy policy);
 
   /// @brief 启动 Reactor 线程并开始消费队列
   void Start();

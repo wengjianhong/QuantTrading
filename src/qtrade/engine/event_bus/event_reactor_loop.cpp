@@ -13,7 +13,21 @@
 namespace qtrade::engine::event_bus {
 
 template <typename Event>
-EventReactorLoop<Event>::EventReactorLoop(std::string_view name, LanePolicy policy) : name_(name), policy_(policy) {}
+EventReactorLoop<Event>::EventReactorLoop(std::string_view name) : name_(name) {}
+
+template <typename Event>
+void EventReactorLoop<Event>::SetLanePolicy(LanePolicy policy) {
+  std::lock_guard<std::mutex> lock(mutex_);
+
+  // 如果 Reactor 正在运行，则忽略设置队列策略
+  if (running_.load(std::memory_order_acquire)) {
+    spdlog::warn("[{}] ignore SetLanePolicy while reactor is running", name_);
+    return;
+  }
+
+  // 设置队列策略
+  policy_ = policy;
+}
 
 template <typename Event>
 EventReactorLoop<Event>::~EventReactorLoop() {
@@ -124,6 +138,7 @@ std::size_t EventReactorLoop<Event>::RejectedCount() const {
 
 template <typename Event>
 void EventReactorLoop<Event>::RunLoop(const std::function<void(const Event&)>& handle_event) {
+  // 消费线程主循环：阻塞出队 → 分发 handler，直到 Stop 且队列排空
   while (true) {
     auto [result, event] = RunOnce();
 

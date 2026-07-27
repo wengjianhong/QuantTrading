@@ -11,10 +11,16 @@
 
 namespace qtrade::engine::event_bus {
 
-QuoteEventReactor::QuoteEventReactor(LanePolicy policy) : loop_("QuoteEventReactor", policy) {}
+QuoteEventReactor::QuoteEventReactor() : loop_("QuoteEventReactor") {
+  SetLanePolicy(LanePolicy{.drop_oldest_on_full = true});
+}
 
 QuoteEventReactor::~QuoteEventReactor() {
   Stop();
+}
+
+void QuoteEventReactor::SetLanePolicy(LanePolicy policy) {
+  loop_.SetLanePolicy(policy);
 }
 
 void QuoteEventReactor::Start() {
@@ -32,6 +38,7 @@ void QuoteEventReactor::Stop() {
 }
 
 void QuoteEventReactor::SubscribeTick(TickEventHandler handler) {
+  // 注册 Tick 订阅者，由 HandleEvent 在消费线程中同步回调
   std::lock_guard<std::mutex> lock(handlers_mutex_);
   tick_handlers_.push_back(std::move(handler));
 }

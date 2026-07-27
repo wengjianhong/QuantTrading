@@ -19,10 +19,9 @@
 #include "qtrade/engine/core/engine_fence.hpp"
 #include "qtrade/engine/core/engine_lifecycle.hpp"
 #include "qtrade/engine/core/order_pipeline.hpp"
+#include "qtrade/engine/core/quote_health_monitor.hpp"
 #include "qtrade/engine/ems/execution_manager.hpp"
 #include "qtrade/engine/event_bus/event_lanes.hpp"
-#include "qtrade/engine/normalizer/quote_normalizer.hpp"
-#include "qtrade/engine/normalizer/trader_normalizer.hpp"
 #include "qtrade/engine/oms/order_manager.hpp"
 #include "qtrade/engine/position/position_manager.hpp"
 #include "qtrade/engine/risk/account_risk_release_worker.hpp"
@@ -31,12 +30,16 @@
 
 #include <qtrade/error_code/error_codes.hpp>
 #include <qtrade/proto/config/v1/config.pb.h>
+#include <qtrade_sdk/quote/quote_api.hpp>
+#include <qtrade_sdk/trader/trader_api.hpp>
 
 #include <atomic>
 #include <cstdint>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <unordered_set>
+#include <vector>
 
 namespace qtrade::engine {
 
@@ -89,13 +92,33 @@ class TradingEngine {
   /// @return 事件通道引用
   event_bus::EventLanes& GetEventLanes();
 
-  /// @brief 获取行情标准化模块引用
-  /// @return QuoteNormalizer 引用
-  normalizer::QuoteNormalizer& GetQuoteNormalizer();
+  /// @brief 绑定行情适配器（仅未 Start 时可设置；测试注入用）
+  /// @param quote_api 行情适配器所有权
+  void SetQuoteApi(std::unique_ptr<qtrade_sdk::quote::QuoteApi> quote_api);
 
-  /// @brief 获取交易标准化模块引用
-  /// @return TraderNormalizer 引用
-  normalizer::TraderNormalizer& GetTraderNormalizer();
+  /// @brief 绑定交易适配器（仅未 Start 时可设置；测试注入用）
+  /// @param trader_api 交易适配器所有权
+  void SetTraderApi(std::unique_ptr<qtrade_sdk::trader::TraderApi> trader_api);
+
+  /// @brief 返回当前行情适配器
+  /// @return 行情适配器指针；未设置时返回 nullptr
+  [[nodiscard]] qtrade_sdk::quote::QuoteApi* GetQuoteApi();
+
+  /// @brief 返回当前交易适配器
+  /// @return 交易适配器指针；未设置时返回 nullptr
+  [[nodiscard]] qtrade_sdk::trader::TraderApi* GetTraderApi();
+
+  /// @brief 订阅合约行情（须已 Start 且行情通道已连接）
+  /// @param instruments 合约列表
+  void SubscribeQuote(const std::vector<std::string>& instruments);
+
+  /// @brief 取消订阅合约行情
+  /// @param instruments 合约列表
+  void UnsubscribeQuote(const std::vector<std::string>& instruments);
+
+  /// @brief 查询行情是否健康
+  /// @return 已收到有效行情且未超时时返回 true
+  [[nodiscard]] bool IsQuoteHealthy() const;
 
   /// @brief 获取策略引擎引用
   /// @return StrategyEngine 引用
@@ -172,7 +195,7 @@ class TradingEngine {
   /// @brief Start-2: 柜台订单/成交/资金/持仓对账
   ErrorCode ReconcileBrokerState();
 
-  /// @brief Start-3: 启动 risk outbox、事件通道、标准化、策略与 EMS，并订阅合约
+  /// @brief Start-3: 启动 risk outbox、事件通道、策略与 EMS，并订阅合约
   ErrorCode StartRuntimeModules();
 
   /// @brief Start-4: 推进 BrokerSynced/RiskSynced，并按行情门禁尝试 READY
@@ -200,6 +223,15 @@ class TradingEngine {
   /// @brief 处理行情健康变化并更新 READY 门禁
   void OnMarketHealthChanged(bool healthy);
 
+  /// @brief 注册行情 SDK 回调并接入 Lane-Q
+  void WireQuoteCallbacks();
+
+  /// @brief 注册交易 SDK 回调并接入 Lane-T
+  void WireTraderCallbacks();
+
+  /// @brief 断开并释放行情/交易适配器
+  void DisconnectAdapters();
+
   /// 是否已完成 Init
   std::atomic_bool initialized_ = false;
   /// 是否已 Start
@@ -222,10 +254,12 @@ class TradingEngine {
   event_bus::EventLanes event_lanes_;
   /// 策略引擎
   strategy::StrategyEngine strategy_engine_;
-  /// 行情标准化
-  normalizer::QuoteNormalizer quote_normalizer_;
-  /// 交易标准化
-  normalizer::TraderNormalizer trader_normalizer_;
+  /// 行情健康监控
+  QuoteHealthMonitor quote_health_monitor_;
+  /// 行情适配器
+  std::unique_ptr<qtrade_sdk::quote::QuoteApi> quote_api_;
+  /// 交易适配器
+  std::unique_ptr<qtrade_sdk::trader::TraderApi> trader_api_;
   /// 合规模块
   cms::ComplianceManager compliance_;
   /// 执行管理模块

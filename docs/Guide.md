@@ -59,7 +59,7 @@ qtrade/
 │   │   │   ├── event_bus/
 │   │   │   │   ├── quote_event_reactor.*   # Lane-Q：Tick/Bar 事件
 │   │   │   │   └── trader_event_reactor.*  # Lane-T：Order/Trade 回报事件
-│   │   │   ├── normalizer/
+│   │   │   ├── core/               # 启动编排、生命周期、围栏、订单流水线、行情健康监控
 │   │   │   ├── strategy/
 │   │   │   ├── cms/
 │   │   │   ├── ems/
@@ -262,7 +262,7 @@ qtrade/
 |--------|------|------|
 | `XxxQuoteApi` / `XxxTraderApi` | **Target Api**（`qtrade_sdk::*Api`） | 引擎主动调用 → 转发至厂商 Api |
 | `XxxQuoteSpi` / `XxxTraderSpi` | **Adaptee Spi**（厂商 `*Spi`，接入 SDK 后） | 厂商回调 → 结构体转换 → 调用引擎注册的 Target `*Spi` |
-| 引擎内 `QuoteNormalizer` / `TraderNormalizer` | **Normalizer** | 适配器回调；仅标准化 + `Publish*`（回报业务见 `ReturnHandler`，§3.1） |
+| 引擎内 `TradingEngine` + `QuoteHealthMonitor` | **Engine Ingress** | 适配器回调接线至 EventBus；行情健康驱动 READY 门禁 |
 
 Spi 适配器**不**继承 `qtrade_sdk::*Spi`；`#include` 该头文件仅为使用 `QuoteSpi*` 与结构体类型。
 
@@ -290,7 +290,7 @@ class VendorQuoteSpi final : public VendorSdk::QuoteSpi {
 };
 ```
 
-Api 适配器实现 QTrade 的稳定接口并转发调用；Spi 适配器继承厂商回调接口、转换数据后委托给引擎 Target。不得在适配器内执行策略、风险裁决或 OMS 状态变更；标准化后由 Normalizer 发布事件。
+Api 适配器实现 QTrade 的稳定接口并转发调用；Spi 适配器继承厂商回调接口、转换数据后由 `TradingEngine` 接线发布至 EventBus。不得在适配器内执行策略、风险裁决或 OMS 状态变更。
 
 3. **策略插件**：继承 `IStrategy` 基类，**由独立仓库维护**，本仓库仅保留示例
 
@@ -441,7 +441,7 @@ Api 适配器实现 QTrade 的稳定接口并转发调用；Spi 适配器继承�
 | CMS / OMS / EMS / 风控 / 持仓 | MVP | 🟡 模块骨架已有；订单主日志、状态机与幂等语义仍待完善 |
 | 配置驱动分片与一品种一策略校验 | MVP | 🟡 `EngineConfig` 模型已对齐；配置校验和策略一对一分发待实现 |
 | account-service 与凭证、配置分离 | MVP | ❌ 服务与凭证链路待实现 |
-| 行情标准化与可替换行情适配器 | MVP | ✅ 已有 `QuoteNormalizer` 与 `QuoteApi`；故障切换待实现 |
+| 行情适配器与 READY 门禁 | MVP | ✅ 已有 `QuoteApi` + `QuoteHealthMonitor`；故障切换待实现 |
 | 交易回报标准化与 OMS 串联 | MVP | 🟡 骨架已有；语义标准化与回报链路待完善 |
 | config-client Watch | MVP | 🟡 客户端待接入引擎 |
 | D 段旁路上报与支撑微服务 | MVP | 🟡 接口或服务桩存在；远程上报与引擎集成待实现 |

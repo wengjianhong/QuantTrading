@@ -297,6 +297,7 @@ ErrorCode OrderJournal::Append(OrderJournalRecord record) {
 }
 
 std::vector<OrderJournalRecord> OrderJournal::Replay() const {
+  // 读取并排序全部日志行，供 OMS 启动时重建内存状态
   std::lock_guard lock(mutex_);
   return path_.empty() ? std::vector<OrderJournalRecord>{} : ReadRecords(path_);
 }

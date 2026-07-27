@@ -116,10 +116,12 @@ void AccountRiskReleaseWorker::Stop() {
     std::lock_guard lock(mutex_);
     running_ = false;
   }
+  // 1. 唤醒工作线程并等待退出
   cv_.notify_all();
   if (worker_.joinable()) {
     worker_.join();
   }
+  // 2. 关闭 outbox 文件句柄并清空内存状态
   std::lock_guard lock(mutex_);
   if (fd_ >= 0) {
     ::close(fd_);

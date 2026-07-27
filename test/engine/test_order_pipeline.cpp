@@ -27,7 +27,7 @@ void InstallConnectedMockQuote(qtrade::engine::TradingEngine& engine) {
   qtrade_sdk::quote::ConnectRequest request;
   request.connection_string = "mock://quote";
   EXPECT_EQ(quote_api->Connect(request), qtrade::ErrorCode::kSuccess);
-  engine.GetQuoteNormalizer().SetQuoteApi(std::move(quote_api));
+  engine.SetQuoteApi(std::move(quote_api));
 }
 
 }  // namespace
@@ -45,14 +45,13 @@ TEST(OrderPipeline, MockOrderFlowsThroughOmsAndTraderLane) {
   ASSERT_EQ(engine.Init(config), qtrade::ErrorCode::kSuccess);
 
   InstallConnectedMockQuote(engine);
-  auto& trader_normalizer = engine.GetTraderNormalizer();
-  trader_normalizer.SetTraderApi(qtrade::adapter::mock::trader::CreateMockTraderApi());
+  engine.SetTraderApi(qtrade::adapter::mock::trader::CreateMockTraderApi());
   qtrade_sdk::trader::ConnectRequest connect_request;
   connect_request.connection_string = "mock://test";
-  ASSERT_EQ(trader_normalizer.GetTraderApi()->Connect(connect_request), qtrade::ErrorCode::kSuccess);
+  ASSERT_EQ(engine.GetTraderApi()->Connect(connect_request), qtrade::ErrorCode::kSuccess);
 
   ASSERT_EQ(engine.Start(), qtrade::ErrorCode::kSuccess);
-  engine.GetQuoteNormalizer().Subscribe({"IF2506"});
+  engine.SubscribeQuote({"IF2506"});
   WaitUntil([&] { return engine.IsReady(); });
   ASSERT_TRUE(engine.IsReady());
 
@@ -100,12 +99,12 @@ TEST(OrderPipeline, CancelFlowsThroughEmsAndVenueReport) {
   auto trader_api = std::make_unique<qtrade::adapter::mock::trader::MockTraderApi>();
   trader_api->SetAutoFill(false);
   auto* raw_trader_api = trader_api.get();
-  engine.GetTraderNormalizer().SetTraderApi(std::move(trader_api));
+  engine.SetTraderApi(std::move(trader_api));
   qtrade_sdk::trader::ConnectRequest connect_request;
   connect_request.connection_string = "mock://cancel";
   ASSERT_EQ(raw_trader_api->Connect(connect_request), qtrade::ErrorCode::kSuccess);
   ASSERT_EQ(engine.Start(), qtrade::ErrorCode::kSuccess);
-  engine.GetQuoteNormalizer().Subscribe({"IF2506"});
+  engine.SubscribeQuote({"IF2506"});
   WaitUntil([&] { return engine.IsReady(); });
   ASSERT_TRUE(engine.IsReady());
 

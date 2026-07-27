@@ -11,10 +11,14 @@
 
 namespace qtrade::engine::event_bus {
 
-TraderEventReactor::TraderEventReactor(LanePolicy policy) : loop_("TraderEventReactor", policy) {}
+TraderEventReactor::TraderEventReactor() : loop_("TraderEventReactor") {}
 
 TraderEventReactor::~TraderEventReactor() {
   Stop();
+}
+
+void TraderEventReactor::SetLanePolicy(LanePolicy policy) {
+  loop_.SetLanePolicy(policy);
 }
 
 void TraderEventReactor::Start() {
@@ -33,6 +37,7 @@ void TraderEventReactor::Stop() {
 }
 
 void TraderEventReactor::SubscribeOrder(OrderEventHandler handler) {
+  // 注册订单回报订阅者，可在 Start 前或后调用
   std::lock_guard<std::mutex> lock(handlers_mutex_);
   order_handlers_.push_back(std::move(handler));
 }

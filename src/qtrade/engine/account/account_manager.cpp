@@ -93,6 +93,7 @@ double AccountManager::GetNetCashFlow() const {
 
 double AccountManager::GetAvailableFunds() const {
   std::lock_guard lock(mutex_);
+  // 可用资金 = 柜台购买力 + 本地成交净现金流 - 未成交买单冻结
   const double buying_power = has_asset_snapshot_ ? asset_.buying_power : 0.0;
   return buying_power + net_cash_flow_ - frozen_amount_;
 }

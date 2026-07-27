@@ -17,6 +17,7 @@ void ExecutionManager::Start() {
   if (running_) {
     return;
   }
+  // 启动单线程工作队列，串行调用 TraderApi 避免通道并发写
   running_ = true;
   worker_ = std::thread([this] { Run(); });
 }
@@ -29,10 +30,12 @@ void ExecutionManager::Stop() {
     }
     running_ = false;
   }
+  // 1. 唤醒工作线程并等待排空
   cv_.notify_all();
   if (worker_.joinable()) {
     worker_.join();
   }
+  // 2. 丢弃未发送的待发队列
   std::lock_guard lock(mutex_);
   pending_items_.clear();
 }
@@ -51,6 +54,7 @@ void ExecutionManager::SetResultHandlers(BeforeSendHandler before_send,
   cancel_result_ = std::move(cancel_result);
 }
 
+// 新单入队：FIFO 发送，队列满返回 kResourceExhausted
 ErrorCode ExecutionManager::Enqueue(const qtrade_sdk::trader::Order& order) {
   {
     std::lock_guard lock(mutex_);
@@ -69,6 +73,7 @@ ErrorCode ExecutionManager::Enqueue(const qtrade_sdk::trader::Order& order) {
   return ErrorCode::kSuccess;
 }
 
+// 撤单入队：优先插队到队头，降低撤单延迟
 ErrorCode ExecutionManager::EnqueueCancel(const qtrade_sdk::trader::CancelOrderRequest& request) {
   {
     std::lock_guard lock(mutex_);
@@ -87,6 +92,7 @@ ErrorCode ExecutionManager::EnqueueCancel(const qtrade_sdk::trader::CancelOrderR
   return ErrorCode::kSuccess;
 }
 
+// 工作线程主循环：出队 → before_send → SendOrder / CancelOrder → 回写结果
 void ExecutionManager::Run() {
   while (true) {
     // 1. 等待出队并拷贝回调/通道指针

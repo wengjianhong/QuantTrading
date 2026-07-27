@@ -25,6 +25,7 @@ OrderPipeline::OrderPipeline(cms::ComplianceManager& compliance,
     account_risk_client_(account_risk_client) {}
 
 void OrderPipeline::SetAccountRiskClient(qtrade::client::AccountRiskClient* account_risk_client) {
+  // Init 阶段注入，Submit 时执行 E 段预占
   account_risk_client_ = account_risk_client;
 }
 
@@ -33,6 +34,7 @@ void OrderPipeline::SetLogClient(qtrade::client::LogClient* log_client) {
 }
 
 void OrderPipeline::SetReleaseHandler(ReleaseHandler handler) {
+  // 预占后落单/入队失败时，通过 outbox worker 异步释放
   release_handler_ = std::move(handler);
 }
 
