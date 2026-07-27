@@ -20,16 +20,16 @@ namespace qtrade::engine::event_bus {
 /// @brief Lane-Q EventReactor：`EventPtr` FIFO 入队，按 `EventType` 调用 EventHandler
 class QuoteEventReactor {
  public:
-  /// @brief 构造行情 EventReactor（绑定 QuoteLanePolicy 循环）
-  QuoteEventReactor();
+  /// @brief 构造行情 EventReactor（满队列时丢弃最旧行情）
+  QuoteEventReactor(LanePolicy policy);
 
   /// @brief 析构并确保 Reactor 线程已停止
   ~QuoteEventReactor();
 
-  /// @brief 禁止拷贝构造
+  /// @brief 禁止拷贝构造/赋值
+  QuoteEventReactor(QuoteEventReactor&&) = delete;
   QuoteEventReactor(const QuoteEventReactor&) = delete;
-
-  /// @brief 禁止拷贝赋值
+  QuoteEventReactor& operator=(QuoteEventReactor&&) = delete;
   QuoteEventReactor& operator=(const QuoteEventReactor&) = delete;
 
   /// @brief 启动 Reactor 线程并开始消费队列
@@ -68,7 +68,7 @@ class QuoteEventReactor {
   void HandleEvent(const Event& event);
 
   /// Lane-Q FIFO Reactor 循环
-  EventReactorLoop<EventPtr, QuoteLanePolicy> loop_;
+  EventReactorLoop<EventPtr> loop_;
   /// Tick 事件订阅列表
   std::vector<TickEventHandler> tick_handlers_;
   /// Bar 事件订阅列表

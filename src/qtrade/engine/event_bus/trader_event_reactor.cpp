@@ -11,18 +11,22 @@
 
 namespace qtrade::engine::event_bus {
 
-TraderEventReactor::TraderEventReactor() : loop_("TraderEventReactor") {}
+TraderEventReactor::TraderEventReactor(LanePolicy policy) : loop_("TraderEventReactor", policy) {}
 
 TraderEventReactor::~TraderEventReactor() {
   Stop();
 }
 
 void TraderEventReactor::Start() {
+  // 1. 将订单与成交回报交给类型分发器处理
   loop_.Start([this](const EventPtr& event) { HandleEvent(*event); });
 }
 
 void TraderEventReactor::Stop() {
+  // 1. 停止消费线程并拒绝新的交易回报
   loop_.Stop();
+
+  // 2. 清理订阅者，解除对订单状态协调逻辑的引用
   std::lock_guard<std::mutex> lock(handlers_mutex_);
   order_handlers_.clear();
   trade_handlers_.clear();
@@ -39,6 +43,7 @@ void TraderEventReactor::SubscribeTrade(TradeEventHandler handler) {
 }
 
 void TraderEventReactor::PublishOrder(const qtrade_sdk::trader::Order& order) {
+  // 1. 复制订单回报；队列满时由 LanePolicy 决定是否拒绝
   loop_.Publish(std::make_unique<OrderEvent>(order));
 }
 
@@ -55,20 +60,14 @@ std::size_t TraderEventReactor::PendingCount() const {
 }
 
 void TraderEventReactor::HandleEvent(const Event& event) {
-  // 1. 在锁内快照订阅列表，避免回调期间长时间持锁
-  std::vector<OrderEventHandler> order_handlers;
-  std::vector<TradeEventHandler> trade_handlers;
-  {
-    std::lock_guard<std::mutex> lock(handlers_mutex_);
-    order_handlers = order_handlers_;
-    trade_handlers = trade_handlers_;
-  }
+  std::lock_guard<std::mutex> lock(handlers_mutex_);
 
-  // 2. 按 EventType 分发并隔离 Handler 异常
+  // 按 EventType 分发并隔离 Handler 异常
   switch (event.type) {
+    /// 订单回报事件
     case EventType::kOrderUpdate: {
       const auto& payload = static_cast<const OrderEvent&>(event).order;
-      for (const auto& handler : order_handlers) {
+      for (const auto& handler : order_handlers_) {
         try {
           handler(payload);
         } catch (const std::exception& e) {
@@ -77,9 +76,11 @@ void TraderEventReactor::HandleEvent(const Event& event) {
       }
       break;
     }
+
+    /// 成交回报事件
     case EventType::kTradeUpdate: {
       const auto& payload = static_cast<const TradeEvent&>(event).trade;
-      for (const auto& handler : trade_handlers) {
+      for (const auto& handler : trade_handlers_) {
         try {
           handler(payload);
         } catch (const std::exception& e) {
@@ -88,6 +89,8 @@ void TraderEventReactor::HandleEvent(const Event& event) {
       }
       break;
     }
+
+    /// 未知事件
     default:
       spdlog::warn("[TraderEventReactor] ignored event type {}", static_cast<int>(event.type));
       break;

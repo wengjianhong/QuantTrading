@@ -20,16 +20,16 @@ namespace qtrade::engine::event_bus {
 /// @brief Lane-T EventReactor：`EventPtr` FIFO 入队，按 `EventType` 调用 EventHandler
 class TraderEventReactor {
  public:
-  /// @brief 构造回报 EventReactor（绑定 TraderLanePolicy 循环）
-  TraderEventReactor();
+  /// @brief 构造回报 EventReactor（满队列时拒绝新回报）
+  TraderEventReactor(LanePolicy policy);
 
   /// @brief 析构并确保 Reactor 线程已停止
   ~TraderEventReactor();
 
-  /// @brief 禁止拷贝构造
+  /// @brief 禁止拷贝构造/赋值
+  TraderEventReactor(TraderEventReactor&&) = delete;
   TraderEventReactor(const TraderEventReactor&) = delete;
-
-  /// @brief 禁止拷贝赋值
+  TraderEventReactor& operator=(TraderEventReactor&&) = delete;
   TraderEventReactor& operator=(const TraderEventReactor&) = delete;
 
   /// @brief 启动 Reactor 线程并开始消费队列
@@ -68,7 +68,7 @@ class TraderEventReactor {
   void HandleEvent(const Event& event);
 
   /// Lane-T FIFO Reactor 循环
-  EventReactorLoop<EventPtr, TraderLanePolicy> loop_;
+  EventReactorLoop<EventPtr> loop_;
   /// 订单回报订阅列表
   std::vector<OrderEventHandler> order_handlers_;
   /// 成交回报订阅列表

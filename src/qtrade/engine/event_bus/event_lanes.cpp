@@ -12,13 +12,16 @@
 namespace qtrade::engine::event_bus {
 
 void EventLanes::Start() {
+  // 1. 先建立行情通道，再建立交易回报通道
   quote_event_reactor_.Start();
   trader_event_reactor_.Start();
-  spdlog::info("[EventLanes] Market + Return event reactors started");
+  spdlog::info("[EventLanes] Quote + Trader event reactors started");
 }
 
 void EventLanes::Stop() {
+  // 1. 优先停止交易回报通道，避免关闭期间继续修改交易状态
   trader_event_reactor_.Stop();
+  // 2. 再停止行情通道并释放订阅回调
   quote_event_reactor_.Stop();
   spdlog::info("[EventLanes] stopped cleanly");
 }

@@ -11,18 +11,21 @@
 
 namespace qtrade::engine::event_bus {
 
-QuoteEventReactor::QuoteEventReactor() : loop_("QuoteEventReactor") {}
+QuoteEventReactor::QuoteEventReactor(LanePolicy policy) : loop_("QuoteEventReactor", policy) {}
 
 QuoteEventReactor::~QuoteEventReactor() {
   Stop();
 }
 
 void QuoteEventReactor::Start() {
+  // 1. 将循环出队事件交给类型分发器处理
   loop_.Start([this](const EventPtr& event) { HandleEvent(*event); });
 }
 
 void QuoteEventReactor::Stop() {
+  // 1. 停止消费线程并拒绝新的行情事件
   loop_.Stop();
+  // 2. 清理订阅者，解除对策略与外部对象的引用
   std::lock_guard<std::mutex> lock(handlers_mutex_);
   tick_handlers_.clear();
   bar_handlers_.clear();
@@ -39,6 +42,7 @@ void QuoteEventReactor::SubscribeBar(BarEventHandler handler) {
 }
 
 void QuoteEventReactor::PublishTick(const qtrade_sdk::quote::MarketTick& tick) {
+  // 1. 复制行情快照，交由 LanePolicy 决定队列满时的处理方式
   loop_.Publish(std::make_unique<TickEvent>(tick));
 }
 
@@ -55,20 +59,14 @@ std::size_t QuoteEventReactor::PendingCount() const {
 }
 
 void QuoteEventReactor::HandleEvent(const Event& event) {
-  // 1. 在锁内快照订阅列表，避免回调期间长时间持锁
-  std::vector<TickEventHandler> tick_handlers;
-  std::vector<BarEventHandler> bar_handlers;
-  {
-    std::lock_guard<std::mutex> lock(handlers_mutex_);
-    tick_handlers = tick_handlers_;
-    bar_handlers = bar_handlers_;
-  }
+  std::lock_guard<std::mutex> lock(handlers_mutex_);
 
-  // 2. 按 EventType 分发并隔离 Handler 异常
+  // 按 EventType 分发并隔离 Handler 异常
   switch (event.type) {
+    /// 行情事件
     case EventType::kTickData: {
       const auto& payload = static_cast<const TickEvent&>(event).tick;
-      for (const auto& handler : tick_handlers) {
+      for (const auto& handler : tick_handlers_) {
         try {
           handler(payload);
         } catch (const std::exception& e) {
@@ -77,9 +75,11 @@ void QuoteEventReactor::HandleEvent(const Event& event) {
       }
       break;
     }
+
+    /// 分钟线事件
     case EventType::kBarData: {
       const auto& payload = static_cast<const BarEvent&>(event).bar;
-      for (const auto& handler : bar_handlers) {
+      for (const auto& handler : bar_handlers_) {
         try {
           handler(payload);
         } catch (const std::exception& e) {
@@ -88,6 +88,8 @@ void QuoteEventReactor::HandleEvent(const Event& event) {
       }
       break;
     }
+
+    /// 未知事件
     default:
       spdlog::warn("[QuoteEventReactor] ignored event type {}", static_cast<int>(event.type));
       break;
