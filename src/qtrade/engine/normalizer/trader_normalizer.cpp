@@ -1,6 +1,6 @@
 /// @file      trader_normalizer.cpp
 /// @brief     交易标准化模块实现
-/// @details   接收交易通道回报，校验过滤后发布至 Lane-R
+/// @details   接收交易通道回报，校验过滤后发布至 Lane-T
 /// @author    wengjianhong
 /// @date      2026-06-28
 /// @copyright CC BY-NC-SA 4.0

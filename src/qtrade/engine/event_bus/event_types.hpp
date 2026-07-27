@@ -1,6 +1,6 @@
 /// @file      event_types.hpp
 /// @brief     EventBus 事件类型、载荷结构与 Handler 别名
-/// @details   定义 EventType、Event 基类/派生事件，以及 Lane-M / Lane-R 的回调类型
+/// @details   定义 EventType、Event 基类/派生事件，以及 Lane-Q / Lane-T 的回调类型
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
@@ -18,13 +18,13 @@ namespace qtrade::engine::event_bus {
 
 /// @brief 事件类型枚举
 enum class EventType {
-  /// 行情 Tick 事件（Lane-M）
+  /// 行情 Tick 事件（Lane-Q）
   kTickData = 0,
-  /// K 线 Bar 事件（Lane-M）
+  /// K 线 Bar 事件（Lane-Q）
   kBarData = 1,
-  /// 订单回报事件（Lane-R）
+  /// 订单回报事件（Lane-T）
   kOrderUpdate = 2,
-  /// 成交回报事件（Lane-R）
+  /// 成交回报事件（Lane-T）
   kTradeUpdate = 3,
 };
 
@@ -84,13 +84,13 @@ struct TradeEvent : public Event {
   explicit TradeEvent(const qtrade_sdk::trader::Trade& t);
 };
 
-/// @brief Tick 事件处理器（Lane-M）
+/// @brief Tick 事件处理器（Lane-Q）
 using TickEventHandler = std::function<void(const qtrade_sdk::quote::MarketTick&)>;
-/// @brief Bar 事件处理器（Lane-M）
+/// @brief Bar 事件处理器（Lane-Q）
 using BarEventHandler = std::function<void(const qtrade_sdk::quote::Bar&)>;
-/// @brief 订单回报事件处理器（Lane-R）
+/// @brief 订单回报事件处理器（Lane-T）
 using OrderEventHandler = std::function<void(const qtrade_sdk::trader::Order&)>;
-/// @brief 成交回报事件处理器（Lane-R）
+/// @brief 成交回报事件处理器（Lane-T）
 using TradeEventHandler = std::function<void(const qtrade_sdk::trader::Trade&)>;
 
 }  // namespace qtrade::engine::event_bus

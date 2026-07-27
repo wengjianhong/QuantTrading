@@ -85,7 +85,7 @@ class TradingEngine {
   /// @return 当前生命周期状态
   [[nodiscard]] EngineLifecycleState LifecycleState() const;
 
-  /// @brief 获取事件通道门面（Lane-M + Lane-R）
+  /// @brief 获取事件通道门面（Lane-Q + Lane-T）
   /// @return 事件通道引用
   event_bus::EventLanes& GetEventLanes();
 
@@ -218,7 +218,7 @@ class TradingEngine {
   std::uint64_t runtime_config_version_ = 0;
   /// 当前已订阅行情合约集合
   std::unordered_set<std::string> subscribed_instruments_;
-  /// Lane-M / Lane-R 事件通道
+  /// Lane-Q / Lane-T 事件通道
   event_bus::EventLanes event_lanes_;
   /// 策略引擎
   strategy::StrategyEngine strategy_engine_;

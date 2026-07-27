@@ -1,6 +1,6 @@
 /// @file      account_risk_release_worker.hpp
 /// @brief     账户预占释放可靠工作器
-/// @details   将 E 段 Release 写入本地 outbox，由独立线程重试，避免阻塞 Lane-R
+/// @details   将 E 段 Release 写入本地 outbox，由独立线程重试，避免阻塞 Lane-T
 /// @author    wengjianhong
 /// @date      2026-07-16
 /// @copyright CC BY-NC-SA 4.0

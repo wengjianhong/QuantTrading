@@ -57,8 +57,8 @@ qtrade/
 │   │   ├── engine/                 # 【核心交易引擎层】库代码，无 main
 │   │   │   ├── core/               # 启动编排、生命周期、围栏与订单流水线
 │   │   │   ├── event_bus/
-│   │   │   │   ├── quote_event_reactor.*   # Lane-M：Tick/Bar 事件
-│   │   │   │   └── trader_event_reactor.*  # Lane-R：Order/Trade 回报事件
+│   │   │   │   ├── quote_event_reactor.*   # Lane-Q：Tick/Bar 事件
+│   │   │   │   └── trader_event_reactor.*  # Lane-T：Order/Trade 回报事件
 │   │   │   ├── normalizer/
 │   │   │   ├── strategy/
 │   │   │   ├── cms/
@@ -154,7 +154,7 @@ qtrade/
 
 ### 3.1 A 段热路径（强制约束）
 
-- **定义**（§2.1.1）：Lane-M → 策略 → CMS → Risk → `OrderIntent` 入队
+- **定义**（§2.1.1）：Lane-Q → 策略 → CMS → Risk → `OrderIntent` 入队
 
 - **发单主链**（§2.1.4）：A → [E] → J → C。Production/Institutional 强制执行 E 段；J 段订单主日志提交成功后才允许进入 EMS
 
@@ -184,7 +184,7 @@ qtrade/
 
 |交互场景|推荐协议|约束|
 |---|---|---|
-|交易引擎内部|内存结构体 + Lane-M/Lane-R 内存队列|无网络、无序列化|
+|交易引擎内部|内存结构体 + Lane-Q/Lane-T 内存队列|无网络、无序列化|
 |交易引擎 ↔ 适配器|函数调用 + 回调接口|同进程内|
 |交易引擎 → 支撑服务（D 段）|`client/` 异步接口 + Protobuf|Outbound 线程 fire-and-forget；内部传输可插拔，MVP 可 stub|
 |引擎 ↔ config-service|gRPC + Protobuf|引擎仅作 Client：`GetConfig` + `SubscribeConfig`（`EngineConfig`）|

@@ -1,5 +1,5 @@
 /// @file      quote_event_reactor.hpp
-/// @brief     Lane-M 行情 EventReactor（EventBus 子系统实现）
+/// @brief     Lane-Q 行情 EventReactor（EventBus 子系统实现）
 /// @details   以 EventPtr FIFO 入队；Reactor 线程按 EventType 分发给 Tick/Bar 订阅者
 /// @author    wengjianhong
 /// @date      2026-06-25
@@ -17,10 +17,10 @@
 
 namespace qtrade::engine::event_bus {
 
-/// @brief Lane-M EventReactor：`EventPtr` FIFO 入队，按 `EventType` 调用 EventHandler
+/// @brief Lane-Q EventReactor：`EventPtr` FIFO 入队，按 `EventType` 调用 EventHandler
 class QuoteEventReactor {
  public:
-  /// @brief 构造行情 EventReactor（绑定 MarketLanePolicy 循环）
+  /// @brief 构造行情 EventReactor（绑定 QuoteLanePolicy 循环）
   QuoteEventReactor();
 
   /// @brief 析构并确保 Reactor 线程已停止
@@ -67,8 +67,8 @@ class QuoteEventReactor {
   /// @param event 出队后的事件基类引用
   void HandleEvent(const Event& event);
 
-  /// Lane-M FIFO Reactor 循环
-  EventReactorLoop<EventPtr, MarketLanePolicy> loop_;
+  /// Lane-Q FIFO Reactor 循环
+  EventReactorLoop<EventPtr, QuoteLanePolicy> loop_;
   /// Tick 事件订阅列表
   std::vector<TickEventHandler> tick_handlers_;
   /// Bar 事件订阅列表

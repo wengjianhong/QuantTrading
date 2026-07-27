@@ -26,7 +26,7 @@ void StrategyEngine::Start() {
   }
   running_ = true;
 
-  // 1. 订阅 Lane-M / Lane-R
+  // 1. 订阅 Lane-Q / Lane-T
   event_lanes_.Quote().SubscribeTick([this](const qtrade_sdk::quote::MarketTick& tick) { OnTickEvent(tick); });
   event_lanes_.Quote().SubscribeBar([this](const qtrade_sdk::quote::Bar& bar) { OnBarEvent(bar); });
   event_lanes_.Trader().SubscribeOrder([this](const qtrade_sdk::trader::Order& order) { OnOrderEvent(order); });

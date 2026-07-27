@@ -44,9 +44,7 @@ constexpr bool kAllowUnreconciledOrders = false;
 }  // namespace
 
 TradingEngine::TradingEngine()
-  : strategy_engine_(event_lanes_),
-    quote_normalizer_(event_lanes_.Quote()),
-    trader_normalizer_(event_lanes_.Trader()) {
+  : strategy_engine_(event_lanes_), quote_normalizer_(event_lanes_.Quote()), trader_normalizer_(event_lanes_.Trader()) {
   execution_manager_.SetResultHandlers(
     [this](const std::string& order_id) { return order_manager_.MarkSendPending(order_id); },
     [this](const std::string& order_id, ErrorCode result) {

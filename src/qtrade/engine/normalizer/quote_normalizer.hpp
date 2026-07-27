@@ -1,6 +1,6 @@
 /// @file      quote_normalizer.hpp
 /// @brief     行情标准化模块
-/// @details   跨柜台行情语义统一、校验过滤；标准化后投递 Lane-M（队列由 EventBus 承担）
+/// @details   跨柜台行情语义统一、校验过滤；标准化后投递 Lane-Q（队列由 EventBus 承担）
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
@@ -29,14 +29,14 @@ struct QuoteHealthOptions {
   std::chrono::milliseconds max_stale_age{3000};
 };
 
-/// @brief 行情校验、健康监控与 Lane-M 投递
+/// @brief 行情校验、健康监控与 Lane-Q 投递
 class QuoteNormalizer {
  public:
   /// @brief 行情健康变化回调
   using HealthHandler = std::function<void(bool healthy)>;
 
   /// @brief 构造行情标准化器
-  /// @param quote_event_reactor Lane-M 行情事件反应器
+  /// @param quote_event_reactor Lane-Q 行情事件反应器
   explicit QuoteNormalizer(event_bus::QuoteEventReactor& quote_event_reactor);
 
   /// @brief 析构并停止健康监控线程
@@ -80,7 +80,7 @@ class QuoteNormalizer {
  private:
   /// 保护行情源与健康回调
   std::mutex mutex_;
-  /// Lane-M 行情事件反应器
+  /// Lane-Q 行情事件反应器
   event_bus::QuoteEventReactor& quote_event_reactor_;
   /// 行情通道 API
   std::unique_ptr<qtrade_sdk::quote::QuoteApi> market_source_;
@@ -99,11 +99,11 @@ class QuoteNormalizer {
   /// 健康监控唤醒条件
   std::condition_variable health_cv_;
 
-  /// @brief 校验 Tick 后发布至 Lane-M，并更新健康状态
+  /// @brief 校验 Tick 后发布至 Lane-Q，并更新健康状态
   /// @param tick 原始行情 Tick
   void OnTick(const qtrade_sdk::quote::MarketTick& tick);
 
-  /// @brief 校验 Bar 后发布至 Lane-M
+  /// @brief 校验 Bar 后发布至 Lane-Q
   /// @param bar 原始 K 线
   void OnBar(const qtrade_sdk::quote::Bar& bar);
 

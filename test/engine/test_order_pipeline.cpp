@@ -32,7 +32,7 @@ void InstallConnectedMockQuote(qtrade::engine::TradingEngine& engine) {
 
 }  // namespace
 
-TEST(OrderPipeline, MockOrderFlowsThroughOmsAndReturnLane) {
+TEST(OrderPipeline, MockOrderFlowsThroughOmsAndTraderLane) {
   const std::string suffix = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
   qtrade::engine::TradingEngine engine;
   qtrade::common::config::QtradeEngineConfig config;

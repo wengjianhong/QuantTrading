@@ -1,6 +1,6 @@
 /// @file      event_reactor_loop.cpp
 /// @brief     EventReactorLoop 模板实现与显式实例化
-/// @details   仅为 EventPtr + MarketLanePolicy / ReturnLanePolicy 提供实例化
+/// @details   仅为 EventPtr + QuoteLanePolicy / TraderLanePolicy 提供实例化
 /// @author    wengjianhong
 /// @date      2026-06-25
 /// @copyright CC BY-NC-SA 4.0
@@ -124,7 +124,7 @@ void EventReactorLoop<Event, Policy>::RunLoop(const std::function<void(const Eve
   }
 }
 
-template class EventReactorLoop<EventPtr, MarketLanePolicy>;
-template class EventReactorLoop<EventPtr, ReturnLanePolicy>;
+template class EventReactorLoop<EventPtr, QuoteLanePolicy>;
+template class EventReactorLoop<EventPtr, TraderLanePolicy>;
 
 }  // namespace qtrade::engine::event_bus

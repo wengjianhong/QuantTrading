@@ -1,6 +1,6 @@
 /// @file      quote_normalizer.cpp
 /// @brief     行情标准化模块实现
-/// @details   接收协议适配器回调，语义标准化后发布至 Lane-M
+/// @details   接收协议适配器回调，语义标准化后发布至 Lane-Q
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
@@ -136,7 +136,7 @@ void QuoteNormalizer::OnTick(const qtrade_sdk::quote::MarketTick& tick) {
   if (valid) {
     last_valid_tick_ms_.store(SteadyNowMs(), std::memory_order_release);
   }
-  // 2. 健康状态翻转时回调；有效 Tick 再投递 Lane-M
+  // 2. 健康状态翻转时回调；有效 Tick 再投递 Lane-Q
   const bool previous = healthy_.exchange(valid, std::memory_order_acq_rel);
   if (previous != valid) {
     HealthHandler handler;

@@ -1,7 +1,7 @@
 /// @file      event_reactor_loop.hpp
 /// @brief     EventBus FIFO 有界队列 Reactor 循环（Demultiplex + RunOnce）
 /// @details   单线程消费有界队列；满队列策略由 Policy（丢最旧或拒写）决定；
-///            实现位于 .cpp，并对 EventPtr + Market/ReturnLanePolicy 显式实例化
+///            实现位于 .cpp，并对 EventPtr + Market/TraderLanePolicy 显式实例化
 /// @author    wengjianhong
 /// @date      2026-06-25
 /// @copyright CC BY-NC-SA 4.0
@@ -32,16 +32,16 @@ enum class RunOnceResult {
   kStopped,
 };
 
-/// @brief Lane-M 队列策略：有界队列，满则丢弃最旧
-struct MarketLanePolicy {
+/// @brief Lane-Q 队列策略：有界队列，满则丢弃最旧
+struct QuoteLanePolicy {
   /// 队列容量上限
   static constexpr std::size_t kCapacity = 8192;
   /// 队列满时是否丢弃最旧事件
   static constexpr bool kDropOldestOnFull = true;
 };
 
-/// @brief Lane-R 队列策略：有界队列，满则拒写
-struct ReturnLanePolicy {
+/// @brief Lane-T 队列策略：有界队列，满则拒写
+struct TraderLanePolicy {
   /// 队列容量上限
   static constexpr std::size_t kCapacity = 8192;
   /// 队列满时是否丢弃最旧事件（false 表示拒写）

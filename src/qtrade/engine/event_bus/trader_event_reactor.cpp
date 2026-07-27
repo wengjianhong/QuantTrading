@@ -1,5 +1,5 @@
 /// @file      trader_event_reactor.cpp
-/// @brief     Lane-R 回报 EventReactor 实现
+/// @brief     Lane-T 回报 EventReactor 实现
 /// @details   负责启停循环、订阅注册、Publish 入队，以及按 EventType 回调 Handler
 /// @author    wengjianhong
 /// @date      2026-06-25

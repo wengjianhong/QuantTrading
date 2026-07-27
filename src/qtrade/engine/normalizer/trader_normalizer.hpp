@@ -1,6 +1,6 @@
 /// @file      trader_normalizer.hpp
 /// @brief     交易标准化模块
-/// @details   跨柜台订单/成交回报语义统一、校验过滤；标准化后交 OMS，再投递 Lane-R
+/// @details   跨柜台订单/成交回报语义统一、校验过滤；标准化后交 OMS，再投递 Lane-T
 /// @author    wengjianhong
 /// @date      2026-06-28
 /// @copyright CC BY-NC-SA 4.0
@@ -18,11 +18,11 @@
 
 namespace qtrade::engine::normalizer {
 
-/// @brief 交易回报校验过滤与 Lane-R 投递
+/// @brief 交易回报校验过滤与 Lane-T 投递
 class TraderNormalizer {
  public:
   /// @brief 构造交易标准化器
-  /// @param trader_event_reactor Lane-R 回报事件反应器
+  /// @param trader_event_reactor Lane-T 回报事件反应器
   explicit TraderNormalizer(event_bus::TraderEventReactor& trader_event_reactor);
 
   /// @brief 析构并停止标准化器
@@ -47,11 +47,11 @@ class TraderNormalizer {
   [[nodiscard]] bool IsHealthy() const;
 
  private:
-  /// @brief 校验订单回报后发布至 Lane-R
+  /// @brief 校验订单回报后发布至 Lane-T
   /// @param order 原始订单回报
   void OnOrder(const qtrade_sdk::trader::Order& order);
 
-  /// @brief 校验成交回报后发布至 Lane-R
+  /// @brief 校验成交回报后发布至 Lane-T
   /// @param trade 原始成交回报
   void OnTrade(const qtrade_sdk::trader::Trade& trade);
 
@@ -59,7 +59,7 @@ class TraderNormalizer {
   mutable std::mutex mutex_;
   /// 是否已 Start
   std::atomic_bool running_ = false;
-  /// Lane-R 回报事件反应器
+  /// Lane-T 回报事件反应器
   event_bus::TraderEventReactor& trader_event_reactor_;
   /// 交易通道 API
   std::unique_ptr<qtrade_sdk::trader::TraderApi> trader_api_;
