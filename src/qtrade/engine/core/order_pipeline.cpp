@@ -5,7 +5,7 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/engine/core/order_pipeline.hpp"
 
-#include <qtrade/proto/account_risk/v1/account_risk.pb.h>
+#include <spdlog/spdlog.h>
 
 namespace qtrade::engine {
 
@@ -30,8 +30,20 @@ void OrderPipeline::SetAccountRiskIdentity(std::string tenant_id, std::string ac
   engine_id_ = std::move(engine_id);
 }
 
-void OrderPipeline::SetReleaseHandler(ReleaseHandler handler) {
-  release_handler_ = std::move(handler);
+void OrderPipeline::ReleaseReservation(const std::string& order_id,
+                                       qtrade::account_risk::v1::ReleaseOrderRequest::Reason reason) {
+  if (account_risk_client_ == nullptr || order_id.empty()) {
+    return;
+  }
+  qtrade::account_risk::v1::ReleaseOrderRequest request;
+  request.set_tenant_id(tenant_id_);
+  request.set_account_id(account_id_);
+  request.set_order_id(order_id);
+  request.set_reason(reason);
+  qtrade::account_risk::v1::ReleaseOrderResponse response;
+  if (const auto rc = account_risk_client_->ReleaseOrder(request, response); rc != ErrorCode::kSuccess) {
+    spdlog::warn("ReleaseOrder failed: order_id={}, code={}", order_id, static_cast<int>(rc));
+  }
 }
 
 ErrorCode OrderPipeline::Submit(const qtrade_sdk::trader::OrderRequest& request) {
@@ -83,9 +95,7 @@ ErrorCode OrderPipeline::Submit(const qtrade_sdk::trader::OrderRequest& request)
 
   const auto order = order_manager_.CreateOrder(request, order_id);
   if (!order.has_value()) {
-    if (release_handler_) {
-      (void)release_handler_(order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
-    }
+    ReleaseReservation(order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
     return ErrorCode::kNotInitialized;
   }
   const std::string& persisted_order_id = order->order_id;
@@ -95,18 +105,14 @@ ErrorCode OrderPipeline::Submit(const qtrade_sdk::trader::OrderRequest& request)
   }
 
   if (const auto rc = order_manager_.MarkEmsQueued(persisted_order_id); rc != ErrorCode::kSuccess) {
-    if (release_handler_) {
-      (void)release_handler_(persisted_order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
-    }
+    ReleaseReservation(persisted_order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
     return rc;
   }
 
   const auto rc = execution_manager_.Enqueue(*order);
   if (rc != ErrorCode::kSuccess) {
     (void)order_manager_.RecordSendResult(persisted_order_id, rc);
-    if (release_handler_) {
-      (void)release_handler_(persisted_order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
-    }
+    ReleaseReservation(persisted_order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
   }
   return rc;
 }

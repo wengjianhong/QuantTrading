@@ -31,7 +31,7 @@ namespace {
 constexpr std::string_view kRuntimeDataDirectory = "data/";
 /// @brief 首个进程世代
 constexpr std::uint64_t kInitialEngineEpoch = 1;
-/// @brief 订单与 outbox 事实必须同步落盘
+/// @brief 订单 journal 是否 fsync（与 outbox 无关）
 constexpr bool kSyncOrderFacts = true;
 /// @brief 行情陈旧判定阈值
 constexpr std::chrono::milliseconds kQuoteStaleThreshold = std::chrono::milliseconds(3000);
@@ -79,9 +79,9 @@ TradingEngine::TradingEngine() : strategy_engine_(event_lanes_) {
     [this](const std::string& order_id) { return order_manager_.MarkSendPending(order_id); },
     [this](const std::string& order_id, ErrorCode result) {
       (void)order_manager_.RecordSendResult(order_id, result);
-      if (result != ErrorCode::kSuccess && account_risk_client_.IsInitialized()) {
-        (void)account_risk_release_worker_.Enqueue(order_id,
-                                                   qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
+      if (result != ErrorCode::kSuccess) {
+        ReleaseAccountRiskReservation(order_id,
+                                      qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
       }
     },
     [this](const std::string& order_id, ErrorCode result) {
@@ -100,14 +100,14 @@ TradingEngine::TradingEngine() : strategy_engine_(event_lanes_) {
     if (local_order.has_value()) {
       account_manager_.ApplyOrder(*local_order);
     }
-    // 拒单/撤单完成时异步释放 account-risk 预占
-    if (account_risk_client_.IsInitialized() && (order.status == qtrade_sdk::trader::OrderStatusType::kRejected ||
-                                                 order.status == qtrade_sdk::trader::OrderStatusType::kCanceled)) {
+    // 拒单/撤单完成时释放 account-risk 预占（直接 gRPC，无本地 outbox）
+    if (order.status == qtrade_sdk::trader::OrderStatusType::kRejected ||
+        order.status == qtrade_sdk::trader::OrderStatusType::kCanceled) {
       if (local_order.has_value()) {
         const auto reason = order.status == qtrade_sdk::trader::OrderStatusType::kCanceled
                               ? qtrade::account_risk::v1::ReleaseOrderRequest::CANCELED
                               : qtrade::account_risk::v1::ReleaseOrderRequest::REJECTED_BY_VENUE;
-        (void)account_risk_release_worker_.Enqueue(local_order->order_id, reason);
+        ReleaseAccountRiskReservation(local_order->order_id, reason);
       }
     }
   });
@@ -116,13 +116,11 @@ TradingEngine::TradingEngine() : strategy_engine_(event_lanes_) {
     account_manager_.ApplyTrade(trade);
     position_manager_.ApplyTrade(trade);
     // 全部成交后释放风控预占（SETTLED）
-    if (account_risk_client_.IsInitialized()) {
-      const auto local_order = trade.order_id.empty() ? order_manager_.GetOrderByClientId(trade.client_order_id)
-                                                      : order_manager_.GetOrder(trade.order_id);
-      if (local_order.has_value() && local_order->status == qtrade_sdk::trader::OrderStatusType::kFilled) {
-        (void)account_risk_release_worker_.Enqueue(local_order->order_id,
-                                                   qtrade::account_risk::v1::ReleaseOrderRequest::SETTLED);
-      }
+    const auto local_order = trade.order_id.empty() ? order_manager_.GetOrderByClientId(trade.client_order_id)
+                                                    : order_manager_.GetOrder(trade.order_id);
+    if (local_order.has_value() && local_order->status == qtrade_sdk::trader::OrderStatusType::kFilled) {
+      ReleaseAccountRiskReservation(local_order->order_id,
+                                    qtrade::account_risk::v1::ReleaseOrderRequest::SETTLED);
     }
   });
 }
@@ -251,7 +249,6 @@ ErrorCode TradingEngine::Stop() {
   execution_manager_.Stop();
   DisconnectAdapters();
   event_lanes_.Stop();
-  account_risk_release_worker_.Stop();
   order_manager_.Shutdown();
 
   config_client_.Shutdown();
@@ -468,7 +465,7 @@ ErrorCode TradingEngine::InitSupportClients() {
     spdlog::warn("account_service.enabled=false, skipping account_client");
   }
 
-  // 3. account-risk-service：仅建立通道；outbox/pipeline 接线在 InitEngineModules
+  // 3. account-risk-service：仅建立通道；pipeline 接线在 InitEngineModules
   if (config_.support_services.account_risk_service.enabled) {
     if (const auto rc = InitAccountRiskClient(config_); rc != ErrorCode::kSuccess) {
       spdlog::error("account_risk_client init failed, code={}", static_cast<int>(rc));
@@ -504,27 +501,11 @@ ErrorCode TradingEngine::InitEngineModules() {
     spdlog::warn("{} orders require broker reconciliation", unreconciled_orders.size());
   }
 
-  // 2. account-risk outbox + OrderPipeline 接线（CMS/EMS/Account/Position/Risk
-  //    当前无独立 Initialize；构造期装配 + OnEngineConfig Configure）
+  // 2. account-risk 接线（CMS/EMS/Account/Position/Risk 当前无独立 Initialize）
   if (account_risk_client_.IsInitialized()) {
     order_pipeline_.SetAccountRiskClient(&account_risk_client_);
     order_pipeline_.SetAccountRiskIdentity(
       config_.identity.tenant_id, config_.identity.account_id, config_.identity.engine_id);
-    const std::string release_outbox_path = std::string(kRuntimeDataDirectory) + config_.identity.tenant_id + "-" +
-                                            config_.identity.engine_id + "-risk-release-outbox.jsonl";
-    if (const auto rc = account_risk_release_worker_.Initialize(&account_risk_client_,
-                                                                release_outbox_path,
-                                                                kSyncOrderFacts,
-                                                                config_.identity.tenant_id,
-                                                                config_.identity.account_id);
-        rc != ErrorCode::kSuccess) {
-      spdlog::error("account risk release outbox init failed, code={}", static_cast<int>(rc));
-      lifecycle_.Fail("ACCOUNT_RISK_OUTBOX_INIT_FAILED");
-      return rc;
-    }
-    order_pipeline_.SetReleaseHandler([this](const std::string& order_id, int reason) {
-      return account_risk_release_worker_.Enqueue(order_id, reason);
-    });
   }
 
   // 3. 回放与模块初始化完成 → 允许进入 Start
@@ -543,7 +524,6 @@ ErrorCode TradingEngine::InitEventLanes() {
 
 void TradingEngine::Release() {
   // Init 失败或 Stop 未运行态：按依赖逆序释放，最后释放实例写锁
-  account_risk_release_worker_.Stop();
   quote_health_monitor_.Stop();
   account_risk_client_.Shutdown();
   config_client_.Shutdown();
@@ -600,10 +580,7 @@ ErrorCode TradingEngine::ReconcileBrokerState() {
 ErrorCode TradingEngine::StartRuntimeModules() {
   spdlog::info("Start-3 StartRuntimeModules");
 
-  // 1. 先启异步基础设施：risk outbox → 事件通道 → 健康监控 → 策略 → EMS
-  if (account_risk_client_.IsInitialized()) {
-    account_risk_release_worker_.Start();
-  }
+  // 1. 先启异步基础设施：事件通道 → 健康监控 → 策略 → EMS
   event_lanes_.Start();
   quote_health_monitor_.Start();
   strategy_engine_.Start();
@@ -1014,6 +991,22 @@ void TradingEngine::OnEngineConfig(const qtrade::config::v1::EngineConfig& confi
 
   for (const auto& strategy : engine.strategies()) {
     spdlog::info("strategy {} enabled={}", strategy.strategy_id(), strategy.enabled());
+  }
+}
+
+void TradingEngine::ReleaseAccountRiskReservation(
+  const std::string& order_id, qtrade::account_risk::v1::ReleaseOrderRequest::Reason reason) {
+  if (!account_risk_client_.IsInitialized() || order_id.empty()) {
+    return;
+  }
+  qtrade::account_risk::v1::ReleaseOrderRequest request;
+  request.set_tenant_id(config_.identity.tenant_id);
+  request.set_account_id(config_.identity.account_id);
+  request.set_order_id(order_id);
+  request.set_reason(reason);
+  qtrade::account_risk::v1::ReleaseOrderResponse response;
+  if (const auto rc = account_risk_client_.ReleaseOrder(request, response); rc != ErrorCode::kSuccess) {
+    spdlog::warn("ReleaseOrder failed: order_id={}, code={}", order_id, static_cast<int>(rc));
   }
 }
 

@@ -22,7 +22,6 @@
 #include "qtrade/engine/event_bus/event_lanes.hpp"
 #include "qtrade/engine/oms/order_manager.hpp"
 #include "qtrade/engine/position/position_manager.hpp"
-#include "qtrade/engine/risk/account_risk_release_worker.hpp"
 #include "qtrade/engine/risk/risk_manager.hpp"
 #include "qtrade/engine/strategy/strategy_engine.hpp"
 
@@ -178,7 +177,7 @@ class TradingEngine {
   /// @brief 初始化支撑服务客户端（config / account / account_risk）
   ErrorCode InitSupportClients();
 
-  /// @brief 初始化引擎内模块（OMS 回放、risk outbox、pipeline 接线等）→ kReplayed
+  /// @brief 初始化引擎内模块（OMS 回放、account-risk 接线等）→ kReplayed
   ErrorCode InitEngineModules();
 
   /// @brief 初始化事件通道（本阶段仅确认就绪；Start 时再启动 reactor）
@@ -203,7 +202,7 @@ class TradingEngine {
   /// @brief Start-2: 柜台订单/成交/资金/持仓对账
   ErrorCode ReconcileBrokerState();
 
-  /// @brief Start-3: 启动 risk outbox、事件通道、策略与 EMS，并订阅合约
+  /// @brief Start-3: 启动事件通道、策略与 EMS，并订阅合约
   ErrorCode StartRuntimeModules();
 
   /// @brief Start-4: 推进 BrokerSynced/RiskSynced，并按行情门禁尝试 READY
@@ -238,6 +237,10 @@ class TradingEngine {
 
   /// @brief 处理行情健康变化并更新 READY 门禁
   void OnMarketHealthChanged(bool healthy);
+
+  /// @brief 尽力调用 account-risk ReleaseOrder（无本地 outbox）
+  void ReleaseAccountRiskReservation(const std::string& order_id,
+                                     qtrade::account_risk::v1::ReleaseOrderRequest::Reason reason);
 
   // ---------------------------------------------------------------------------
   // 成员：生命周期与配置
@@ -306,8 +309,6 @@ class TradingEngine {
   client::AccountClient account_client_;
   /// E 段账户硬风控客户端
   client::AccountRiskClient account_risk_client_;
-  /// E 段 Release 可靠 outbox
-  risk::AccountRiskReleaseWorker account_risk_release_worker_;
 };
 
 }  // namespace qtrade::engine
