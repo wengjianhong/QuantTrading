@@ -71,6 +71,7 @@ ErrorCode EngineFence::Acquire(const std::string& path, std::uint64_t minimum_ep
 }
 
 void EngineFence::Release() {
+  // 释放 flock 并关闭围栏文件，允许同账户其他实例启动
   if (fd_ < 0) {
     return;
   }

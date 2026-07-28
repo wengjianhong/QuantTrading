@@ -1,5 +1,5 @@
-/// @file      market_event_reactor.hpp
-/// @brief     Lane-M 行情 EventReactor（EventBus 子系统实现）
+/// @file      quote_event_reactor.hpp
+/// @brief     Lane-Q 行情 EventReactor（EventBus 子系统实现）
 /// @details   以 EventPtr FIFO 入队；Reactor 线程按 EventType 分发给 Tick/Bar 订阅者
 /// @author    wengjianhong
 /// @date      2026-06-25
@@ -17,20 +17,28 @@
 
 namespace qtrade::engine::event_bus {
 
-/// @brief Lane-M EventReactor：`EventPtr` FIFO 入队，按 `EventType` 调用 EventHandler
-class MarketEventReactor {
+/// @brief Lane-Q EventReactor：`EventPtr` FIFO 入队，按 `EventType` 调用 EventHandler
+class QuoteEventReactor {
  public:
-  /// @brief 构造行情 EventReactor（绑定 MarketLanePolicy 循环）
-  MarketEventReactor();
+  /// @brief 构造行情 EventReactor
+  QuoteEventReactor();
 
   /// @brief 析构并确保 Reactor 线程已停止
-  ~MarketEventReactor();
+  ~QuoteEventReactor();
 
-  /// @brief 禁止拷贝构造
-  MarketEventReactor(const MarketEventReactor&) = delete;
+  /// @brief 禁止拷贝构造/赋值
+  QuoteEventReactor(QuoteEventReactor&&) = delete;
+  QuoteEventReactor(const QuoteEventReactor&) = delete;
+  QuoteEventReactor& operator=(QuoteEventReactor&&) = delete;
+  QuoteEventReactor& operator=(const QuoteEventReactor&) = delete;
 
-  /// @brief 禁止拷贝赋值
-  MarketEventReactor& operator=(const MarketEventReactor&) = delete;
+  /// @brief 设置队列策略
+  /// @note 默认队列容量为 8192，满队列时丢弃最旧事件
+  /// @warning 仅未 Start 时生效，Reactor 正在运行时忽略设置
+  ///
+  /// @param policy 队列容量与满队列处理策略
+  /// @return 设置成功返回 true；Reactor 正在运行时返回 false
+  bool SetLanePolicy(LanePolicy policy);
 
   /// @brief 启动 Reactor 线程并开始消费队列
   void Start();
@@ -67,8 +75,8 @@ class MarketEventReactor {
   /// @param event 出队后的事件基类引用
   void HandleEvent(const Event& event);
 
-  /// Lane-M FIFO Reactor 循环
-  EventReactorLoop<EventPtr, MarketLanePolicy> loop_;
+  /// Lane-Q FIFO Reactor 循环
+  EventReactorLoop<EventPtr> loop_;
   /// Tick 事件订阅列表
   std::vector<TickEventHandler> tick_handlers_;
   /// Bar 事件订阅列表

@@ -419,6 +419,7 @@ ErrorCode OrderManager::PersistTransition(OrderEntry& entry,
 }
 
 bool OrderManager::CanTransition(OrderLifecycleState from, OrderLifecycleState to) {
+  // OMS 订单生命周期状态机：仅允许预定义的合法迁移路径
   if (from == to) {
     return true;
   }

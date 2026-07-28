@@ -20,6 +20,7 @@ namespace qtrade::engine::boot {
 bool RegisterStrategies(TradingEngine& engine) {
   spdlog::info("[engine_boot] RegisterStrategies");
 
+  // 1. 构造发单桥接：策略 → engine.SubmitOrder
   auto order_sender = [&engine](const qtrade_sdk::trader::OrderRequest& request) {
     return engine.SubmitOrder(request);
   };
@@ -30,12 +31,14 @@ bool RegisterStrategies(TradingEngine& engine) {
     return strategy;
   };
 
+  // 2. 注册示例策略工厂（支持 config 中 plugin=example / example_strategy）
   if (strategy_engine.RegisterFactory("example", example_factory) != ErrorCode::kSuccess ||
       strategy_engine.RegisterFactory("example_strategy", example_factory) != ErrorCode::kSuccess) {
     spdlog::error("[engine_boot] RegisterStrategies: factory register failed");
     return false;
   }
 
+  // 3. 预注册一个 demo 实例并注入全局发单器
   auto strategy = example_factory();
   qtrade::strategy::StrategyConfig strategy_config;
   strategy_config.name = "ExampleStrategy";
@@ -51,9 +54,9 @@ bool RegisterStrategies(TradingEngine& engine) {
   return true;
 }
 
-bool InitEngine(TradingEngine& engine, const std::string& config_path) {
+bool InitEngine(TradingEngine& engine, const qtrade::common::process_boot::ProgramOptions& options) {
   // 1. 加载配置文件
-  const auto config_node = qtrade::common::LoadJsonFile(config_path);
+  const auto config_node = qtrade::common::LoadJsonFile(options.config_path);
   if (!config_node) {
     spdlog::error("[engine_boot] InitEngine: failed to load config file");
     return false;
@@ -85,15 +88,14 @@ bool StartEngine(TradingEngine& engine) {
   }
 
   // 演示订阅：生产环境应由 config-service 下发的策略 instruments 驱动
-  auto& quote_normalizer = engine.GetQuoteNormalizer();
-  auto* quote_api = quote_normalizer.GetQuoteApi();
-  if (quote_api != nullptr && quote_api->IsConnected()) {
-    quote_normalizer.Subscribe({"IF2401", "IC2401"});
+  if (auto* quote_api = engine.GetQuoteApi(); quote_api != nullptr && quote_api->IsConnected()) {
+    engine.SubscribeQuote({"IF2401", "IC2401"});
   }
   return true;
 }
 
 void RunUntilShutdown(TradingEngine& engine) {
+  // 阻塞等待 SIGINT/SIGTERM，收到信号后优雅 Stop
   spdlog::info("[{}] running until SIGINT/SIGTERM...", qtrade::engine::kServiceName);
 
   const int signal = qtrade::common::system::WaitInterruptSignals();

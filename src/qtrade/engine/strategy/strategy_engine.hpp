@@ -45,7 +45,7 @@ class StrategyEngine {
   using StrategyFactory = std::function<std::unique_ptr<qtrade::strategy::IStrategy>()>;
 
   /// @brief 构造策略引擎并绑定事件通道
-  /// @param event_lanes Lane-M / Lane-R 事件门面
+  /// @param event_lanes Lane-Q / Lane-T 事件门面
   explicit StrategyEngine(event_bus::EventLanes& event_lanes);
 
   /// @brief 析构策略引擎

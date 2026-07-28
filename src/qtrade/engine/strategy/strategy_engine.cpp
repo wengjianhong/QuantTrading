@@ -13,6 +13,7 @@
 
 namespace qtrade::engine::strategy {
 
+// 构造时仅持有 EventLanes 引用，订阅与策略启停推迟到 Start()
 StrategyEngine::StrategyEngine(event_bus::EventLanes& event_lanes) : event_lanes_(event_lanes), running_(false) {}
 
 StrategyEngine::~StrategyEngine() {
@@ -26,11 +27,11 @@ void StrategyEngine::Start() {
   }
   running_ = true;
 
-  // 1. 订阅 Lane-M / Lane-R
-  event_lanes_.Market().SubscribeTick([this](const qtrade_sdk::quote::MarketTick& tick) { OnTickEvent(tick); });
-  event_lanes_.Market().SubscribeBar([this](const qtrade_sdk::quote::Bar& bar) { OnBarEvent(bar); });
-  event_lanes_.Return().SubscribeOrder([this](const qtrade_sdk::trader::Order& order) { OnOrderEvent(order); });
-  event_lanes_.Return().SubscribeTrade([this](const qtrade_sdk::trader::Trade& trade) { OnTradeEvent(trade); });
+  // 1. 订阅 Lane-Q / Lane-T
+  event_lanes_.Quote().SubscribeTick([this](const qtrade_sdk::quote::MarketTick& tick) { OnTickEvent(tick); });
+  event_lanes_.Quote().SubscribeBar([this](const qtrade_sdk::quote::Bar& bar) { OnBarEvent(bar); });
+  event_lanes_.Trader().SubscribeOrder([this](const qtrade_sdk::trader::Order& order) { OnOrderEvent(order); });
+  event_lanes_.Trader().SubscribeTrade([this](const qtrade_sdk::trader::Trade& trade) { OnTradeEvent(trade); });
 
   // 2. 启动已启用且未启动的策略
   for (auto& [strategy_id, entry] : strategies_) {
@@ -49,7 +50,7 @@ void StrategyEngine::Stop() {
     return;
   }
 
-  // 停止已启动的策略
+  // 1. 逆序停止各策略实例（不清理注册表，便于再次 Start）
   for (auto& [strategy_id, entry] : strategies_) {
     (void)strategy_id;
     if (entry.started) {
@@ -62,6 +63,7 @@ void StrategyEngine::Stop() {
   spdlog::info("[StrategyEngine] stopped cleanly");
 }
 
+// 手动注册：无品种路由，行情将广播给所有启用策略
 void StrategyEngine::RegisterStrategy(std::unique_ptr<qtrade::strategy::IStrategy> strategy) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (!strategy) {
@@ -72,12 +74,14 @@ void StrategyEngine::RegisterStrategy(std::unique_ptr<qtrade::strategy::IStrateg
   spdlog::info("[StrategyEngine] registered new strategy");
 }
 
+// 手动注册并绑定品种路由：同一品种只能归属一个策略
 ErrorCode StrategyEngine::RegisterStrategy(std::unique_ptr<qtrade::strategy::IStrategy> strategy,
                                            const std::vector<std::string>& instruments) {
   if (!strategy || instruments.empty()) {
     return ErrorCode::kInternalError;
   }
   std::lock_guard<std::mutex> lock(mutex_);
+  // 1. 预检品种唯一性
   for (const auto& instrument : instruments) {
     if (instrument.empty() || instrument_routes_.contains(instrument)) {
       return ErrorCode::kSystemError;
@@ -92,6 +96,7 @@ ErrorCode StrategyEngine::RegisterStrategy(std::unique_ptr<qtrade::strategy::ISt
   return ErrorCode::kSuccess;
 }
 
+// 指定 strategy_id 注册，供配置下发与测试精确寻址
 ErrorCode StrategyEngine::RegisterStrategy(const std::string& strategy_id,
                                            std::unique_ptr<qtrade::strategy::IStrategy> strategy,
                                            const std::vector<std::string>& instruments) {
@@ -115,6 +120,7 @@ ErrorCode StrategyEngine::RegisterStrategy(const std::string& strategy_id,
   return ErrorCode::kSuccess;
 }
 
+// 注册插件工厂，ApplyConfiguration 按 plugin 名延迟实例化策略
 ErrorCode StrategyEngine::RegisterFactory(const std::string& plugin, StrategyFactory factory) {
   if (plugin.empty() || !factory) {
     return ErrorCode::kInternalError;
@@ -212,6 +218,7 @@ ErrorCode StrategyEngine::ApplyConfiguration(const std::vector<StrategyRuntimeCo
   return ErrorCode::kSuccess;
 }
 
+// 注入发单回调，策略通过 IStrategy 接口间接调用 engine.SubmitOrder
 void StrategyEngine::SetOrderSender(OrderSender sender) {
   std::lock_guard<std::mutex> lock(mutex_);
   order_sender_ = std::move(sender);
@@ -276,6 +283,7 @@ void StrategyEngine::OnOrderEvent(const qtrade_sdk::trader::Order& order) {
   if (!running_) {
     return;
   }
+  // 订单回报广播给全部启用策略（不按品种路由）
   for (auto& [strategy_id, entry] : strategies_) {
     (void)strategy_id;
     if (!entry.enabled) {
@@ -294,6 +302,7 @@ void StrategyEngine::OnTradeEvent(const qtrade_sdk::trader::Trade& trade) {
   if (!running_) {
     return;
   }
+  // 成交回报广播给全部启用策略
   for (auto& [strategy_id, entry] : strategies_) {
     (void)strategy_id;
     if (!entry.enabled) {

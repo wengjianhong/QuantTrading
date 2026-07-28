@@ -7,7 +7,7 @@
 #ifndef QTRADE_ENGINE_ENGINE_BOOT_HPP_
 #define QTRADE_ENGINE_ENGINE_BOOT_HPP_
 
-#include <string>
+#include "qtrade/common/boot/process_boot.hpp"
 
 namespace qtrade::engine {
 
@@ -23,9 +23,9 @@ namespace boot {
 
 /// @brief 调用 TradingEngine::Init
 /// @param engine 交易引擎
-/// @param config_path 配置文件路径
+/// @param options 程序选项
 /// @return 是否成功
-[[nodiscard]] bool InitEngine(TradingEngine& engine, const std::string& config_path);
+[[nodiscard]] bool InitEngine(TradingEngine& engine, const qtrade::common::process_boot::ProgramOptions& options);
 
 /// @brief 调用 TradingEngine::Start（含演示行情订阅）
 /// @param engine 交易引擎

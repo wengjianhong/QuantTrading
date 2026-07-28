@@ -14,6 +14,7 @@ namespace {
 /// @param to 目标状态
 /// @return 合法返回 true
 bool IsSequentialStartupTransition(EngineLifecycleState from, EngineLifecycleState to) {
+  // 启动链只允许相邻前进一步：New/Stopped → Bootstrap → Fenced → ... → Ready
   switch (from) {
     case EngineLifecycleState::kNew:
     case EngineLifecycleState::kStopped:
@@ -82,6 +83,7 @@ ErrorCode EngineLifecycle::ResumeReady() {
 }
 
 void EngineLifecycle::Fail(const std::string& reason) {
+  // 启动或运行失败：记录原因并进入终态 kFailed
   {
     std::lock_guard lock(mutex_);
     reason_ = reason;
@@ -90,10 +92,12 @@ void EngineLifecycle::Fail(const std::string& reason) {
 }
 
 void EngineLifecycle::BeginDrain() {
+  // Stop 入口：标记 kDraining，阻止新单进入
   state_.store(EngineLifecycleState::kDraining, std::memory_order_release);
 }
 
 void EngineLifecycle::MarkStopped() {
+  // 资源释放完毕，回到 kStopped 以便下次 Init
   state_.store(EngineLifecycleState::kStopped, std::memory_order_release);
 }
 

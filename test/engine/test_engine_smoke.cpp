@@ -35,13 +35,13 @@ void InstallMockAdapters(qtrade::engine::TradingEngine& engine) {
   qtrade_sdk::quote::ConnectRequest quote_request;
   quote_request.connection_string = "mock://quote";
   EXPECT_EQ(quote_api->Connect(quote_request), qtrade::ErrorCode::kSuccess);
-  engine.GetQuoteNormalizer().SetQuoteApi(std::move(quote_api));
+  engine.SetQuoteApi(std::move(quote_api));
 
   auto trader_api = qtrade::adapter::mock::trader::CreateMockTraderApi();
   qtrade_sdk::trader::ConnectRequest trader_request;
   trader_request.connection_string = "mock://trader";
   EXPECT_EQ(trader_api->Connect(trader_request), qtrade::ErrorCode::kSuccess);
-  engine.GetTraderNormalizer().SetTraderApi(std::move(trader_api));
+  engine.SetTraderApi(std::move(trader_api));
 }
 
 }  // namespace
@@ -59,7 +59,7 @@ TEST(EngineSmoke, TradingEngineStartStop) {
   ASSERT_EQ(engine.Init(config), qtrade::ErrorCode::kSuccess);
   InstallMockAdapters(engine);
   ASSERT_EQ(engine.Start(), qtrade::ErrorCode::kSuccess);
-  engine.GetQuoteNormalizer().Subscribe({"IF2506"});
+  engine.SubscribeQuote({"IF2506"});
   WaitUntil([&] { return engine.IsReady(); });
   ASSERT_TRUE(engine.IsRunning());
   ASSERT_TRUE(engine.IsReady());
@@ -88,9 +88,10 @@ TEST(EngineSmoke, InjectedMockAdaptersReachReady) {
   ASSERT_EQ(engine.Init(config), qtrade::ErrorCode::kSuccess);
   InstallMockAdapters(engine);
   ASSERT_EQ(engine.Start(), qtrade::ErrorCode::kSuccess);
-  engine.GetQuoteNormalizer().Subscribe({"IF2506"});
+  engine.SubscribeQuote({"IF2506"});
   WaitUntil([&] { return engine.IsReady(); });
   EXPECT_TRUE(engine.IsReady());
-  EXPECT_TRUE(engine.GetTraderNormalizer().IsHealthy());
+  ASSERT_NE(engine.GetTraderApi(), nullptr);
+  EXPECT_TRUE(engine.GetTraderApi()->IsConnected());
   EXPECT_EQ(engine.Stop(), qtrade::ErrorCode::kSuccess);
 }
