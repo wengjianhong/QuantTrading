@@ -177,7 +177,7 @@ class TradingEngine {
   /// @brief 初始化支撑服务客户端（config / account / account_risk）
   ErrorCode InitSupportClients();
 
-  /// @brief 初始化引擎内模块（OMS 回放、account-risk 接线等）→ kReplayed
+  /// @brief 初始化引擎内模块（内存 OMS、account-risk 接线等）→ kReplayed
   ErrorCode InitEngineModules();
 
   /// @brief 初始化事件通道（本阶段仅确认就绪；Start 时再启动 reactor）

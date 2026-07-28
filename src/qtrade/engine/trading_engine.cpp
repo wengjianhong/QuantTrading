@@ -27,12 +27,10 @@
 namespace qtrade::engine {
 namespace {
 
-/// @brief 引擎内部固定的本地事实文件根目录
+/// @brief 引擎内部固定的本地数据目录（实例锁等）
 constexpr std::string_view kRuntimeDataDirectory = "data/";
 /// @brief 首个进程世代
 constexpr std::uint64_t kInitialEngineEpoch = 1;
-/// @brief 订单 journal 是否 fsync（与 outbox 无关）
-constexpr bool kSyncOrderFacts = true;
 /// @brief 行情陈旧判定阈值
 constexpr std::chrono::milliseconds kQuoteStaleThreshold = std::chrono::milliseconds(3000);
 /// @brief 启动 READY 必须依赖已连接的交易通道
@@ -147,7 +145,7 @@ ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineConfig& 
     return error_code;
   }
 
-  // 2. 单实例排他写锁 → kInstanceLocked（须在 OMS journal 之前）
+  // 2. 单实例排他写锁 → kInstanceLocked
   error_code = AcquireInstanceLock();
   if (error_code != ErrorCode::kSuccess) {
     spdlog::error("AcquireInstanceLock failed, code={}", static_cast<int>(error_code));
@@ -162,7 +160,7 @@ ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineConfig& 
     return error_code;
   }
 
-  // 4. 引擎内模块（OMS 回放等）→ kReplayed
+  // 4. 引擎内模块（内存 OMS 等）→ kReplayed（历史命名：模块已就绪，非 journal 回放）
   error_code = InitEngineModules();
   if (error_code != ErrorCode::kSuccess) {
     spdlog::error("InitEngineModules failed, code={}", static_cast<int>(error_code));
@@ -482,23 +480,15 @@ ErrorCode TradingEngine::InitSupportClients() {
 ErrorCode TradingEngine::InitEngineModules() {
   spdlog::info("InitEngineModules");
 
-  // 1. OMS：打开 journal 并回放本地事实；epoch 与实例写锁绑定
-  const std::string journal_path = std::string(kRuntimeDataDirectory) + config_.identity.tenant_id + "-" +
-                                   config_.identity.engine_id + "-orders.jsonl";
+  // 1. OMS：仅内存状态机；冷启动不回放本地订单，Working 态由柜台快照对账重建
   oms::OrderManagerOptions order_options;
   order_options.tenant_id = config_.identity.tenant_id;
   order_options.engine_id = config_.identity.engine_id;
   order_options.engine_epoch = instance_lock_.Epoch();
-  order_options.journal_path = journal_path;
-  order_options.fsync_on_append = kSyncOrderFacts;
   if (const auto rc = order_manager_.Initialize(order_options); rc != ErrorCode::kSuccess) {
-    spdlog::error("order journal init failed, code={}", static_cast<int>(rc));
-    lifecycle_.Fail("ORDER_JOURNAL_INIT_FAILED");
+    spdlog::error("order_manager init failed, code={}", static_cast<int>(rc));
+    lifecycle_.Fail("ORDER_MANAGER_INIT_FAILED");
     return rc;
-  }
-  const auto unreconciled_orders = order_manager_.GetOrdersRequiringReconciliation();
-  if (!unreconciled_orders.empty()) {
-    spdlog::warn("{} orders require broker reconciliation", unreconciled_orders.size());
   }
 
   // 2. account-risk 接线（CMS/EMS/Account/Position/Risk 当前无独立 Initialize）
@@ -508,7 +498,7 @@ ErrorCode TradingEngine::InitEngineModules() {
       config_.identity.tenant_id, config_.identity.account_id, config_.identity.engine_id);
   }
 
-  // 3. 回放与模块初始化完成 → 允许进入 Start
+  // 3. 模块初始化完成 → 允许进入 Start（kReplayed：历史命名，表示 OMS/模块已就绪）
   if (lifecycle_.Advance(EngineLifecycleState::kReplayed) != ErrorCode::kSuccess) {
     lifecycle_.Fail("ENGINE_MODULES_INIT_FAILED");
     return ErrorCode::kSystemError;
@@ -834,9 +824,9 @@ ErrorCode TradingEngine::SynchronizeBrokerState(qtrade_sdk::trader::TraderApi* t
     return ErrorCode::kNotSupported;
   }
 
-  // 2. 应用回报并校验待对账订单已清空
+  // 2. 应用柜台订单快照（可冷启动采纳进内存 OMS，不补单）并校验待对账订单已清空
   for (const auto& report : orders_response.orders) {
-    order_manager_.ApplyOrderReport(report);
+    order_manager_.ReconcileBrokerOrder(report);
     const auto local = report.order_id.empty() ? order_manager_.GetOrderByClientId(report.client_order_id)
                                                : order_manager_.GetOrder(report.order_id);
     if (local.has_value()) {

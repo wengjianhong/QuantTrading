@@ -17,7 +17,7 @@
 |接入层（外部独立项目）|不在本仓库；北向 HTTP REST，南向调 QTrade 支撑服务 gRPC|见《架构》§五|
 |外部企业基础服务|由机构平台提供；QTrade 仅集成身份、数据安全、运维和合规能力，不负责其实现或部署|
 
-**性能口径**：A/E/J/C/B/D 链路分段、控制面/数据面边界见《架构》**§2.1、§2.2**；A 段止于 `OrderIntent` 入队，禁止同步远程服务和磁盘 I/O。
+**性能口径**：A/E/C/B/D 链路分段、控制面/数据面边界见《架构》**§2.1、§2.2**；A 段止于 `OrderIntent` 入队，禁止同步远程服务和磁盘 I/O。当前不启用订单主日志 J 段。
 
 ---
 
@@ -156,26 +156,25 @@ qtrade/
 
 - **定义**（§2.1.1）：Lane-Q → 策略 → CMS → Risk → `OrderIntent` 入队
 
-- **发单主链**（§2.1.4）：A → [E] → J → C。Production/Institutional 强制执行 E 段；J 段订单主日志提交成功后才允许进入 EMS
+- **发单主链**（§2.1.4）：A → [E] → OMS(内存) → C。Production/Institutional 强制执行 E 段；发单前不做订单主日志落盘；无独立 J 段提交门槛
 
 - **同线程禁止**：同步阻塞、磁盘 I/O、等待交易所/远程 ACK、调用支撑服务 client
 
-- **J 段（订单主日志）**：保存准入结果、订单状态和规范化回报，是订单恢复的唯一事实源；由独立日志线程处理
+- **OMS（内存）**：进程内订单状态机；冷启动为空；崩溃后以柜台快照 Adopt 重建 Working 态并对 account-risk 预占对账；**禁止**按本地旧意图自动补单。spdlog/运行日志 ≠ 恢复事实源
 
-- **B/D 段（异步）**：内存快照、历史副本、指标和远程审计投递；不得另建一套订单事实
+- **B/D 段（异步）**：内存快照、历史副本、指标和远程审计投递；旁路 spool（若启用）不是订单恢复源，不得另建一套订单事实
 
 - **控制面**：本地快照 + gRPC `SubscribeConfig` 变更推送；冷启动 `GetConfig` 拉全量（独立控制线程/启动阶段，不在策略回调内）
 
-### 3.2 E/J/C 段与旁路
+### 3.2 E/C 段与旁路
 
 - **E 段**：同步 `ReserveOrder`；超时或断连为 `Unknown`，必须使用同一 `order_id` 查询，不能直接当拒绝
 
-- **J 段**：先提交 `Prepared`/`RiskRejected`/`ReserveUnknown`，再继续后续动作
-
-- **C 段**：EMS → 执行适配器 → 交易所/券商。明确确认请求未提交时，使用同一 `order_id` 有界重试；不可重试或次数耗尽则记录 `SendFailed` 并释放预占。发送结果未知时先查询，禁止盲目重发
+- **C 段**：OMS 内存受理后 → EMS → 执行适配器 → 交易所/券商。明确确认请求未提交时，使用同一 `order_id` 有界重试；不可重试或次数耗尽则记录 `SendFailed` 并尽力释放预占。发送结果未知时先查询，禁止盲目重发
 
 - **D 段及非热路径**：回测、报表、日志检索、事后审计、批量查询等；Outbound 旁路上报；背压策略见《架构》§7.1（A 段永不因旁路满而阻塞）
 
+> **说明**：原「J 段（订单主日志）」当前不启用；订单主日志为后续可选能力。
 ---
 
 ## 4. 协议与集成要点
@@ -189,7 +188,7 @@ qtrade/
 |交易引擎 → 支撑服务（D 段）|`client/` 异步接口 + Protobuf|Outbound 线程 fire-and-forget；内部传输可插拔，MVP 可 stub|
 |引擎 ↔ config-service|gRPC + Protobuf|引擎仅作 Client：`GetConfig` + `SubscribeConfig`（`EngineConfig`）|
 |引擎 ↔ account-service|gRPC + Protobuf|【规划】引擎 Client：`ResolveCredential`（启动/换密，不进 A 段）|
-|引擎 ↔ account-risk-service|gRPC + Protobuf|E 段仅同步 `ReserveOrder`；`Unknown` 查询确认；Release/Settle 经 outbox 异步重试|
+|引擎 ↔ account-risk-service|gRPC + Protobuf|E 段仅同步 `ReserveOrder`；`Unknown` 查询确认；Release/Settle 为直接 gRPC 尽力调用（失败 warn，靠 TTL/对账）|
 |引擎 ↔ safety-control|引擎主动建立双向 gRPC 流|冻结 → 撤单 → 确认/对账 → 必要时断开；返回分阶段 ACK|
 |支撑服务之间|gRPC + Protobuf|同步 / 异步均可（如 config 写入前校验 account 授权）|
 |接入层 ↔ 外部系统|HTTP(S)/WebSocket|**外部独立项目**；RESTful 北向，网关转 gRPC 调本仓库支撑服务|
@@ -203,7 +202,7 @@ qtrade/
 
 - **凭证面（account）**：登录凭证经 account-service 按需拉取，不进 `SubscribeConfig`（详见《架构》§2.6）
 
-- **P0 事实源**：订单类事实只写订单主日志；本地 Spool 是远程审计投递 outbox，不得维护另一套订单状态
+- **P0 事实源**：当前阶段订单恢复以柜台快照 + account-risk 预占对账为准，不以本地订单主日志为准（当前不启用）。本地 Spool（若启用）是远程审计投递缓冲，**不是**订单恢复源，不得维护另一套订单状态，也不得用于自动补单
 
 ### 4.3 引擎配置与多实例示例
 
@@ -345,7 +344,7 @@ Api 适配器实现 QTrade 的稳定接口并转发调用；Spi 适配器继承�
 
 - 指标与 Trace 采用异步导出 + 采样机制，采样率可动态调整
 
-- 核心交易日志独立存储，保存期限≥3 年，不可篡改
+- 核心交易运行日志可旁路上报并归档；保存期限与不可篡改要求按合规策略配置。运行日志 ≠ 订单恢复事实源
 
 ---
 
@@ -438,7 +437,7 @@ Api 适配器实现 QTrade 的稳定接口并转发调用；Spi 适配器继承�
 | 架构能力 | 目标阶段 | 当前实现状态 |
 |---|---|---|
 | EventBus 与双 EventReactor 事件通道 | MVP | ✅ 已有引擎骨架、EventReactorLoop 与事件类型 |
-| CMS / OMS / EMS / 风控 / 持仓 | MVP | 🟡 模块骨架已有；订单主日志、状态机与幂等语义仍待完善 |
+| CMS / OMS / EMS / 风控 / 持仓 | MVP | 🟡 模块骨架已有；内存 OMS 状态机与幂等语义仍待完善；订单主日志后续可选 |
 | 配置驱动分片与一品种一策略校验 | MVP | 🟡 `EngineConfig` 模型已对齐；配置校验和策略一对一分发待实现 |
 | account-service 与凭证、配置分离 | MVP | ❌ 服务与凭证链路待实现 |
 | 行情适配器与 READY 门禁 | MVP | ✅ 已有 `QuoteApi` + `QuoteHealthMonitor`；故障切换待实现 |

@@ -98,21 +98,21 @@ ErrorCode OrderPipeline::Submit(const qtrade_sdk::trader::OrderRequest& request)
     ReleaseReservation(order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
     return ErrorCode::kNotInitialized;
   }
-  const std::string& persisted_order_id = order->order_id;
-  const auto lifecycle = order_manager_.GetLifecycleState(persisted_order_id);
+  const std::string& created_order_id = order->order_id;
+  const auto lifecycle = order_manager_.GetLifecycleState(created_order_id);
   if (lifecycle.has_value() && *lifecycle != oms::OrderLifecycleState::kPrepared) {
     return ErrorCode::kSuccess;
   }
 
-  if (const auto rc = order_manager_.MarkEmsQueued(persisted_order_id); rc != ErrorCode::kSuccess) {
-    ReleaseReservation(persisted_order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
+  if (const auto rc = order_manager_.MarkEmsQueued(created_order_id); rc != ErrorCode::kSuccess) {
+    ReleaseReservation(created_order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
     return rc;
   }
 
   const auto rc = execution_manager_.Enqueue(*order);
   if (rc != ErrorCode::kSuccess) {
-    (void)order_manager_.RecordSendResult(persisted_order_id, rc);
-    ReleaseReservation(persisted_order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
+    (void)order_manager_.RecordSendResult(created_order_id, rc);
+    ReleaseReservation(created_order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
   }
   return rc;
 }
