@@ -54,7 +54,7 @@ class TradingEngine {
   // ---------------------------------------------------------------------------
 
   /// @brief 初始化引擎（编排 Init 子阶段，须在 Start 之前调用）
-  /// @brief 子阶段：ApplyBootstrapConfig → AcquireInstanceLock → InitSupportClients
+  /// @details 子阶段：ApplyBootstrapConfig → AcquireInstanceLock → InitSupportClients
   ///          → InitEngineModules → InitEventLanes → InitAdapters（实现见 cpp 内部）
   /// @param config 进程引导配置（config/account 地址、tenant 等）
   /// @return ErrorCode::kSuccess 表示成功
@@ -165,8 +165,9 @@ class TradingEngine {
   client::ConfigClient& GetConfigClient();
 
  private:
-  /// @brief cpp 内 Init 子阶段实现（访问私有成员；不出现在对外 API）
-  friend struct TradingEngineInternal;
+  // ---------------------------------------------------------------------------
+  // Init 子阶段（由 Init() 按序调用；失败时 Release）
+  // ---------------------------------------------------------------------------
 
   /// @brief 缓存引导配置、配置行情健康阈值 → kBootstrap
   ErrorCode ApplyBootstrapConfig(const qtrade::common::config::QtradeEngineConfig& config);
@@ -185,6 +186,12 @@ class TradingEngine {
 
   /// @brief 按 EngineConfig 装配并连接行情/交易适配器（config 未启用时可跳过）
   ErrorCode InitAdapters();
+
+  /// @brief 初始化并连接 config_client（GetEngineConfig + SubscribeEngineConfig）
+  ErrorCode InitConfigClient(const qtrade::common::config::QtradeEngineConfig& config);
+
+  /// @brief 按配置初始化账户硬风控客户端
+  ErrorCode InitAccountRiskClient(const qtrade::common::config::QtradeEngineConfig& config);
 
   // ---------------------------------------------------------------------------
   // Start 子阶段（由 Start() 按序调用）
