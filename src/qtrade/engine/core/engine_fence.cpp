@@ -1,6 +1,6 @@
 /// @file      engine_fence.cpp
-/// @brief     单实例写入围栏与 engine_epoch 分配实现
-/// @details   使用 flock(LOCK_EX|LOCK_NB) 抢占共享围栏文件，并原子写入新 epoch
+/// @brief     单实例排他写锁与 engine_epoch 分配实现
+/// @details   使用 flock(LOCK_EX|LOCK_NB) 抢占共享锁文件，并原子写入新 epoch
 /// @author    wengjianhong
 /// @date      2026-07-16
 /// @copyright CC BY-NC-SA 4.0

@@ -20,8 +20,8 @@ bool IsSequentialStartupTransition(EngineLifecycleState from, EngineLifecycleSta
     case EngineLifecycleState::kStopped:
       return to == EngineLifecycleState::kBootstrap;
     case EngineLifecycleState::kBootstrap:
-      return to == EngineLifecycleState::kFenced;
-    case EngineLifecycleState::kFenced:
+      return to == EngineLifecycleState::kInstanceLocked;
+    case EngineLifecycleState::kInstanceLocked:
       return to == EngineLifecycleState::kReplayed;
     case EngineLifecycleState::kReplayed:
       return to == EngineLifecycleState::kBrokerSynced;

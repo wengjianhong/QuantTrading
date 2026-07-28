@@ -1,7 +1,7 @@
 /// @file      trading_engine.hpp
 /// @brief     交易引擎本体（Init / Start / Stop 与运行时编排）
 /// @details   不负责进程入口；进程阶段由 apps/qtrade_engine/main.cpp + engine_boot 完成。
-///            本类内部再拆 Init/Start 子阶段（围栏、回放、控制面、适配器、柜台对账等）。
+///            Init 只编排子阶段；EngineLifecycle 仅由本类推进，不下沉到子模块。
 ///            须 Init 后 Start，仅 READY 接受新单。
 /// @author    wengjianhong
 /// @date      2026-05-19
@@ -44,16 +44,8 @@ namespace qtrade::engine {
 /// @brief 交易引擎：单进程封闭运行，整合行情、策略、OMS、EMS 等模块
 class TradingEngine {
  public:
-  // ---------------------------------------------------------------------------
-  // 构造 / 析构
-  // ---------------------------------------------------------------------------
-
-  /// @brief 构造交易引擎（未初始化，须 Init 后 Start）
   TradingEngine();
-
-  /// @brief 析构并 Stop
   ~TradingEngine();
-
   TradingEngine(const TradingEngine&) = delete;
   TradingEngine& operator=(const TradingEngine&) = delete;
 
@@ -62,8 +54,8 @@ class TradingEngine {
   // ---------------------------------------------------------------------------
 
   /// @brief 初始化引擎（编排 Init 子阶段，须在 Start 之前调用）
-  /// @details 子阶段：BootstrapLocalRuntime → AcquireInstanceFence → ReplayLocalOrderFacts
-  ///          → InitControlPlaneClients → ConnectAdaptersIfConfigured
+  /// @brief 子阶段：ApplyBootstrapConfig → AcquireInstanceLock → InitSupportClients
+  ///          → InitEngineModules → InitEventLanes → InitAdapters（实现见 cpp 内部）
   /// @param config 进程引导配置（config/account 地址、tenant 等）
   /// @return ErrorCode::kSuccess 表示成功
   ErrorCode Init(const qtrade::common::config::QtradeEngineConfig& config);
@@ -85,6 +77,9 @@ class TradingEngine {
   /// @brief 引擎是否已通过全部 READY 门禁
   /// @return 仅生命周期为 READY 时返回 true
   [[nodiscard]] bool IsReady() const;
+
+  /// @brief 释放引擎全部资源（适配器、模块、client、实例写锁）
+  void Release();
 
   /// @brief 查询当前生命周期状态
   /// @return 当前生命周期状态
@@ -170,27 +165,26 @@ class TradingEngine {
   client::ConfigClient& GetConfigClient();
 
  private:
-  // ---------------------------------------------------------------------------
-  // Init 子阶段（由 Init() 按序调用；失败时 ReleaseInitResources）
-  // ---------------------------------------------------------------------------
+  /// @brief cpp 内 Init 子阶段实现（访问私有成员；不出现在对外 API）
+  friend struct TradingEngineInternal;
 
-  /// @brief Init-1: 应用引导配置并配置行情健康阈值 → kBootstrap
-  ErrorCode BootstrapLocalRuntime(const qtrade::common::config::QtradeEngineConfig& config);
+  /// @brief 缓存引导配置、配置行情健康阈值 → kBootstrap
+  ErrorCode ApplyBootstrapConfig(const qtrade::common::config::QtradeEngineConfig& config);
 
-  /// @brief Init-2: 获取单实例写入围栏 → kFenced
-  ErrorCode AcquireInstanceFence();
+  /// @brief 获取单实例排他写锁并分配 epoch → kInstanceLocked
+  ErrorCode AcquireInstanceLock();
 
-  /// @brief Init-3: 初始化订单 journal 并回放本地事实 → kReplayed
-  ErrorCode ReplayLocalOrderFacts();
+  /// @brief 初始化支撑服务客户端（config / account / account_risk）
+  ErrorCode InitSupportClients();
 
-  /// @brief Init-4: 初始化控制面 client（config / account-risk）
-  ErrorCode InitControlPlaneClients();
+  /// @brief 初始化引擎内模块（OMS 回放、risk outbox、pipeline 接线等）→ kReplayed
+  ErrorCode InitEngineModules();
 
-  /// @brief Init-5: 若启用 config-service，则按快照连接行情/交易适配器
-  ErrorCode ConnectAdaptersIfConfigured();
+  /// @brief 初始化事件通道（本阶段仅确认就绪；Start 时再启动 reactor）
+  ErrorCode InitEventLanes();
 
-  /// @brief Init 失败时逆序释放已初始化资源
-  void ReleaseInitResources();
+  /// @brief 按 EngineConfig 装配并连接行情/交易适配器（config 未启用时可跳过）
+  ErrorCode InitAdapters();
 
   // ---------------------------------------------------------------------------
   // Start 子阶段（由 Start() 按序调用）
@@ -209,21 +203,8 @@ class TradingEngine {
   ErrorCode AdvancePostStartLifecycle();
 
   // ---------------------------------------------------------------------------
-  // 控制面 client 辅助（供 InitControlPlaneClients 调用）
+  // 适配器接线 / 断开
   // ---------------------------------------------------------------------------
-
-  /// @brief 初始化并连接 config_client（GetEngineConfig + SubscribeEngineConfig）
-  ErrorCode InitConfigClient(const qtrade::common::config::QtradeEngineConfig& config);
-
-  /// @brief 按配置初始化账户硬风控客户端
-  ErrorCode InitAccountRiskClient(const qtrade::common::config::QtradeEngineConfig& config);
-
-  // ---------------------------------------------------------------------------
-  // 适配器装配 / 接线 / 断开
-  // ---------------------------------------------------------------------------
-
-  /// @brief 按 config-service 下发的 EngineConfig 装配并连接行情/交易适配器
-  ErrorCode InitAdapters();
 
   /// @brief 注册行情 SDK 回调并接入 Lane-Q
   void WireQuoteCallbacks();
@@ -245,7 +226,7 @@ class TradingEngine {
   // 运行时回调（配置热更新 / 行情健康 → 生命周期）
   // ---------------------------------------------------------------------------
 
-  /// @brief 完整引擎配置回调：应用 EngineConfig 并旁路日志
+  /// @brief 完整引擎配置回调：应用 EngineConfig
   void OnEngineConfig(const qtrade::config::v1::EngineConfig& config);
 
   /// @brief 处理行情健康变化并更新 READY 门禁
@@ -259,9 +240,9 @@ class TradingEngine {
   std::atomic_bool initialized_ = false;
   /// 是否已 Start
   std::atomic_bool running_ = false;
-  /// 单实例写入围栏
-  EngineFence engine_fence_;
-  /// 引擎生命周期状态机
+  /// 单实例排他写锁（同账户仅一进程可写本地事实）
+  EngineFence instance_lock_;
+  /// 引擎生命周期状态机（仅本类读写）
   EngineLifecycle lifecycle_;
   /// 进程引导配置（qtrade_engine.json）
   qtrade::common::config::QtradeEngineConfig config_;
