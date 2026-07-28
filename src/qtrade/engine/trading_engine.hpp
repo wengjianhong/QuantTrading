@@ -46,6 +46,10 @@ namespace qtrade::engine {
 /// @brief 交易引擎：单进程封闭运行，整合行情、策略、OMS、EMS 等模块
 class TradingEngine {
  public:
+  // ---------------------------------------------------------------------------
+  // 构造 / 析构
+  // ---------------------------------------------------------------------------
+
   /// @brief 构造交易引擎（未初始化，须 Init 后 Start）
   TradingEngine();
 
@@ -55,6 +59,10 @@ class TradingEngine {
   TradingEngine(const TradingEngine&) = delete;
   TradingEngine& operator=(const TradingEngine&) = delete;
 
+  // ---------------------------------------------------------------------------
+  // 生命周期：Init → Start → Stop，以及状态查询
+  // ---------------------------------------------------------------------------
+
   /// @brief 初始化引擎（编排 Init 子阶段，须在 Start 之前调用）
   /// @details 子阶段：BootstrapLocalRuntime → AcquireInstanceFence → ReplayLocalOrderFacts
   ///          → InitBypassClients → InitControlPlaneClients → ConnectAdaptersIfConfigured
@@ -62,19 +70,15 @@ class TradingEngine {
   /// @return ErrorCode::kSuccess 表示成功
   ErrorCode Init(const qtrade::common::config::QtradeEngineConfig& config);
 
-  /// @brief 返回当前进程引导配置快照
-  /// @return 配置只读引用
-  [[nodiscard]] const qtrade::common::config::QtradeEngineConfig& GetConfig() const;
-
-  /// @brief 停止所有子模块与 client（排空后逆序释放）
-  /// @return ErrorCode::kSuccess 表示成功；未运行返回 ErrorCode::kSystemError
-  ErrorCode Stop();
-
   /// @brief 启动运行时（编排 Start 子阶段，须先 Init）
   /// @details 子阶段：EnsureAdaptersConnected → ReconcileBrokerState → StartRuntimeModules
   ///          → AdvancePostStartLifecycle（BrokerSynced/RiskSynced → 行情门禁 → Ready）
   /// @return ErrorCode::kSuccess 表示成功
   ErrorCode Start();
+
+  /// @brief 停止所有子模块与 client（排空后逆序释放）
+  /// @return ErrorCode::kSuccess 表示成功；未运行返回 ErrorCode::kSystemError
+  ErrorCode Stop();
 
   /// @brief 引擎是否处于运行中
   /// @return true 表示已 Start
@@ -88,9 +92,28 @@ class TradingEngine {
   /// @return 当前生命周期状态
   [[nodiscard]] EngineLifecycleState LifecycleState() const;
 
-  /// @brief 获取事件通道门面（Lane-Q + Lane-T）
-  /// @return 事件通道引用
-  event_bus::EventLanes& GetEventLanes();
+  /// @brief 返回当前进程引导配置快照
+  /// @return 配置只读引用
+  [[nodiscard]] const qtrade::common::config::QtradeEngineConfig& GetConfig() const;
+
+  // ---------------------------------------------------------------------------
+  // 交易入口：发单 / 撤单
+  // ---------------------------------------------------------------------------
+
+  /// @brief 将策略请求送入 CMS → Risk → OMS → EMS 发单链
+  /// @param request 策略下单请求
+  /// @return 生命周期为 READY 且准入成功时返回 kSuccess；未 READY 返回 kNotInitialized
+  ErrorCode SubmitOrder(const qtrade_sdk::trader::OrderRequest& request);
+
+  /// @brief 撤销指定订单
+  /// @param order_id 全局订单 ID
+  /// @return 成功进入 EMS 撤单队列返回 kSuccess；订单不存在返回 kNotFound；
+  ///         OMS 拒绝或 EMS 入队失败返回对应错误码
+  ErrorCode CancelOrder(const std::string& order_id);
+
+  // ---------------------------------------------------------------------------
+  // 适配器与行情：注入 / 查询 / 订阅
+  // ---------------------------------------------------------------------------
 
   /// @brief 绑定行情适配器（仅未 Start 时可设置；测试注入用）
   /// @param quote_api 行情适配器所有权
@@ -120,32 +143,17 @@ class TradingEngine {
   /// @return 已收到有效行情且未超时时返回 true
   [[nodiscard]] bool IsQuoteHealthy() const;
 
+  // ---------------------------------------------------------------------------
+  // 模块访问器
+  // ---------------------------------------------------------------------------
+
+  /// @brief 获取事件通道门面（Lane-Q + Lane-T）
+  /// @return 事件通道引用
+  event_bus::EventLanes& GetEventLanes();
+
   /// @brief 获取策略引擎引用
   /// @return StrategyEngine 引用
   strategy::StrategyEngine& GetStrategyEngine();
-
-  /// @brief 获取日志客户端引用
-  /// @return LogClient 引用
-  client::LogClient& GetLogClient();
-
-  /// @brief 获取监控客户端引用
-  /// @return MonitorClient 引用
-  client::MonitorClient& GetMonitorClient();
-
-  /// @brief 获取配置客户端引用
-  /// @return ConfigClient 引用
-  client::ConfigClient& GetConfigClient();
-
-  /// @brief 将策略请求送入 CMS → Risk → OMS → EMS 发单链
-  /// @param request 策略下单请求
-  /// @return 生命周期为 READY 且准入成功时返回 kSuccess；未 READY 返回 kNotInitialized
-  ErrorCode SubmitOrder(const qtrade_sdk::trader::OrderRequest& request);
-
-  /// @brief 撤销指定订单
-  /// @param order_id 全局订单 ID
-  /// @return 成功进入 EMS 撤单队列返回 kSuccess；订单不存在返回 kNotFound；
-  ///         OMS 拒绝或 EMS 入队失败返回对应错误码
-  ErrorCode CancelOrder(const std::string& order_id);
 
   /// @brief 获取订单管理模块引用
   /// @return OrderManager 引用
@@ -158,6 +166,18 @@ class TradingEngine {
   /// @brief 获取持仓管理模块引用
   /// @return PositionManager 引用
   position::PositionManager& GetPositionManager();
+
+  /// @brief 获取配置客户端引用
+  /// @return ConfigClient 引用
+  client::ConfigClient& GetConfigClient();
+
+  /// @brief 获取日志客户端引用
+  /// @return LogClient 引用
+  client::LogClient& GetLogClient();
+
+  /// @brief 获取监控客户端引用
+  /// @return MonitorClient 引用
+  client::MonitorClient& GetMonitorClient();
 
  private:
   // ---------------------------------------------------------------------------
@@ -202,7 +222,7 @@ class TradingEngine {
   ErrorCode AdvancePostStartLifecycle();
 
   // ---------------------------------------------------------------------------
-  // 控制面 / 适配器辅助
+  // 控制面 client 辅助（供 InitControlPlaneClients 调用）
   // ---------------------------------------------------------------------------
 
   /// @brief 初始化并连接 config_client（FetchSnapshot + StartWatch）
@@ -211,17 +231,12 @@ class TradingEngine {
   /// @brief 按配置初始化账户硬风控客户端
   ErrorCode InitAccountRiskClient(const qtrade::common::config::QtradeEngineConfig& config);
 
+  // ---------------------------------------------------------------------------
+  // 适配器装配 / 接线 / 断开
+  // ---------------------------------------------------------------------------
+
   /// @brief 按 config-service 下发的 EngineConfig 装配并连接行情/交易适配器
   ErrorCode InitAdapters();
-
-  /// @brief 查询柜台快照并完成启动对账
-  ErrorCode SynchronizeBrokerState(qtrade_sdk::trader::TraderApi* trader_api);
-
-  /// @brief 完整引擎配置回调：应用 EngineConfig 并旁路日志
-  void OnEngineConfig(const qtrade::config::v1::EngineConfig& config);
-
-  /// @brief 处理行情健康变化并更新 READY 门禁
-  void OnMarketHealthChanged(bool healthy);
 
   /// @brief 注册行情 SDK 回调并接入 Lane-Q
   void WireQuoteCallbacks();
@@ -231,6 +246,27 @@ class TradingEngine {
 
   /// @brief 断开并释放行情/交易适配器
   void DisconnectAdapters();
+
+  // ---------------------------------------------------------------------------
+  // 柜台对账
+  // ---------------------------------------------------------------------------
+
+  /// @brief 查询柜台快照并完成启动对账
+  ErrorCode SynchronizeBrokerState(qtrade_sdk::trader::TraderApi* trader_api);
+
+  // ---------------------------------------------------------------------------
+  // 运行时回调（配置热更新 / 行情健康 → 生命周期）
+  // ---------------------------------------------------------------------------
+
+  /// @brief 完整引擎配置回调：应用 EngineConfig 并旁路日志
+  void OnEngineConfig(const qtrade::config::v1::EngineConfig& config);
+
+  /// @brief 处理行情健康变化并更新 READY 门禁
+  void OnMarketHealthChanged(bool healthy);
+
+  // ---------------------------------------------------------------------------
+  // 成员：生命周期与配置
+  // ---------------------------------------------------------------------------
 
   /// 是否已完成 Init
   std::atomic_bool initialized_ = false;
@@ -250,6 +286,11 @@ class TradingEngine {
   std::uint64_t runtime_config_version_ = 0;
   /// 当前已订阅行情合约集合
   std::unordered_set<std::string> subscribed_instruments_;
+
+  // ---------------------------------------------------------------------------
+  // 成员：事件通道 / 策略 / 行情健康 / 适配器
+  // ---------------------------------------------------------------------------
+
   /// Lane-Q / Lane-T 事件通道
   event_bus::EventLanes event_lanes_;
   /// 策略引擎
@@ -260,6 +301,11 @@ class TradingEngine {
   std::unique_ptr<qtrade_sdk::quote::QuoteApi> quote_api_;
   /// 交易适配器
   std::unique_ptr<qtrade_sdk::trader::TraderApi> trader_api_;
+
+  // ---------------------------------------------------------------------------
+  // 成员：交易核心模块
+  // ---------------------------------------------------------------------------
+
   /// 合规模块
   cms::ComplianceManager compliance_;
   /// 执行管理模块
@@ -274,6 +320,11 @@ class TradingEngine {
   risk::RiskManager risk_manager_;
   /// 发单准入流水线
   OrderPipeline order_pipeline_{compliance_, risk_manager_, order_manager_, execution_manager_};
+
+  // ---------------------------------------------------------------------------
+  // 成员：控制面与旁路 client
+  // ---------------------------------------------------------------------------
+
   /// 控制面 gRPC 客户端
   client::ConfigClient config_client_;
   /// 账户凭证客户端
