@@ -63,8 +63,10 @@ AccountRiskReleaseWorker::~AccountRiskReleaseWorker() {
 
 ErrorCode AccountRiskReleaseWorker::Initialize(client::AccountRiskClient* client,
                                                const std::string& path,
-                                               bool sync_on_append) {
-  if (client == nullptr || !client->IsInitialized() || path.empty()) {
+                                               bool sync_on_append,
+                                               std::string tenant_id,
+                                               std::string account_id) {
+  if (client == nullptr || !client->IsInitialized() || path.empty() || tenant_id.empty() || account_id.empty()) {
     return ErrorCode::kNotInitialized;
   }
 
@@ -84,6 +86,8 @@ ErrorCode AccountRiskReleaseWorker::Initialize(client::AccountRiskClient* client
 
   path_ = path;
   sync_on_append_ = sync_on_append;
+  tenant_id_ = std::move(tenant_id);
+  account_id_ = std::move(account_id);
   next_sequence_ = 1;
   const auto recovered = ReplayOutbox(path_, next_sequence_);
   fd_ = ::open(path_.c_str(), O_CREAT | O_APPEND | O_WRONLY | O_CLOEXEC, 0640);
@@ -208,8 +212,13 @@ void AccountRiskReleaseWorker::Run() {
     }
 
     // 2. 调用远程 Release；成功则写 ack，失败则退避后重入队
+    qtrade::account_risk::v1::ReleaseOrderRequest release_request;
+    release_request.set_tenant_id(tenant_id_);
+    release_request.set_account_id(account_id_);
+    release_request.set_order_id(task.order_id);
+    release_request.set_reason(static_cast<qtrade::account_risk::v1::ReleaseOrderRequest::Reason>(task.reason));
     qtrade::account_risk::v1::ReleaseOrderResponse response;
-    const auto result = client_->ReleaseOrder(task.order_id, task.reason, response);
+    const auto result = client_->ReleaseOrder(release_request, response);
     if (result == ErrorCode::kSuccess && response.released()) {
       std::lock_guard lock(mutex_);
       if (AppendRecord("ack", task) == ErrorCode::kSuccess) {

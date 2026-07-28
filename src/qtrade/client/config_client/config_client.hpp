@@ -1,81 +1,67 @@
 /// @file      config_client.hpp
-/// @brief     配置管理客户端
-/// @details   控制面：gRPC GetEngineConfig 冷启动 + SubscribeEngineConfig 出站监听（按版本全量快照）
+/// @brief     config-service gRPC 客户端（薄封装）
+/// @details   方法名与 proto ConfigService RPC 一一对应；不负责业务配置应用。
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
 #ifndef QTRADE_TRADING_CLIENT_CONFIG_CLIENT_HPP_
 #define QTRADE_TRADING_CLIENT_CONFIG_CLIENT_HPP_
 
+#include "qtrade/common/config/service_config.hpp"
+
 #include <qtrade/error_code/error_codes.hpp>
 #include <qtrade/proto/config/v1/config.pb.h>
 
-#include <cstdint>
 #include <functional>
 #include <memory>
-#include <string>
 
 namespace qtrade::client {
 
-/// @brief 配置客户端连接参数
+/// @brief ConfigClient 初始化选项
 struct ConfigClientOptions {
-  /// config-service gRPC 地址，如 localhost:50051
-  std::string server_address;
-  /// 租户 ID，用于多租户隔离
-  std::string tenant_id = "default";
-  /// 引擎实例 ID，用于按实例推送
-  std::string engine_id = "default";
+  /// config-service 连出端点
+  qtrade::common::config::ServiceConfig service_config;
 };
 
-/// @brief 配置管理客户端类
-/// @details 引擎作为 gRPC Client 出站连接 config-service；不对外提供 gRPC Server
+/// @brief ConfigService gRPC 客户端
 class ConfigClient {
  public:
-  /// @brief 收到完整引擎配置（GetEngineConfig 与 SubscribeEngineConfig 均触发）
-  using SnapshotHandler = std::function<void(const qtrade::config::v1::EngineConfig& config)>;
+  /// @brief SubscribeEngineConfig 每条推送的回调
+  using SubscribeHandler = std::function<void(const qtrade::config::v1::SubscribeEngineConfigResponse& response)>;
 
-  /// @brief 构造配置客户端（未初始化，须调用 Init）
   ConfigClient();
-
-  /// @brief 析构并 Shutdown
   ~ConfigClient();
-
   ConfigClient(const ConfigClient&) = delete;
   ConfigClient& operator=(const ConfigClient&) = delete;
 
-  /// @brief 建立 gRPC 通道（不拉取配置）
-  /// @param options 连接参数（server_address、tenant_id、engine_id）
-  /// @return ErrorCode::kSuccess 表示成功
+  /// @brief 建立 gRPC 通道与 stub
   ErrorCode Init(const ConfigClientOptions& options);
 
-  /// @brief 冷启动：GetEngineConfig 拉全量并触发 SnapshotHandler
-  /// @return ErrorCode::kSuccess 表示成功；网络失败返回 ErrorCode::kTimeout
-  ErrorCode FetchSnapshot();
-
-  /// @brief 启动控制线程：SubscribeEngineConfig 监听新版本全量快照
-  /// @return ErrorCode::kSuccess 表示成功
-  ErrorCode StartWatch();
-
-  /// @brief 停止 Watch 线程并释放 gRPC 资源
-  void Shutdown();
-
-  /// @brief 注册完整引擎配置回调
-  /// @param handler 收到配置时调用（引擎侧替换本地配置视图）
-  void SetOnSnapshot(SnapshotHandler handler);
-
-  /// @brief 获取当前已应用的配置版本号
-  /// @return 单调递增版本号；未拉取快照时为 0
-  [[nodiscard]] std::uint64_t Version() const;
-
-  /// @brief 是否已完成 Init
+  /// @brief 是否已 Init
   [[nodiscard]] bool IsInitialized() const;
 
- private:
-  void ApplyConfig(const qtrade::config::v1::EngineConfig& config);
+  /// @brief 停止订阅线程并释放资源
+  void Shutdown();
 
-  /// 实现细节（隐藏 gRPC 依赖）
+  /// ======================== RPC 业务接口实现 ========================
+  /// @brief 获取引擎配置
+  /// @param request 获取引擎配置请求
+  /// @param response 获取引擎配置响应
+  /// @return ErrorCode::kSuccess 表示成功；未初始化返回 kNotInitialized；RPC 失败返回 kTimeout
+  ErrorCode GetEngineConfig(const qtrade::config::v1::GetEngineConfigRequest& request,
+                            qtrade::config::v1::GetEngineConfigResponse& response);
+
+  /// @brief 订阅引擎配置变更
+  /// @details 断线后按已收到的最大 version 自动续订；on_message 在订阅线程回调
+  ///
+  /// @param request 订阅引擎配置变更请求
+  /// @param on_message 订阅回调
+  /// @return ErrorCode::kSuccess 表示成功；未初始化返回 kNotInitialized；RPC 失败返回 kTimeout
+  ErrorCode SubscribeEngineConfig(const qtrade::config::v1::SubscribeEngineConfigRequest& request,
+                                  SubscribeHandler on_message);
+
+ private:
   struct Impl;
-  /// pimpl 实现体
   std::unique_ptr<Impl> impl_;
 };
 

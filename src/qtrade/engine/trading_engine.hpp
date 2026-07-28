@@ -11,8 +11,6 @@
 #include "qtrade/client/account_client/account_client.hpp"
 #include "qtrade/client/account_risk_client/account_risk_client.hpp"
 #include "qtrade/client/config_client/config_client.hpp"
-#include "qtrade/client/log_client/log_client.hpp"
-#include "qtrade/client/monitor_client/monitor_client.hpp"
 #include "qtrade/common/config/qtrade_engine_config.hpp"
 #include "qtrade/engine/account/account_manager.hpp"
 #include "qtrade/engine/cms/compliance_manager.hpp"
@@ -65,8 +63,8 @@ class TradingEngine {
 
   /// @brief 初始化引擎（编排 Init 子阶段，须在 Start 之前调用）
   /// @details 子阶段：BootstrapLocalRuntime → AcquireInstanceFence → ReplayLocalOrderFacts
-  ///          → InitBypassClients → InitControlPlaneClients → ConnectAdaptersIfConfigured
-  /// @param config 进程引导配置（config/account 地址、tenant、log/monitor 等）
+  ///          → InitControlPlaneClients → ConnectAdaptersIfConfigured
+  /// @param config 进程引导配置（config/account 地址、tenant 等）
   /// @return ErrorCode::kSuccess 表示成功
   ErrorCode Init(const qtrade::common::config::QtradeEngineConfig& config);
 
@@ -171,14 +169,6 @@ class TradingEngine {
   /// @return ConfigClient 引用
   client::ConfigClient& GetConfigClient();
 
-  /// @brief 获取日志客户端引用
-  /// @return LogClient 引用
-  client::LogClient& GetLogClient();
-
-  /// @brief 获取监控客户端引用
-  /// @return MonitorClient 引用
-  client::MonitorClient& GetMonitorClient();
-
  private:
   // ---------------------------------------------------------------------------
   // Init 子阶段（由 Init() 按序调用；失败时 ReleaseInitResources）
@@ -193,13 +183,10 @@ class TradingEngine {
   /// @brief Init-3: 初始化订单 journal 并回放本地事实 → kReplayed
   ErrorCode ReplayLocalOrderFacts();
 
-  /// @brief Init-4: 初始化 D 段旁路 client（log / monitor）
-  ErrorCode InitBypassClients();
-
-  /// @brief Init-5: 初始化控制面 client（config / account-risk）
+  /// @brief Init-4: 初始化控制面 client（config / account-risk）
   ErrorCode InitControlPlaneClients();
 
-  /// @brief Init-6: 若启用 config-service，则按快照连接行情/交易适配器
+  /// @brief Init-5: 若启用 config-service，则按快照连接行情/交易适配器
   ErrorCode ConnectAdaptersIfConfigured();
 
   /// @brief Init 失败时逆序释放已初始化资源
@@ -225,7 +212,7 @@ class TradingEngine {
   // 控制面 client 辅助（供 InitControlPlaneClients 调用）
   // ---------------------------------------------------------------------------
 
-  /// @brief 初始化并连接 config_client（FetchSnapshot + StartWatch）
+  /// @brief 初始化并连接 config_client（GetEngineConfig + SubscribeEngineConfig）
   ErrorCode InitConfigClient(const qtrade::common::config::QtradeEngineConfig& config);
 
   /// @brief 按配置初始化账户硬风控客户端
@@ -319,10 +306,10 @@ class TradingEngine {
   /// 风险管理模块
   risk::RiskManager risk_manager_;
   /// 发单准入流水线
-  OrderPipeline order_pipeline_{compliance_, risk_manager_, order_manager_, execution_manager_};
+  OrderPipeline order_pipeline_ = OrderPipeline(compliance_, risk_manager_, order_manager_, execution_manager_);
 
   // ---------------------------------------------------------------------------
-  // 成员：控制面与旁路 client
+  // 成员：控制面 client
   // ---------------------------------------------------------------------------
 
   /// 控制面 gRPC 客户端
@@ -333,10 +320,6 @@ class TradingEngine {
   client::AccountRiskClient account_risk_client_;
   /// E 段 Release 可靠 outbox
   risk::AccountRiskReleaseWorker account_risk_release_worker_;
-  /// D 段日志旁路客户端
-  client::LogClient log_client_;
-  /// D 段监控旁路客户端
-  client::MonitorClient monitor_client_;
 };
 
 }  // namespace qtrade::engine

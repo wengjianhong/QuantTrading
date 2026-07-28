@@ -17,13 +17,13 @@
     },
     "account_risk_service": {
       "host": "127.0.0.1",
-      "port": 50060,
+      "port": 50053,
       "enabled": true,
-      "timeout_ms": 3
+      "timeout_ms": 1000
     },
     "log_service": {
       "host": "127.0.0.1",
-      "port": 50053,
+      "port": 50054,
       "timeout_ms": 2000,
       "topic": "qtrade_engine"
     }

@@ -40,8 +40,14 @@ class AccountRiskReleaseWorker {
   /// @param client 账户风控客户端
   /// @param path outbox JSON Lines 文件路径
   /// @param sync_on_append 每条事实是否 fsync
+  /// @param tenant_id 租户 ID（组装 ReleaseOrderRequest）
+  /// @param account_id 账户号（组装 ReleaseOrderRequest）
   /// @return 成功返回 kSuccess
-  ErrorCode Initialize(client::AccountRiskClient* client, const std::string& path, bool sync_on_append);
+  ErrorCode Initialize(client::AccountRiskClient* client,
+                       const std::string& path,
+                       bool sync_on_append,
+                       std::string tenant_id,
+                       std::string account_id);
 
   /// @brief 启动重试线程
   void Start();
@@ -79,6 +85,10 @@ class AccountRiskReleaseWorker {
 
   /// 账户硬风控客户端
   client::AccountRiskClient* client_ = nullptr;
+  /// ReleaseOrder 请求身份
+  std::string tenant_id_;
+  /// ReleaseOrder 请求账户
+  std::string account_id_;
   /// outbox 文件路径
   std::string path_;
   /// outbox 文件描述符

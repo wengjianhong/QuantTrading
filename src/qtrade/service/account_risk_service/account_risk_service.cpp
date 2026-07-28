@@ -13,7 +13,7 @@
 
 namespace qtrade::service {
 
-AccountRiskService::AccountRiskService() : SupportSyncServiceImpl("qtrade_account_risk_service", 50060) {}
+AccountRiskService::AccountRiskService() : SupportSyncServiceImpl("qtrade_account_risk_service", 50053) {}
 
 ErrorCode AccountRiskService::Initialize(const std::string& config_path) {
   // 1. 校验生命周期并读取配置文本

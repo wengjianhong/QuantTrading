@@ -17,7 +17,7 @@ namespace qtrade::service {
 /// @brief 账户硬风控同步支撑服务
 class AccountRiskService final : public qtrade::common::support::SupportSyncServiceImpl<AccountRiskGrpcService> {
  public:
-  /// @brief 构造服务（默认监听端口 50060）
+  /// @brief 构造服务（默认监听端口 50053）
   AccountRiskService();
 
   /// @brief 加载 L0 配置并初始化数据库连接、DaoManager 与表结构

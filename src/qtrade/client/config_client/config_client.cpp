@@ -1,5 +1,5 @@
 /// @file      config_client.cpp
-/// @brief     配置管理客户端实现（gRPC 出站）
+/// @brief     ConfigService gRPC 客户端实现
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
@@ -16,23 +16,21 @@
 #include <utility>
 
 namespace qtrade::client {
+namespace {
+
+[[nodiscard]] std::chrono::system_clock::time_point DeadlineFrom(const qtrade::common::config::ServiceConfig& cfg) {
+  const int timeout_ms = cfg.timeout_ms > 0 ? cfg.timeout_ms : 5000;
+  return std::chrono::system_clock::now() + std::chrono::milliseconds(timeout_ms);
+}
+
+}  // namespace
 
 struct ConfigClient::Impl {
-  /// 连接参数
   ConfigClientOptions options;
-  /// 全量快照回调
-  SnapshotHandler on_snapshot;
-  /// gRPC 通道
   std::shared_ptr<grpc::Channel> channel;
-  /// gRPC 存根
   std::unique_ptr<qtrade::config::v1::ConfigService::Stub> stub;
-  /// SubscribeEngineConfig 控制线程
   std::thread watch_thread;
-  /// Watch 线程运行标志
   std::atomic<bool> watch_running{false};
-  /// 已应用配置版本
-  std::atomic<std::uint64_t> version{0};
-  /// 是否已完成 Init
   bool initialized = false;
 };
 
@@ -46,103 +44,18 @@ ErrorCode ConfigClient::Init(const ConfigClientOptions& options) {
   if (impl_->initialized) {
     return ErrorCode::kSystemError;
   }
-  if (options.server_address.empty()) {
+  if (options.service_config.host.empty() || options.service_config.port <= 0) {
     return ErrorCode::kInternalError;
   }
-
   impl_->options = options;
-  impl_->channel = grpc::CreateChannel(options.server_address, grpc::InsecureChannelCredentials());
+  impl_->channel = grpc::CreateChannel(options.service_config.Address(), grpc::InsecureChannelCredentials());
   impl_->stub = qtrade::config::v1::ConfigService::NewStub(impl_->channel);
   impl_->initialized = true;
   return ErrorCode::kSuccess;
 }
 
-void ConfigClient::ApplyConfig(const qtrade::config::v1::EngineConfig& config) {
-  impl_->version.store(config.version(), std::memory_order_release);
-  if (impl_->on_snapshot) {
-    impl_->on_snapshot(config);
-  }
-}
-
-ErrorCode ConfigClient::FetchSnapshot() {
-  if (!impl_->initialized || !impl_->stub) {
-    return ErrorCode::kNotInitialized;
-  }
-
-  qtrade::config::v1::GetEngineConfigRequest request;
-  request.set_engine_id(impl_->options.engine_id);
-
-  qtrade::config::v1::GetEngineConfigResponse response;
-  grpc::ClientContext context;
-  context.set_deadline(std::chrono::system_clock::now() + std::chrono::seconds(5));
-
-  const grpc::Status status = impl_->stub->GetEngineConfig(&context, request, &response);
-  if (!status.ok()) {
-    spdlog::warn("[ConfigClient] GetEngineConfig failed: {}", status.error_message());
-    return ErrorCode::kTimeout;
-  }
-
-  ApplyConfig(response.engine());
-  spdlog::info("[ConfigClient] config loaded, version={}, strategies={}",
-               response.engine().version(),
-               response.engine().strategies_size());
-  return ErrorCode::kSuccess;
-}
-
-ErrorCode ConfigClient::StartWatch() {
-  if (!impl_->initialized) {
-    return ErrorCode::kNotInitialized;
-  }
-  if (impl_->watch_running.load(std::memory_order_acquire)) {
-    return ErrorCode::kSystemError;
-  }
-
-  impl_->watch_running.store(true, std::memory_order_release);
-  impl_->watch_thread = std::thread([this] {
-    int backoff_ms = 500;
-    constexpr int kMaxBackoffMs = 30'000;
-
-    while (impl_->watch_running.load(std::memory_order_acquire)) {
-      if (!impl_->stub) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(backoff_ms));
-        continue;
-      }
-
-      qtrade::config::v1::SubscribeEngineConfigRequest request;
-      request.set_engine_id(impl_->options.engine_id);
-      request.set_since_version(impl_->version.load(std::memory_order_acquire));
-
-      grpc::ClientContext context;
-      qtrade::config::v1::SubscribeEngineConfigResponse response;
-      std::unique_ptr<grpc::ClientReader<qtrade::config::v1::SubscribeEngineConfigResponse>> reader(
-        impl_->stub->SubscribeEngineConfig(&context, request));
-
-      while (impl_->watch_running.load(std::memory_order_acquire) && reader->Read(&response)) {
-        backoff_ms = 500;
-        ApplyConfig(response.engine());
-        spdlog::debug("[ConfigClient] applied config version={}, strategies={}",
-                      response.engine().version(),
-                      response.engine().strategies_size());
-      }
-
-      const grpc::Status status = reader->Finish();
-      if (!impl_->watch_running.load(std::memory_order_acquire)) {
-        break;
-      }
-
-      if (!status.ok() && status.error_code() != grpc::StatusCode::CANCELLED) {
-        spdlog::warn("[ConfigClient] SubscribeEngineConfig disconnected: {}", status.error_message());
-      }
-
-      if (!status.ok() && impl_->watch_running.load(std::memory_order_acquire)) {
-        spdlog::info("[ConfigClient] reconnecting in {} ms...", backoff_ms);
-        std::this_thread::sleep_for(std::chrono::milliseconds(backoff_ms));
-        backoff_ms = std::min(backoff_ms * 2, kMaxBackoffMs);
-      }
-    }
-  });
-
-  return ErrorCode::kSuccess;
+bool ConfigClient::IsInitialized() const {
+  return impl_->initialized;
 }
 
 void ConfigClient::Shutdown() {
@@ -155,16 +68,74 @@ void ConfigClient::Shutdown() {
   impl_->initialized = false;
 }
 
-void ConfigClient::SetOnSnapshot(SnapshotHandler handler) {
-  impl_->on_snapshot = std::move(handler);
+ErrorCode ConfigClient::GetEngineConfig(const qtrade::config::v1::GetEngineConfigRequest& request,
+                                        qtrade::config::v1::GetEngineConfigResponse& response) {
+  if (!impl_->initialized || !impl_->stub) {
+    return ErrorCode::kNotInitialized;
+  }
+  grpc::ClientContext context;
+  context.set_deadline(DeadlineFrom(impl_->options.service_config));
+  const grpc::Status status = impl_->stub->GetEngineConfig(&context, request, &response);
+  if (!status.ok()) {
+    spdlog::warn("[ConfigClient] GetEngineConfig failed: {}", status.error_message());
+    return ErrorCode::kTimeout;
+  }
+  return ErrorCode::kSuccess;
 }
 
-std::uint64_t ConfigClient::Version() const {
-  return impl_->version.load(std::memory_order_acquire);
-}
+ErrorCode ConfigClient::SubscribeEngineConfig(const qtrade::config::v1::SubscribeEngineConfigRequest& request,
+                                              SubscribeHandler on_message) {
+  if (!impl_->initialized || !impl_->stub) {
+    return ErrorCode::kNotInitialized;
+  }
+  if (!on_message) {
+    return ErrorCode::kInternalError;
+  }
+  if (impl_->watch_running.load(std::memory_order_acquire)) {
+    return ErrorCode::kSystemError;
+  }
 
-bool ConfigClient::IsInitialized() const {
-  return impl_->initialized;
+  impl_->watch_running.store(true, std::memory_order_release);
+  impl_->watch_thread = std::thread([this, request, handler = std::move(on_message)]() mutable {
+    int backoff_ms = 500;
+    constexpr int kMaxBackoffMs = 30'000;
+    auto active_request = request;
+
+    while (impl_->watch_running.load(std::memory_order_acquire)) {
+      if (!impl_->stub) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(backoff_ms));
+        continue;
+      }
+
+      grpc::ClientContext context;
+      qtrade::config::v1::SubscribeEngineConfigResponse response;
+      std::unique_ptr<grpc::ClientReader<qtrade::config::v1::SubscribeEngineConfigResponse>> reader(
+        impl_->stub->SubscribeEngineConfig(&context, active_request));
+
+      while (impl_->watch_running.load(std::memory_order_acquire) && reader->Read(&response)) {
+        backoff_ms = 500;
+        if (response.engine().version() > active_request.since_version()) {
+          active_request.set_since_version(response.engine().version());
+        }
+        handler(response);
+      }
+
+      const grpc::Status status = reader->Finish();
+      if (!impl_->watch_running.load(std::memory_order_acquire)) {
+        break;
+      }
+      if (!status.ok() && status.error_code() != grpc::StatusCode::CANCELLED) {
+        spdlog::warn("[ConfigClient] SubscribeEngineConfig disconnected: {}", status.error_message());
+      }
+      if (!status.ok() && impl_->watch_running.load(std::memory_order_acquire)) {
+        spdlog::info("[ConfigClient] reconnecting in {} ms...", backoff_ms);
+        std::this_thread::sleep_for(std::chrono::milliseconds(backoff_ms));
+        backoff_ms = std::min(backoff_ms * 2, kMaxBackoffMs);
+      }
+    }
+  });
+
+  return ErrorCode::kSuccess;
 }
 
 }  // namespace qtrade::client
