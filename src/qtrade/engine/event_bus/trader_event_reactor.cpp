@@ -17,8 +17,8 @@ TraderEventReactor::~TraderEventReactor() {
   Stop();
 }
 
-void TraderEventReactor::SetLanePolicy(LanePolicy policy) {
-  loop_.SetLanePolicy(policy);
+bool TraderEventReactor::SetLanePolicy(LanePolicy policy) {
+  return loop_.SetLanePolicy(policy);
 }
 
 void TraderEventReactor::Start() {

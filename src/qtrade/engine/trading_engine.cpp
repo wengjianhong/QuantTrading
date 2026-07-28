@@ -6,7 +6,6 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/engine/trading_engine.hpp"
 
-#include "qtrade/common/json/json_util.hpp"
 #include "qtrade_sdk/emt/quote/emt_quote_api.hpp"
 #include "qtrade_sdk/emt/trader/emt_trader_api.hpp"
 #include "qtrade_sdk/mock/quote/mock_quote_api.hpp"
@@ -32,7 +31,7 @@ constexpr std::uint64_t kInitialEngineEpoch = 1;
 /// @brief 订单与 outbox 事实必须同步落盘
 constexpr bool kSyncOrderFacts = true;
 /// @brief 行情陈旧判定阈值
-constexpr std::chrono::milliseconds kQuoteStaleThreshold{3000};
+constexpr std::chrono::milliseconds kQuoteStaleThreshold = std::chrono::milliseconds(3000);
 /// @brief 启动 READY 必须依赖已连接的交易通道
 constexpr bool kRequireTraderConnection = true;
 /// @brief 启动 READY 必须完成柜台快照同步

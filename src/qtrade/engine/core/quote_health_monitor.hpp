@@ -23,7 +23,7 @@ namespace qtrade::engine {
 /// @brief 行情健康检查参数
 struct QuoteHealthOptions {
   /// 最后一笔有效行情允许的最大静默时间
-  std::chrono::milliseconds max_stale_age{3000};
+  std::chrono::milliseconds max_stale_age = std::chrono::milliseconds(3000);
 };
 
 /// @brief 行情健康状态监控器
@@ -52,10 +52,9 @@ class QuoteHealthMonitor {
   /// @brief 设置健康状态变化回调
   /// @param handler 健康状态翻转时调用
   void SetHealthChangedHandler(HealthChangedHandler handler);
-  2
-    /// @brief 记录一笔有效 Tick
-    void
-    OnValidTick();
+
+  /// @brief 记录一笔有效 Tick
+  void OnValidTick();
 
   /// @brief 记录一笔无效 Tick
   void OnInvalidTick();

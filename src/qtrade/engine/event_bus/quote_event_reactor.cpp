@@ -19,8 +19,8 @@ QuoteEventReactor::~QuoteEventReactor() {
   Stop();
 }
 
-void QuoteEventReactor::SetLanePolicy(LanePolicy policy) {
-  loop_.SetLanePolicy(policy);
+bool QuoteEventReactor::SetLanePolicy(LanePolicy policy) {
+  return loop_.SetLanePolicy(policy);
 }
 
 void QuoteEventReactor::Start() {

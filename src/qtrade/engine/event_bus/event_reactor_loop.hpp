@@ -63,7 +63,8 @@ class EventReactorLoop {
   /// @warning 仅未 Start 时生效，Reactor 正在运行时忽略设置
   ///
   /// @param policy 队列容量与满队列处理策略
-  void SetLanePolicy(LanePolicy policy);
+  /// @return 设置成功返回 true；Reactor 正在运行时返回 false
+  bool SetLanePolicy(LanePolicy policy);
 
   /// @brief 启动 Reactor 线程
   /// @param handle_event 出队事件的处理回调

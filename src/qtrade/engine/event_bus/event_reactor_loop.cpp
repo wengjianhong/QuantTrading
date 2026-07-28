@@ -16,17 +16,18 @@ template <typename Event>
 EventReactorLoop<Event>::EventReactorLoop(std::string_view name) : name_(name) {}
 
 template <typename Event>
-void EventReactorLoop<Event>::SetLanePolicy(LanePolicy policy) {
+bool EventReactorLoop<Event>::SetLanePolicy(LanePolicy policy) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   // 如果 Reactor 正在运行，则忽略设置队列策略
   if (running_.load(std::memory_order_acquire)) {
     spdlog::warn("[{}] ignore SetLanePolicy while reactor is running", name_);
-    return;
+    return false;
   }
 
   // 设置队列策略
   policy_ = policy;
+  return true;
 }
 
 template <typename Event>
