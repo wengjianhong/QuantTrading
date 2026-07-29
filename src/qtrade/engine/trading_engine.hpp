@@ -14,7 +14,6 @@
 #include "qtrade/common/config/qtrade_engine_config.hpp"
 #include "qtrade/engine/account/account_manager.hpp"
 #include "qtrade/engine/cms/compliance_manager.hpp"
-#include "qtrade/engine/core/engine_fence.hpp"
 #include "qtrade/engine/core/engine_lifecycle.hpp"
 #include "qtrade/engine/core/order_pipeline.hpp"
 #include "qtrade/engine/core/quote_health_monitor.hpp"
@@ -53,8 +52,8 @@ class TradingEngine {
   // ---------------------------------------------------------------------------
 
   /// @brief 初始化引擎（编排 Init 子阶段，须在 Start 之前调用）
-  /// @details 子阶段：ApplyBootstrapConfig → AcquireInstanceLock → InitSupportClients
-  ///          → InitEngineModules → InitEventLanes → InitAdapters（实现见 cpp 内部）
+  /// @details 子阶段：ApplyBootstrapConfig → InitSupportClients → InitEngineModules
+  ///          → InitEventLanes → InitAdapters（实现见 cpp 内部）
   /// @param config 进程引导配置（config/account 地址、tenant 等）
   /// @return ErrorCode::kSuccess 表示成功
   ErrorCode Init(const qtrade::common::config::QtradeEngineConfig& config);
@@ -77,7 +76,7 @@ class TradingEngine {
   /// @return 仅生命周期为 READY 时返回 true
   [[nodiscard]] bool IsReady() const;
 
-  /// @brief 释放引擎全部资源（适配器、模块、client、实例写锁）
+  /// @brief 释放资源
   void Release();
 
   /// @brief 查询当前生命周期状态
@@ -171,9 +170,6 @@ class TradingEngine {
   /// @brief 缓存引导配置、配置行情健康阈值 → kBootstrap
   ErrorCode ApplyBootstrapConfig(const qtrade::common::config::QtradeEngineConfig& config);
 
-  /// @brief 获取单实例排他写锁并分配 epoch → kInstanceLocked
-  ErrorCode AcquireInstanceLock();
-
   /// @brief 初始化支撑服务客户端（config / account / account_risk）
   ErrorCode InitSupportClients();
 
@@ -250,8 +246,6 @@ class TradingEngine {
   std::atomic_bool initialized_ = false;
   /// 是否已 Start
   std::atomic_bool running_ = false;
-  /// 单实例排他写锁（同账户仅一进程可写本地事实）
-  EngineFence instance_lock_;
   /// 引擎生命周期状态机（仅本类读写）
   EngineLifecycle lifecycle_;
   /// 进程引导配置（qtrade_engine.json）
@@ -300,7 +294,7 @@ class TradingEngine {
   OrderPipeline order_pipeline_ = OrderPipeline(compliance_, risk_manager_, order_manager_, execution_manager_);
 
   // ---------------------------------------------------------------------------
-  // 成员：控制面 client
+  // 成员：支撑服务的GRPC客户端
   // ---------------------------------------------------------------------------
 
   /// 控制面 gRPC 客户端

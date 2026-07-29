@@ -608,22 +608,21 @@ A 段 enqueue → Outbound → log_client / monitor_client / …（fire-and-forg
 
 - **分片键**：`tenant_id + account_id + instrument_id`（写入各实例配置，见 §2.5）
 - **水平扩展**：部署多个引擎实例，每实例单进程全封闭；实例间**不共享**内存状态
-- **当前不部署 Standby**：每个 `engine_id` 仅运行一个 Active 实例。部署系统必须分配单调递增的 `engine_epoch`；新实例取得租约并完成恢复对账后才能进入 READY，旧 epoch 的实例不得继续报单。
+- **当前不部署 Standby**：每个 `engine_id` 仅运行一个 Active 实例，由**部署/进程管理**保证单实例；当前引擎进程**不**使用本地文件围栏（flock）。`engine_epoch` 暂为进程内固定值，写入 `order_id`；权威租约与单调 epoch 分配属后续能力。
 
-#### 实例租约与围栏
+#### 实例租约（后续）
 
-- config-service 内的 `engine-lease` 能力是租约权威源，使用强一致存储维护 `(engine_id, engine_epoch, holder, expires_at)`。
-- 新实例只能通过原子更新取得更大的 `engine_epoch`；租约按固定周期续期，失去租约或本地续租期限到期后，立即冻结新单和 EMS 发送，但继续处理回报与撤单。
-- `account-risk-service` 校验 `engine_epoch`，拒绝旧 epoch 的预占；account-service 只向当前 epoch 发放或续用账户登录材料。
-- EMS 每次发送前检查本地租约有效期。新实例接管时还要撤销旧柜台会话；柜台不支持会话互斥时，必须由运维平台先隔离旧节点，再转移租约。
-- 仅有进程内 epoch 字段不构成围栏；上述服务校验和柜台会话处置缺一不可。
+- 规划由 config-service 的 `engine-lease` 作为租约权威源，维护 `(engine_id, engine_epoch, holder, expires_at)`；当前未落地。
+- 落地后：新实例通过原子更新取得更大的 `engine_epoch`；失去租约后冻结新单和 EMS 发送，继续处理回报与撤单。
+- `account-risk-service` / account-service 可校验 epoch；EMS 发送前检查租约。柜台不支持会话互斥时，须由运维先隔离旧节点。
+- 进程内固定 epoch **不构成**跨机单活保证；单实例靠部署约束。
 
 #### 部署拓扑（分阶段）
 
 | 阶段 | 拓扑 | 说明 |
 |---|---|---|
-| 当前阶段 | 单机房、**N 个 Active 实例 + 静态配置分片** | 每实例 JSON/config 指定 instruments；无 Standby、无自动切换 |
-| 后续规划 | 主备/跨机房灾备 | 不预设拓扑、阶段、RTO 或 RPO；以单活围栏、订单所有权、复制与对账设计通过评审为前提 |
+| 当前阶段 | 单机房、**N 个 Active 实例 + 静态配置分片** | 每实例 JSON/config 指定 instruments；无 Standby、无自动切换；无本地文件围栏 |
+| 后续规划 | 主备/跨机房灾备 | 不预设拓扑、阶段、RTO 或 RPO；以租约、订单所有权、复制与对账设计通过评审为前提 |
 
 - **支撑服务层**：可按自身可用性要求部署多副本；跨机房同步不属于当前交易引擎交付范围
 - **Lite 档位（开发/单租户）**：允许 config-service、observability 与 engine 同 VM 部署，不承诺生产级隔离和性能
@@ -636,7 +635,7 @@ A 段 enqueue → Outbound → log_client / monitor_client / …（fire-and-forg
 引擎统一使用以下生命周期：
 
 ```text
-BOOTSTRAP → INSTANCE_LOCKED → MODULES_READY(kReplayed)
+BOOTSTRAP → MODULES_READY(kReplayed)
   → BROKER_SYNCED → RISK_SYNCED → MARKET_HEALTHY → READY
   → FREEZE → DRAIN → STOPPED
 ```
@@ -645,7 +644,7 @@ BOOTSTRAP → INSTANCE_LOCKED → MODULES_READY(kReplayed)
 - `MODULES_READY`（生命周期枚举仍名 `kReplayed`）表示引擎内模块（含内存 OMS）已初始化，**不是**订单 journal 回放。
 - `FREEZE/DRAIN` 允许撤单和回报，禁止新单；停机前应尽量完成撤单确认与预占释放尽力调用。
 - 存在 `SendUnknown`、孤儿预占、配置过期、行情不健康或对账差异时，不得进入 `READY`；人工豁免必须审批并审计。
-- **进程级故障**：自动重启后依次执行：取得新 `engine_epoch` → OMS 冷启动为空 → 登录柜台 → 查询未终结订单和成交并以 **Adopt** 重建 Working 内存态（**不补发**）→ 对账 account-risk 未终结预占 → 检查行情健康 → 人工或受控恢复策略。**禁止**按本地旧意图、journal 回放或运行日志自动补单。
+- **进程级故障**：自动重启后依次执行：OMS 冷启动为空 → 登录柜台 → 查询未终结订单和成交并以 **Adopt** 重建 Working 内存态（**不补发**）→ 对账 account-risk 未终结预占 → 检查行情健康 → 人工或受控恢复策略。**禁止**按本地旧意图、journal 回放或运行日志自动补单。单实例由部署保证；当前不使用本地文件围栏。
 - **恢复验收目标**：在柜台和账户风控服务可用的前提下，MVP 从进程退出到 `READY` 不超过 15 分钟；该指标不等同于主备自动切换 RTO。
 
 - **节点级故障**：通过部署/运维系统重建同一 `engine_id` 实例。当前阶段不以本地订单主日志为恢复依据；Working 态依赖柜台查询 Adopt 与 account-risk 对账。订单主日志异机副本属于后续可选能力，当前不承诺。

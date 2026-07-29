@@ -27,10 +27,8 @@
 namespace qtrade::engine {
 namespace {
 
-/// @brief 引擎内部固定的本地数据目录（实例锁等）
-constexpr std::string_view kRuntimeDataDirectory = "data/";
-/// @brief 首个进程世代
-constexpr std::uint64_t kInitialEngineEpoch = 1;
+/// @brief 进程世代（写入 order_id；本地文件锁已移除，暂用固定值）
+constexpr std::uint64_t kEngineEpoch = 1;
 /// @brief 行情陈旧判定阈值
 constexpr std::chrono::milliseconds kQuoteStaleThreshold = std::chrono::milliseconds(3000);
 /// @brief 启动 READY 必须依赖已连接的交易通道
@@ -145,14 +143,7 @@ ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineConfig& 
     return error_code;
   }
 
-  // 2. 单实例排他写锁 → kInstanceLocked
-  error_code = AcquireInstanceLock();
-  if (error_code != ErrorCode::kSuccess) {
-    spdlog::error("AcquireInstanceLock failed, code={}", static_cast<int>(error_code));
-    return error_code;
-  }
-
-  // 3. 支撑服务客户端
+  // 2. 支撑服务客户端
   error_code = InitSupportClients();
   if (error_code != ErrorCode::kSuccess) {
     spdlog::error("InitSupportClients failed, code={}", static_cast<int>(error_code));
@@ -160,7 +151,7 @@ ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineConfig& 
     return error_code;
   }
 
-  // 4. 引擎内模块（内存 OMS 等）→ kReplayed（历史命名：模块已就绪，非 journal 回放）
+  // 3. 引擎内模块（内存 OMS 等）→ kReplayed（历史命名：模块已就绪，非 journal 回放）
   error_code = InitEngineModules();
   if (error_code != ErrorCode::kSuccess) {
     spdlog::error("InitEngineModules failed, code={}", static_cast<int>(error_code));
@@ -168,7 +159,7 @@ ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineConfig& 
     return error_code;
   }
 
-  // 5. 事件通道（本阶段不 Start）
+  // 4. 事件通道（本阶段不 Start）
   error_code = InitEventLanes();
   if (error_code != ErrorCode::kSuccess) {
     spdlog::error("InitEventLanes failed, code={}", static_cast<int>(error_code));
@@ -176,7 +167,7 @@ ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineConfig& 
     return error_code;
   }
 
-  // 6. 行情/交易适配器
+  // 5. 行情/交易适配器
   error_code = InitAdapters();
   if (error_code != ErrorCode::kSuccess) {
     spdlog::error("InitAdapters failed, code={}", static_cast<int>(error_code));
@@ -226,12 +217,10 @@ ErrorCode TradingEngine::Start() {
 }
 
 ErrorCode TradingEngine::Stop() {
-  // 1. 未运行：仅清理 Init 侧资源与实例写锁
+  // 1. 未运行：仅清理 Init 侧资源
   if (!running_) {
     if (initialized_) {
       Release();
-    } else {
-      instance_lock_.Release();
     }
     lifecycle_.MarkStopped();
     return ErrorCode::kSystemError;
@@ -257,7 +246,6 @@ ErrorCode TradingEngine::Stop() {
   initialized_ = false;
   quote_api_.reset();
   trader_api_.reset();
-  instance_lock_.Release();
   lifecycle_.MarkStopped();
   spdlog::info("stopped cleanly");
   return ErrorCode::kSuccess;
@@ -417,25 +405,6 @@ ErrorCode TradingEngine::ApplyBootstrapConfig(const qtrade::common::config::Qtra
   return ErrorCode::kSuccess;
 }
 
-ErrorCode TradingEngine::AcquireInstanceLock() {
-  spdlog::info("AcquireInstanceLock");
-  // 1. 按 tenant+account 抢占锁文件，防止同账户多实例并发写本地事实
-  //    路径后缀保持 -engine.fence，与既有部署兼容
-  const std::string lock_path = std::string(kRuntimeDataDirectory) + config_.identity.tenant_id + "-" +
-                                config_.identity.account_id + "-engine.fence";
-  if (const auto rc = instance_lock_.Acquire(lock_path, kInitialEngineEpoch); rc != ErrorCode::kSuccess) {
-    lifecycle_.Fail("ENGINE_INSTANCE_LOCK_ACQUIRE_FAILED");
-    return rc;
-  }
-  // 2. 持锁成功后推进 kInstanceLocked；失败则释放避免残留锁
-  if (lifecycle_.Advance(EngineLifecycleState::kInstanceLocked) != ErrorCode::kSuccess) {
-    lifecycle_.Fail("ENGINE_INSTANCE_LOCK_FAILED");
-    instance_lock_.Release();
-    return ErrorCode::kSystemError;
-  }
-  return ErrorCode::kSuccess;
-}
-
 ErrorCode TradingEngine::InitSupportClients() {
   spdlog::info("InitSupportClients");
 
@@ -484,7 +453,7 @@ ErrorCode TradingEngine::InitEngineModules() {
   oms::OrderManagerOptions order_options;
   order_options.tenant_id = config_.identity.tenant_id;
   order_options.engine_id = config_.identity.engine_id;
-  order_options.engine_epoch = instance_lock_.Epoch();
+  order_options.engine_epoch = kEngineEpoch;
   if (const auto rc = order_manager_.Initialize(order_options); rc != ErrorCode::kSuccess) {
     spdlog::error("order_manager init failed, code={}", static_cast<int>(rc));
     lifecycle_.Fail("ORDER_MANAGER_INIT_FAILED");
@@ -513,7 +482,7 @@ ErrorCode TradingEngine::InitEventLanes() {
 }
 
 void TradingEngine::Release() {
-  // Init 失败或 Stop 未运行态：按依赖逆序释放，最后释放实例写锁
+  // Init 失败或 Stop 未运行态：按依赖逆序释放
   quote_health_monitor_.Stop();
   account_risk_client_.Shutdown();
   config_client_.Shutdown();
@@ -522,7 +491,6 @@ void TradingEngine::Release() {
   DisconnectAdapters();
   quote_api_.reset();
   trader_api_.reset();
-  instance_lock_.Release();
   initialized_ = false;
 }
 
