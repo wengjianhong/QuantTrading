@@ -64,8 +64,8 @@ class TradingEngine {
   /// @return ErrorCode::kSuccess 表示成功
   ErrorCode Start();
 
-  /// @brief 停止所有子模块与 client（排空后逆序释放）
-  /// @return ErrorCode::kSuccess 表示成功；未运行返回 ErrorCode::kSystemError
+  /// @brief 停止所有子模块与 client（排空后调用 Release）
+  /// @return 已运行并完成停机返回 kSuccess；未运行返回 kSystemError
   ErrorCode Stop();
 
   /// @brief 引擎是否处于运行中

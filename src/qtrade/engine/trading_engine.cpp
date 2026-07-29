@@ -76,8 +76,7 @@ TradingEngine::TradingEngine() : strategy_engine_(event_lanes_) {
     [this](const std::string& order_id, ErrorCode result) {
       (void)order_manager_.RecordSendResult(order_id, result);
       if (result != ErrorCode::kSuccess) {
-        ReleaseAccountRiskReservation(order_id,
-                                      qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
+        ReleaseAccountRiskReservation(order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
       }
     },
     [this](const std::string& order_id, ErrorCode result) {
@@ -115,8 +114,7 @@ TradingEngine::TradingEngine() : strategy_engine_(event_lanes_) {
     const auto local_order = trade.order_id.empty() ? order_manager_.GetOrderByClientId(trade.client_order_id)
                                                     : order_manager_.GetOrder(trade.order_id);
     if (local_order.has_value() && local_order->status == qtrade_sdk::trader::OrderStatusType::kFilled) {
-      ReleaseAccountRiskReservation(local_order->order_id,
-                                    qtrade::account_risk::v1::ReleaseOrderRequest::SETTLED);
+      ReleaseAccountRiskReservation(local_order->order_id, qtrade::account_risk::v1::ReleaseOrderRequest::SETTLED);
     }
   });
 }
@@ -131,59 +129,54 @@ TradingEngine::~TradingEngine() {
 // =============================================================================
 
 ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineConfig& config) {
-  ErrorCode error_code = ErrorCode::kSuccess;
   if (initialized_) {
-    return error_code;
+    return ErrorCode::kSuccess;
   }
 
   // 1. 引导配置与行情健康阈值 → kBootstrap
-  error_code = ApplyBootstrapConfig(config);
-  if (error_code != ErrorCode::kSuccess) {
-    spdlog::error("ApplyBootstrapConfig failed, code={}", static_cast<int>(error_code));
-    return error_code;
+  if (const ErrorCode code = ApplyBootstrapConfig(config); code != ErrorCode::kSuccess) {
+    spdlog::error("ApplyBootstrapConfig failed, code={}", static_cast<int>(code));
+    Release();
+    return code;
   }
 
   // 2. 支撑服务客户端
-  error_code = InitSupportClients();
-  if (error_code != ErrorCode::kSuccess) {
-    spdlog::error("InitSupportClients failed, code={}", static_cast<int>(error_code));
+  if (const ErrorCode code = InitSupportClients(); code != ErrorCode::kSuccess) {
+    spdlog::error("InitSupportClients failed, code={}", static_cast<int>(code));
     Release();
-    return error_code;
+    return code;
   }
 
   // 3. 引擎内模块（内存 OMS 等）→ kReplayed（历史命名：模块已就绪，非 journal 回放）
-  error_code = InitEngineModules();
-  if (error_code != ErrorCode::kSuccess) {
-    spdlog::error("InitEngineModules failed, code={}", static_cast<int>(error_code));
+  if (const ErrorCode code = InitEngineModules(); code != ErrorCode::kSuccess) {
+    spdlog::error("InitEngineModules failed, code={}", static_cast<int>(code));
     Release();
-    return error_code;
+    return code;
   }
 
   // 4. 事件通道（本阶段不 Start）
-  error_code = InitEventLanes();
-  if (error_code != ErrorCode::kSuccess) {
-    spdlog::error("InitEventLanes failed, code={}", static_cast<int>(error_code));
+  if (const ErrorCode code = InitEventLanes(); code != ErrorCode::kSuccess) {
+    spdlog::error("InitEventLanes failed, code={}", static_cast<int>(code));
     Release();
-    return error_code;
+    return code;
   }
 
   // 5. 行情/交易适配器
-  error_code = InitAdapters();
-  if (error_code != ErrorCode::kSuccess) {
-    spdlog::error("InitAdapters failed, code={}", static_cast<int>(error_code));
+  if (const ErrorCode code = InitAdapters(); code != ErrorCode::kSuccess) {
+    spdlog::error("InitAdapters failed, code={}", static_cast<int>(code));
     Release();
-    return error_code;
+    return code;
   }
 
   initialized_ = true;
   spdlog::info("Init pipeline completed, state={}", static_cast<int>(lifecycle_.State()));
-  return error_code;
+  return ErrorCode::kSuccess;
 }
 
 ErrorCode TradingEngine::Start() {
   // 1. 前置校验：须 Init 完成且生命周期处于 kReplayed
   if (!initialized_) {
-    spdlog::error("Init() must be called before Start()");
+    spdlog::error("Init TradingEngine must be called before Start TradingEngine.");
     return ErrorCode::kNotInitialized;
   }
   if (running_) {
@@ -217,36 +210,20 @@ ErrorCode TradingEngine::Start() {
 }
 
 ErrorCode TradingEngine::Stop() {
-  // 1. 未运行：仅清理 Init 侧资源
-  if (!running_) {
-    if (initialized_) {
-      Release();
-    }
-    lifecycle_.MarkStopped();
-    return ErrorCode::kSystemError;
+  const bool was_running = running_.load(std::memory_order_acquire);
+  if (was_running) {
+    lifecycle_.BeginDrain();
+    running_.store(false, std::memory_order_release);
+    spdlog::info("stopping components...");
   }
 
-  // 2. 排空：按依赖逆序停策略/行情/EMS/回报与旁路 client
-  lifecycle_.BeginDrain();
-  spdlog::info("stopping components...");
-
-  running_ = false;
-  strategy_engine_.Stop();
-  quote_health_monitor_.Stop();
-  execution_manager_.Stop();
-  DisconnectAdapters();
-  event_lanes_.Stop();
-  order_manager_.Shutdown();
-
-  config_client_.Shutdown();
-  account_client_.Shutdown();
-  account_risk_client_.Shutdown();
-
-  running_ = false;
-  initialized_ = false;
-  quote_api_.reset();
-  trader_api_.reset();
+  Release();
+  initialized_.store(false, std::memory_order_release);
   lifecycle_.MarkStopped();
+
+  if (!was_running) {
+    return ErrorCode::kSystemError;
+  }
   spdlog::info("stopped cleanly");
   return ErrorCode::kSuccess;
 }
@@ -482,16 +459,20 @@ ErrorCode TradingEngine::InitEventLanes() {
 }
 
 void TradingEngine::Release() {
-  // Init 失败或 Stop 未运行态：按依赖逆序释放
+  // 仅释放资源（幂等）；running_/initialized_/lifecycle 由 Stop 或 Init 调用方管理
+  strategy_engine_.Stop();
   quote_health_monitor_.Stop();
-  account_risk_client_.Shutdown();
+  execution_manager_.Stop();
+  DisconnectAdapters();
+  event_lanes_.Stop();
+  order_manager_.Shutdown();
+
   config_client_.Shutdown();
   account_client_.Shutdown();
-  order_manager_.Shutdown();
-  DisconnectAdapters();
+  account_risk_client_.Shutdown();
+
   quote_api_.reset();
   trader_api_.reset();
-  initialized_ = false;
 }
 
 // =============================================================================
@@ -952,8 +933,8 @@ void TradingEngine::OnEngineConfig(const qtrade::config::v1::EngineConfig& confi
   }
 }
 
-void TradingEngine::ReleaseAccountRiskReservation(
-  const std::string& order_id, qtrade::account_risk::v1::ReleaseOrderRequest::Reason reason) {
+void TradingEngine::ReleaseAccountRiskReservation(const std::string& order_id,
+                                                  qtrade::account_risk::v1::ReleaseOrderRequest::Reason reason) {
   if (!account_risk_client_.IsInitialized() || order_id.empty()) {
     return;
   }
