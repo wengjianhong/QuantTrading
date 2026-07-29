@@ -14,16 +14,14 @@ namespace {
 /// @param to 目标状态
 /// @return 合法返回 true
 bool IsSequentialStartupTransition(EngineLifecycleState from, EngineLifecycleState to) {
-  // 启动链只允许相邻前进一步：New/Stopped → Bootstrap → Fenced → ... → Ready
+  // 启动链只允许相邻前进一步：New/Stopped → Bootstrap → ModulesReady → ... → Ready
   switch (from) {
     case EngineLifecycleState::kNew:
     case EngineLifecycleState::kStopped:
       return to == EngineLifecycleState::kBootstrap;
     case EngineLifecycleState::kBootstrap:
-      return to == EngineLifecycleState::kFenced;
-    case EngineLifecycleState::kFenced:
-      return to == EngineLifecycleState::kReplayed;
-    case EngineLifecycleState::kReplayed:
+      return to == EngineLifecycleState::kModulesReady;
+    case EngineLifecycleState::kModulesReady:
       return to == EngineLifecycleState::kBrokerSynced;
     case EngineLifecycleState::kBrokerSynced:
       return to == EngineLifecycleState::kRiskSynced;

@@ -5,7 +5,7 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/service/config_service/config_service.hpp"
 
-#include "qtrade/common/config/qtrade_config_service_config.hpp"
+#include "qtrade/common/config/qtrade_config_service_bootstrap_config.hpp"
 #include "qtrade/common/json/json_util.hpp"
 #include "qtrade/dao/dao_define.hpp"
 #include "qtrade/framework/dao/ddl_utils.hpp"
@@ -32,7 +32,7 @@ ErrorCode ConfigService::Initialize(const std::string& config_path) {
     last_error_ = ErrorCode::kNotFound;
     return last_error_;
   }
-  const auto config = qtrade::common::config::ParseQtradeConfigServiceConfig(*config_node);
+  const auto config = qtrade::common::config::ParseQtradeConfigServiceBootstrapConfig(*config_node);
   if (!config.has_value()) {
     state_ = qtrade::common::support::SupportServiceState::kFailed;
     last_error_ = ErrorCode::kNotFound;

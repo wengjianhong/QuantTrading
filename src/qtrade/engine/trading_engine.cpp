@@ -1,12 +1,14 @@
 /// @file      trading_engine.cpp
 /// @brief     交易引擎实现
 /// @details   实现顺序与 trading_engine.hpp 一致：构造析构 → 生命周期 → 交易入口 →
-///            适配器/行情 → 模块访问器 → Init/Start 子阶段 → 控制面/适配器/对账/回调。
+///            适配器/行情 → 模块访问器 → Init 子阶段 → Start 子阶段 → 接线/对账/回调。
+///            EngineLifecycle 仅在本文件推进，不下沉到子模块。
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/engine/trading_engine.hpp"
 
+#include "qtrade/error_code/error_codes.hpp"
 #include "qtrade_sdk/emt/quote/emt_quote_api.hpp"
 #include "qtrade_sdk/emt/trader/emt_trader_api.hpp"
 #include "qtrade_sdk/mock/quote/mock_quote_api.hpp"
@@ -25,12 +27,8 @@
 namespace qtrade::engine {
 namespace {
 
-/// @brief 引擎内部固定的本地事实文件根目录
-constexpr std::string_view kRuntimeDataDirectory = "data/";
-/// @brief 首个进程世代
-constexpr std::uint64_t kInitialEngineEpoch = 1;
-/// @brief 订单与 outbox 事实必须同步落盘
-constexpr bool kSyncOrderFacts = true;
+/// @brief 进程世代（写入 order_id；本地文件锁已移除，暂用固定值）
+constexpr std::uint64_t kEngineEpoch = 1;
 /// @brief 行情陈旧判定阈值
 constexpr std::chrono::milliseconds kQuoteStaleThreshold = std::chrono::milliseconds(3000);
 /// @brief 启动 READY 必须依赖已连接的交易通道
@@ -59,6 +57,34 @@ constexpr bool kAllowUnreconciledOrders = false;
          !(order.volume > 0 && order.traded_volume > order.volume);
 }
 
+[[nodiscard]] bool StrategiesEqual(
+  const google::protobuf::RepeatedPtrField<qtrade::config::v1::StrategyConfig>& lhs,
+  const google::protobuf::RepeatedPtrField<qtrade::config::v1::StrategyConfig>& rhs) {
+  if (lhs.size() != rhs.size()) {
+    return false;
+  }
+  for (int i = 0; i < lhs.size(); ++i) {
+    const auto& a = lhs.Get(i);
+    const auto& b = rhs.Get(i);
+    if (a.strategy_id() != b.strategy_id() || a.plugin() != b.plugin() || a.enabled() != b.enabled() ||
+        a.instruments_size() != b.instruments_size() || a.params_size() != b.params_size()) {
+      return false;
+    }
+    for (int j = 0; j < a.instruments_size(); ++j) {
+      if (a.instruments(j) != b.instruments(j)) {
+        return false;
+      }
+    }
+    for (const auto& [key, value] : a.params()) {
+      const auto it = b.params().find(key);
+      if (it == b.params().end() || it->second != value) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 [[nodiscard]] bool IsValidTrade(const qtrade_sdk::trader::Trade& trade) {
   return !trade.instrument.empty() && trade.volume > 0 && std::isfinite(trade.price) && trade.price >= 0.0 &&
          !(trade.order_id.empty() && trade.order_emt_id == 0 && trade.client_order_id == 0);
@@ -70,27 +96,15 @@ constexpr bool kAllowUnreconciledOrders = false;
 // 构造 / 析构
 // =============================================================================
 
-TradingEngine::TradingEngine() : strategy_engine_(event_lanes_) {
-  // 构造阶段完成三条主线装配：EMS↔OMS 回写、行情健康→READY 门禁、Lane-T→OMS/账户/持仓/风控释放
-  // 1. 将 EMS 异步执行结果回写 OMS，并在入队失败时释放风控预占
-  execution_manager_.SetResultHandlers(
-    [this](const std::string& order_id) { return order_manager_.MarkSendPending(order_id); },
-    [this](const std::string& order_id, ErrorCode result) {
-      (void)order_manager_.RecordSendResult(order_id, result);
-      if (result != ErrorCode::kSuccess && account_risk_client_.IsInitialized()) {
-        (void)account_risk_release_worker_.Enqueue(order_id,
-                                                   qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
-      }
-    },
-    [this](const std::string& order_id, ErrorCode result) {
-      (void)order_manager_.RecordCancelResult(order_id, result);
-    });
-  // 2. 将行情健康度与当前 OMS 状态接入 READY 门禁和风险计算
+TradingEngine::TradingEngine() : strategy_manager_(event_lanes_) {
+  // 构造阶段装配：行情健康→READY 门禁、Risk 读 OMS、Lane-T→OMS/账户/持仓/风控释放
+  // EMS↔OMS 回写在 InitEngineModules 中通过 SetOrderApi 注入，不再使用句柄
+  // 1. 将行情健康度与当前 OMS 状态接入 READY 门禁和风险计算
   quote_health_monitor_.SetHealthChangedHandler([this](bool healthy) { OnMarketHealthChanged(healthy); });
   risk_manager_.SetStateProviders([this] { return order_manager_.GetActiveOrderCount(); },
                                   [this] { return order_manager_.GetOpenNotional(); });
 
-  // 3. Trader Lane：订单/成交回报的唯一异步入口，串联 OMS、账户、持仓与风控释放
+  // 2. Trader Lane：订单/成交回报的唯一异步入口，串联 OMS、账户、持仓与风控释放
   event_lanes_.Trader().SubscribeOrder([this](const qtrade_sdk::trader::Order& order) {
     order_manager_.ApplyOrderReport(order);
     const auto local_order = order.order_id.empty() ? order_manager_.GetOrderByClientId(order.client_order_id)
@@ -98,14 +112,14 @@ TradingEngine::TradingEngine() : strategy_engine_(event_lanes_) {
     if (local_order.has_value()) {
       account_manager_.ApplyOrder(*local_order);
     }
-    // 拒单/撤单完成时异步释放 account-risk 预占
-    if (account_risk_client_.IsInitialized() && (order.status == qtrade_sdk::trader::OrderStatusType::kRejected ||
-                                                 order.status == qtrade_sdk::trader::OrderStatusType::kCanceled)) {
+    // 拒单/撤单完成时释放 account-risk 预占（直接 gRPC，无本地 outbox）
+    if (order.status == qtrade_sdk::trader::OrderStatusType::kRejected ||
+        order.status == qtrade_sdk::trader::OrderStatusType::kCanceled) {
       if (local_order.has_value()) {
         const auto reason = order.status == qtrade_sdk::trader::OrderStatusType::kCanceled
                               ? qtrade::account_risk::v1::ReleaseOrderRequest::CANCELED
                               : qtrade::account_risk::v1::ReleaseOrderRequest::REJECTED_BY_VENUE;
-        (void)account_risk_release_worker_.Enqueue(local_order->order_id, reason);
+        ReleaseAccountRiskReservation(local_order->order_id, reason);
       }
     }
   });
@@ -114,13 +128,10 @@ TradingEngine::TradingEngine() : strategy_engine_(event_lanes_) {
     account_manager_.ApplyTrade(trade);
     position_manager_.ApplyTrade(trade);
     // 全部成交后释放风控预占（SETTLED）
-    if (account_risk_client_.IsInitialized()) {
-      const auto local_order = trade.order_id.empty() ? order_manager_.GetOrderByClientId(trade.client_order_id)
-                                                      : order_manager_.GetOrder(trade.order_id);
-      if (local_order.has_value() && local_order->status == qtrade_sdk::trader::OrderStatusType::kFilled) {
-        (void)account_risk_release_worker_.Enqueue(local_order->order_id,
-                                                   qtrade::account_risk::v1::ReleaseOrderRequest::SETTLED);
-      }
+    const auto local_order = trade.order_id.empty() ? order_manager_.GetOrderByClientId(trade.client_order_id)
+                                                    : order_manager_.GetOrder(trade.order_id);
+    if (local_order.has_value() && local_order->status == qtrade_sdk::trader::OrderStatusType::kFilled) {
+      ReleaseAccountRiskReservation(local_order->order_id, qtrade::account_risk::v1::ReleaseOrderRequest::SETTLED);
     }
   });
 }
@@ -134,137 +145,151 @@ TradingEngine::~TradingEngine() {
 // 生命周期：Init → Start → Stop，以及状态查询
 // =============================================================================
 
-ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineConfig& config) {
-  ErrorCode error_code = ErrorCode::kSuccess;
-  // 1. 幂等：已 Init 则直接成功，避免重复装配 client 与围栏
+ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineBootstrapConfig& config) {
   if (initialized_) {
-    return error_code;
+    return ErrorCode::kSuccess;
   }
 
-  // Init-1: 引导配置与行情健康阈值
-  error_code = BootstrapLocalRuntime(config);
-  if (error_code != ErrorCode::kSuccess) {
-    return error_code;
+  // 1. 引导配置与行情健康阈值 → kBootstrap
+  if (const ErrorCode code = ApplyBootstrapConfig(config); code != ErrorCode::kSuccess) {
+    spdlog::error("ApplyBootstrapConfig failed, code={}", static_cast<int>(code));
+    Release();
+    return code;
   }
 
-  // Init-2: 单实例围栏
-  error_code = AcquireInstanceFence();
-  if (error_code != ErrorCode::kSuccess) {
-    return error_code;
+  // 2. 支撑服务客户端（config / account / account_risk 建连）
+  if (const ErrorCode code = InitSupportClients(); code != ErrorCode::kSuccess) {
+    spdlog::error("InitSupportClients failed, code={}", static_cast<int>(code));
+    Release();
+    return code;
   }
 
-  // Init-3: 订单事实回放
-  error_code = ReplayLocalOrderFacts();
-  if (error_code != ErrorCode::kSuccess) {
-    ReleaseInitResources();
-    return error_code;
+  // 3. 拉取引擎运行配置 → runtime_config_（策略实例在 boot 按此加载）
+  if (const ErrorCode code = FetchRuntimeConfig(); code != ErrorCode::kSuccess) {
+    spdlog::error("FetchRuntimeConfig failed, code={}", static_cast<int>(code));
+    Release();
+    return code;
   }
 
-  // Init-4: D 段旁路
-  error_code = InitBypassClients();
-  if (error_code != ErrorCode::kSuccess) {
-    ReleaseInitResources();
-    return error_code;
+  // 4. 引擎内模块（内存 OMS 等）→ kModulesReady
+  if (const ErrorCode code = InitEngineModules(); code != ErrorCode::kSuccess) {
+    spdlog::error("InitEngineModules failed, code={}", static_cast<int>(code));
+    Release();
+    return code;
   }
 
-  // Init-5: 控制面 client
-  error_code = InitControlPlaneClients();
-  if (error_code != ErrorCode::kSuccess) {
-    ReleaseInitResources();
-    return error_code;
+  // 5. 事件通道
+  if (const ErrorCode code = InitEventLanes(); code != ErrorCode::kSuccess) {
+    spdlog::error("InitEventLanes failed, code={}", static_cast<int>(code));
+    Release();
+    return code;
   }
 
-  // Init-6: 按需连接适配器
-  error_code = ConnectAdaptersIfConfigured();
-  if (error_code != ErrorCode::kSuccess) {
-    ReleaseInitResources();
-    return error_code;
+  // 6. 行情/交易适配器
+  if (const ErrorCode code = InitAdapters(); code != ErrorCode::kSuccess) {
+    spdlog::error("InitAdapters failed, code={}", static_cast<int>(code));
+    Release();
+    return code;
   }
 
   initialized_ = true;
-  log_client_.Emit("info", "trading engine initialized");
-  spdlog::info("[TradingEngine] Init pipeline completed, state={}", static_cast<int>(lifecycle_.State()));
+  spdlog::info("Init pipeline completed, state={}", static_cast<int>(lifecycle_.State()));
   return ErrorCode::kSuccess;
 }
 
 ErrorCode TradingEngine::Start() {
-  // 1. 前置校验：须 Init 完成且生命周期处于 kReplayed
+  // 前置校验：须 Init 完成且生命周期处于 kModulesReady
   if (!initialized_) {
-    spdlog::error("[TradingEngine] Init() must be called before Start()");
+    spdlog::error("Init TradingEngine must be called before Start TradingEngine.");
     return ErrorCode::kNotInitialized;
   }
   if (running_) {
+    spdlog::error("TradingEngine is already running.");
     return ErrorCode::kSystemError;
   }
-  if (lifecycle_.State() != EngineLifecycleState::kReplayed) {
+  if (lifecycle_.State() != EngineLifecycleState::kModulesReady) {
     lifecycle_.Fail("INVALID_START_STATE");
     return ErrorCode::kSystemError;
   }
 
-  // Start-1: 适配器就绪
-  if (const auto rc = EnsureAdaptersConnected(); rc != ErrorCode::kSuccess) {
-    return rc;
-  }
-  // Start-2: 柜台对账
-  if (const auto rc = ReconcileBrokerState(); rc != ErrorCode::kSuccess) {
-    return rc;
-  }
-  // Start-3: 运行时模块
-  if (const auto rc = StartRuntimeModules(); rc != ErrorCode::kSuccess) {
-    return rc;
-  }
-  // Start-4: 生命周期推进与 READY 门禁
-  if (const auto rc = AdvancePostStartLifecycle(); rc != ErrorCode::kSuccess) {
-    return rc;
+  // 1. 适配器就绪
+  if (const ErrorCode code = StartAdapters(); code != ErrorCode::kSuccess) {
+    spdlog::error("StartAdapters failed, code={}", static_cast<int>(code));
+    return code;
   }
 
-  monitor_client_.Counter("engine.start", 1.0);
-  log_client_.Emit("info", "trading engine started");
-  spdlog::info("[TradingEngine] Start pipeline completed, state={}, ready={}",
-               static_cast<int>(lifecycle_.State()),
-               lifecycle_.IsReady());
+  // 2. 柜台快照 Adopt
+  if (const ErrorCode code = SyncBrokerSnapshot(); code != ErrorCode::kSuccess) {
+    spdlog::error("SyncBrokerSnapshot failed, code={}", static_cast<int>(code));
+    return code;
+  }
+
+  // 3. 事件通道与行情健康监控
+  if (const ErrorCode code = StartEventLanes(); code != ErrorCode::kSuccess) {
+    spdlog::error("StartEventLanes failed, code={}", static_cast<int>(code));
+    return code;
+  }
+
+  // 4. 策略 / EMS
+  if (const ErrorCode code = StartEngineModules(); code != ErrorCode::kSuccess) {
+    spdlog::error("StartEngineModules failed, code={}", static_cast<int>(code));
+    return code;
+  }
+
+  // 5. 订阅行情
+  if (const ErrorCode code = StartMarketData(); code != ErrorCode::kSuccess) {
+    spdlog::error("StartMarketData failed, code={}", static_cast<int>(code));
+    return code;
+  }
+
+  // 6. 生命周期门禁 → READY
+  if (const ErrorCode code = AdvanceReadyGates(); code != ErrorCode::kSuccess) {
+    spdlog::error("AdvanceReadyGates failed, code={}", static_cast<int>(code));
+    return code;
+  }
+
+  spdlog::info(
+    "Start pipeline completed, state={}, ready={}", static_cast<int>(lifecycle_.State()), lifecycle_.IsReady());
   return ErrorCode::kSuccess;
 }
 
 ErrorCode TradingEngine::Stop() {
-  // 1. 未运行：仅清理 Init 侧资源与围栏
-  if (!running_) {
-    if (initialized_) {
-      ReleaseInitResources();
-    } else {
-      engine_fence_.Release();
-    }
-    lifecycle_.MarkStopped();
-    return ErrorCode::kSystemError;
+  const bool was_running = running_.load(std::memory_order_acquire);
+  if (was_running) {
+    lifecycle_.BeginDrain();
+    running_.store(false, std::memory_order_release);
+    spdlog::info("stopping components...");
   }
 
-  // 2. 排空：按依赖逆序停策略/行情/EMS/回报与旁路 client
-  lifecycle_.BeginDrain();
-  spdlog::info("[TradingEngine] stopping components...");
+  Release();
+  initialized_.store(false, std::memory_order_release);
+  lifecycle_.MarkStopped();
 
-  running_ = false;
-  strategy_engine_.Stop();
+  if (!was_running) {
+    return ErrorCode::kSystemError;
+  }
+  spdlog::info("stopped cleanly");
+  return ErrorCode::kSuccess;
+}
+
+void TradingEngine::Release() {
+  // 1. 释放引擎内模块（按依赖逆序释放）
+  strategy_manager_.Stop();
+  strategy_plugin_loader_.UnloadAll();
   quote_health_monitor_.Stop();
   execution_manager_.Stop();
   DisconnectAdapters();
   event_lanes_.Stop();
-  account_risk_release_worker_.Stop();
   order_manager_.Shutdown();
 
+  // 2. 释放支撑服务客户端
   config_client_.Shutdown();
   account_client_.Shutdown();
   account_risk_client_.Shutdown();
-  log_client_.Shutdown();
-  monitor_client_.Shutdown();
 
-  running_ = false;
-  initialized_ = false;
+  // 3. 释放行情/交易适配器
   quote_api_.reset();
   trader_api_.reset();
-  engine_fence_.Release();
-  lifecycle_.MarkStopped();
-  spdlog::info("[TradingEngine] stopped cleanly");
-  return ErrorCode::kSuccess;
 }
 
 bool TradingEngine::IsRunning() const {
@@ -279,8 +304,13 @@ EngineLifecycleState TradingEngine::LifecycleState() const {
   return lifecycle_.State();
 }
 
-const qtrade::common::config::QtradeEngineConfig& TradingEngine::GetConfig() const {
-  return config_;
+const qtrade::common::config::QtradeEngineBootstrapConfig& TradingEngine::GetConfig() const {
+  return bootstrap_config_;
+}
+
+qtrade::config::v1::EngineConfig TradingEngine::GetRuntimeConfig() const {
+  std::lock_guard lock(runtime_config_mutex_);
+  return runtime_config_;
 }
 
 // =============================================================================
@@ -288,7 +318,7 @@ const qtrade::common::config::QtradeEngineConfig& TradingEngine::GetConfig() con
 // =============================================================================
 
 ErrorCode TradingEngine::SubmitOrder(const qtrade_sdk::trader::OrderRequest& request) {
-  // 1. 仅 READY 门禁通过后才接受新单，流水线：CMS → Risk → OMS → EMS
+  // 仅 READY 门禁通过后才接受新单；编排在 OrderPipeline
   if (!lifecycle_.IsReady()) {
     return ErrorCode::kNotInitialized;
   }
@@ -296,24 +326,7 @@ ErrorCode TradingEngine::SubmitOrder(const qtrade_sdk::trader::OrderRequest& req
 }
 
 ErrorCode TradingEngine::CancelOrder(const std::string& order_id) {
-  // 1. OMS 标记撤单意图
-  const auto order = order_manager_.GetOrder(order_id);
-  if (!order.has_value()) {
-    return ErrorCode::kNotFound;
-  }
-  if (const auto result = order_manager_.CancelOrder(order_id); result != ErrorCode::kSuccess) {
-    return result;
-  }
-
-  // 2. 入队 EMS 撤单；失败回写撤单结果
-  qtrade_sdk::trader::CancelOrderRequest request;
-  request.order_id = order_id;
-  request.order_emt_id = order->order_emt_id;
-  const auto result = execution_manager_.EnqueueCancel(request);
-  if (result != ErrorCode::kSuccess) {
-    (void)order_manager_.RecordCancelResult(order_id, result);
-  }
-  return result;
+  return order_pipeline_.Cancel(order_id);
 }
 
 // =============================================================================
@@ -346,14 +359,14 @@ qtrade_sdk::trader::TraderApi* TradingEngine::GetTraderApi() {
 
 void TradingEngine::SubscribeQuote(const std::vector<std::string>& instruments) {
   if (!running_ || quote_api_ == nullptr) {
-    spdlog::warn("[TradingEngine] cannot subscribe quote: api not ready");
+    spdlog::warn("cannot subscribe quote: api not ready");
     return;
   }
   const auto rc = quote_api_->Subscribe({instruments});
   if (rc == ErrorCode::kSuccess) {
-    spdlog::info("[TradingEngine] subscribed to {} instruments", instruments.size());
+    spdlog::info("subscribed to {} instruments", instruments.size());
   } else {
-    spdlog::error("[TradingEngine] quote subscription failed: {}", GetErrorCodeMessage(rc));
+    spdlog::error("quote subscription failed: {}", GetErrorCodeMessage(rc));
   }
 }
 
@@ -362,7 +375,7 @@ void TradingEngine::UnsubscribeQuote(const std::vector<std::string>& instruments
     return;
   }
   quote_api_->Unsubscribe({instruments});
-  spdlog::info("[TradingEngine] unsubscribed from {} instruments", instruments.size());
+  spdlog::info("unsubscribed from {} instruments", instruments.size());
 }
 
 bool TradingEngine::IsQuoteHealthy() const {
@@ -377,11 +390,15 @@ event_bus::EventLanes& TradingEngine::GetEventLanes() {
   return event_lanes_;
 }
 
-strategy::StrategyEngine& TradingEngine::GetStrategyEngine() {
-  return strategy_engine_;
+strategy::StrategyManager& TradingEngine::GetStrategyManager() {
+  return strategy_manager_;
 }
 
-oms::OrderManager& TradingEngine::GetOrderManager() {
+strategy::StrategyPluginLoader& TradingEngine::GetStrategyPluginLoader() {
+  return strategy_plugin_loader_;
+}
+
+oms::OrderApi& TradingEngine::GetOrderApi() {
   return order_manager_;
 }
 
@@ -397,27 +414,24 @@ client::ConfigClient& TradingEngine::GetConfigClient() {
   return config_client_;
 }
 
-client::LogClient& TradingEngine::GetLogClient() {
-  return log_client_;
-}
-
-client::MonitorClient& TradingEngine::GetMonitorClient() {
-  return monitor_client_;
+OrderPipeline& TradingEngine::GetOrderPipeline() {
+  return order_pipeline_;
 }
 
 // =============================================================================
 // Init 子阶段
 // =============================================================================
 
-ErrorCode TradingEngine::BootstrapLocalRuntime(const qtrade::common::config::QtradeEngineConfig& config) {
-  spdlog::info("[TradingEngine] Init-1 BootstrapLocalRuntime");
-  // 1. 进入 Bootstrap 阶段，后续失败可据此定位到配置加载前
+ErrorCode TradingEngine::ApplyBootstrapConfig(const qtrade::common::config::QtradeEngineBootstrapConfig& config) {
+  spdlog::info("ApplyBootstrapConfig");
+  // 1. 进入 Bootstrap；后续失败可据此定位到配置加载前
   if (lifecycle_.Advance(EngineLifecycleState::kBootstrap) != ErrorCode::kSuccess) {
     return ErrorCode::kSystemError;
   }
 
   // 2. 缓存进程引导配置，供身份校验与 client 地址解析
-  config_ = config;
+  bootstrap_config_ = config;
+
   // 3. 配置行情陈旧阈值，供 READY 门禁与 OnMarketHealthChanged 使用
   QuoteHealthOptions quote_health_options;
   quote_health_options.max_stale_age = kQuoteStaleThreshold;
@@ -428,152 +442,236 @@ ErrorCode TradingEngine::BootstrapLocalRuntime(const qtrade::common::config::Qtr
   return ErrorCode::kSuccess;
 }
 
-ErrorCode TradingEngine::AcquireInstanceFence() {
-  spdlog::info("[TradingEngine] Init-2 AcquireInstanceFence");
-  // 1. 按 tenant+account 写入围栏文件，防止同账户多实例并发写事实
-  const std::string fence_path = std::string(kRuntimeDataDirectory) + config_.identity.tenant_id + "-" +
-                                 config_.identity.account_id + "-engine.fence";
-  if (const auto rc = engine_fence_.Acquire(fence_path, kInitialEngineEpoch); rc != ErrorCode::kSuccess) {
-    lifecycle_.Fail("ENGINE_FENCE_ACQUIRE_FAILED");
-    return rc;
-  }
-  // 2. 围栏成功后推进 kFenced；失败则释放围栏避免残留锁
-  if (lifecycle_.Advance(EngineLifecycleState::kFenced) != ErrorCode::kSuccess) {
-    lifecycle_.Fail("ENGINE_FENCE_FAILED");
-    engine_fence_.Release();
-    return ErrorCode::kSystemError;
-  }
-  return ErrorCode::kSuccess;
-}
+ErrorCode TradingEngine::InitSupportClients() {
+  spdlog::info("InitSupportClients");
 
-ErrorCode TradingEngine::ReplayLocalOrderFacts() {
-  spdlog::info("[TradingEngine] Init-3 ReplayLocalOrderFacts");
-  // 1. 打开订单 journal 并回放本地事实，epoch 与围栏绑定以拒绝陈旧写入
-  const std::string journal_path = std::string(kRuntimeDataDirectory) + config_.identity.tenant_id + "-" +
-                                   config_.identity.engine_id + "-orders.jsonl";
-  oms::OrderManagerOptions order_options;
-  order_options.tenant_id = config_.identity.tenant_id;
-  order_options.engine_id = config_.identity.engine_id;
-  order_options.engine_epoch = engine_fence_.Epoch();
-  order_options.journal_path = journal_path;
-  order_options.fsync_on_append = kSyncOrderFacts;
-  if (const auto rc = order_manager_.Initialize(order_options); rc != ErrorCode::kSuccess) {
-    spdlog::error("[TradingEngine] order journal init failed, code={}", static_cast<int>(rc));
-    lifecycle_.Fail("ORDER_JOURNAL_INIT_FAILED");
-    return rc;
-  }
-  // 2. 记录待柜台对账订单，Start 阶段 ReconcileBrokerState 会处理
-  const auto unreconciled_orders = order_manager_.GetOrdersRequiringReconciliation();
-  if (!unreconciled_orders.empty()) {
-    spdlog::warn("[TradingEngine] {} orders require broker reconciliation", unreconciled_orders.size());
-  }
-  // 3. 回放完成方可进入 Start（生命周期要求 kReplayed）
-  if (lifecycle_.Advance(EngineLifecycleState::kReplayed) != ErrorCode::kSuccess) {
-    lifecycle_.Fail("ORDER_REPLAY_FAILED");
-    return ErrorCode::kSystemError;
-  }
-  return ErrorCode::kSuccess;
-}
-
-ErrorCode TradingEngine::InitBypassClients() {
-  spdlog::info("[TradingEngine] Init-4 InitBypassClients");
-  // 1. D 段日志旁路：失败则 Init 终止，避免无观测的运行
-  const auto log_topic = config_.support_services.log_service.Extension("topic").value_or("engine");
-  if (const auto rc = log_client_.Init(log_topic); rc != ErrorCode::kSuccess) {
-    spdlog::warn("[TradingEngine] log_client init failed, code={}", static_cast<int>(rc));
-    lifecycle_.Fail("LOG_CLIENT_INIT_FAILED");
-    return rc;
-  }
-  order_pipeline_.SetLogClient(&log_client_);
-
-  // 2. D 段监控旁路（当前为本地 stub，后续可换真实 endpoint）
-  if (const auto rc = monitor_client_.Init("stub://local"); rc != ErrorCode::kSuccess) {
-    spdlog::warn("[TradingEngine] monitor_client init failed, code={}", static_cast<int>(rc));
-    lifecycle_.Fail("MONITOR_CLIENT_INIT_FAILED");
-    return rc;
-  }
-  return ErrorCode::kSuccess;
-}
-
-ErrorCode TradingEngine::InitControlPlaneClients() {
-  spdlog::info("[TradingEngine] Init-5 InitControlPlaneClients");
-  // 1. config-service：拉快照并 Watch，驱动 OnEngineConfig 应用运行时配置
-  if (config_.support_services.config_service.enabled) {
-    if (const auto rc = InitConfigClient(config_); rc != ErrorCode::kSuccess) {
-      spdlog::error("[TradingEngine] config_client init failed, code={}", static_cast<int>(rc));
+  // 1. config-service：仅建连；拉配置在 FetchRuntimeConfig
+  if (bootstrap_config_.support_services.config_service.enabled) {
+    if (const auto rc = InitConfigClient(bootstrap_config_); rc != ErrorCode::kSuccess) {
+      spdlog::error("config_client init failed, code={}", static_cast<int>(rc));
       lifecycle_.Fail("CONFIG_CLIENT_INIT_FAILED");
       return rc;
     }
   } else {
-    spdlog::warn("[TradingEngine] config_service.enabled=false, skipping config_client");
+    spdlog::warn("config_service.enabled=false, skipping config_client");
   }
 
-  // 2. account-risk：预占/释放 RPC + 可靠 outbox，供发单链与回报释放
-  if (config_.support_services.account_risk_service.enabled) {
-    if (const auto rc = InitAccountRiskClient(config_); rc != ErrorCode::kSuccess) {
-      spdlog::error("[TradingEngine] account_risk_client init failed, code={}", static_cast<int>(rc));
+  // 2. account-service：仅建立通道；凭证在 InitAdapters（emt）按需 GetCredential
+  if (bootstrap_config_.support_services.account_service.enabled) {
+    client::AccountClientOptions options;
+    options.service_config = bootstrap_config_.support_services.account_service;
+    if (const auto rc = account_client_.Init(options); rc != ErrorCode::kSuccess) {
+      spdlog::error("account_client init failed, code={}", static_cast<int>(rc));
+      lifecycle_.Fail("ACCOUNT_CLIENT_INIT_FAILED");
+      return rc;
+    }
+  } else {
+    spdlog::warn("account_service.enabled=false, skipping account_client");
+  }
+
+  // 3. account-risk-service：仅建立通道；pipeline 接线在 InitEngineModules
+  if (bootstrap_config_.support_services.account_risk_service.enabled) {
+    if (const auto rc = InitAccountRiskClient(bootstrap_config_); rc != ErrorCode::kSuccess) {
+      spdlog::error("account_risk_client init failed, code={}", static_cast<int>(rc));
       lifecycle_.Fail("ACCOUNT_RISK_CLIENT_INIT_FAILED");
       return rc;
     }
-    order_pipeline_.SetAccountRiskClient(&account_risk_client_);
-    const std::string release_outbox_path = std::string(kRuntimeDataDirectory) + config_.identity.tenant_id + "-" +
-                                            config_.identity.engine_id + "-risk-release-outbox.jsonl";
-    if (const auto rc =
-          account_risk_release_worker_.Initialize(&account_risk_client_, release_outbox_path, kSyncOrderFacts);
-        rc != ErrorCode::kSuccess) {
-      spdlog::error("[TradingEngine] account risk release outbox init failed, code={}", static_cast<int>(rc));
-      lifecycle_.Fail("ACCOUNT_RISK_OUTBOX_INIT_FAILED");
-      return rc;
-    }
-    order_pipeline_.SetReleaseHandler([this](const std::string& order_id, int reason) {
-      return account_risk_release_worker_.Enqueue(order_id, reason);
-    });
+  } else {
+    spdlog::warn("account_risk_service.enabled=false, skipping account_risk_client");
   }
+
   return ErrorCode::kSuccess;
 }
 
-ErrorCode TradingEngine::ConnectAdaptersIfConfigured() {
-  spdlog::info("[TradingEngine] Init-6 ConnectAdaptersIfConfigured");
-  // 1. 未启用 config-service 时跳过（单元测试可注入 mock API）
-  if (!config_.support_services.config_service.enabled) {
-    spdlog::info("[TradingEngine] skip adapters (config_service disabled; tests may inject mock)");
-    return ErrorCode::kSuccess;
-  }
-  // 2. 依赖 InitConfigClient 已拉取的 EngineConfig 快照连接适配器
-  if (const auto rc = InitAdapters(); rc != ErrorCode::kSuccess) {
-    spdlog::error("[TradingEngine] adapter init failed, code={}", static_cast<int>(rc));
-    lifecycle_.Fail("ADAPTER_INIT_FAILED");
+ErrorCode TradingEngine::InitEngineModules() {
+  spdlog::info("InitEngineModules");
+
+  // 1. OMS：仅内存状态机；冷启动不回放本地订单，Working 态由柜台快照对账重建
+  oms::OrderManagerOptions order_options;
+  order_options.tenant_id = bootstrap_config_.identity.tenant_id;
+  order_options.engine_id = bootstrap_config_.identity.engine_id;
+  order_options.engine_epoch = kEngineEpoch;
+  if (const auto rc = order_manager_.Initialize(order_options); rc != ErrorCode::kSuccess) {
+    spdlog::error("order_manager init failed, code={}", static_cast<int>(rc));
+    lifecycle_.Fail("ORDER_MANAGER_INIT_FAILED");
     return rc;
   }
+
+  // 2. EMS 注入 OMS；发送失败释放预占所需的 account-risk（与 Pipeline 对称）
+  execution_manager_.SetOrderApi(&order_manager_);
+  if (account_risk_client_.IsInitialized()) {
+    order_pipeline_.SetAccountRiskClient(&account_risk_client_);
+    order_pipeline_.SetAccountRiskIdentity(bootstrap_config_.identity.tenant_id,
+                                           bootstrap_config_.identity.account_id,
+                                           bootstrap_config_.identity.engine_id);
+    execution_manager_.SetAccountRiskClient(&account_risk_client_);
+    execution_manager_.SetAccountRiskIdentity(bootstrap_config_.identity.tenant_id,
+                                              bootstrap_config_.identity.account_id);
+  }
+
+  // 3. 模块初始化完成 → 允许进入 Start（kModulesReady）
+  if (lifecycle_.Advance(EngineLifecycleState::kModulesReady) != ErrorCode::kSuccess) {
+    lifecycle_.Fail("ENGINE_MODULES_INIT_FAILED");
+    return ErrorCode::kSystemError;
+  }
   return ErrorCode::kSuccess;
 }
 
-void TradingEngine::ReleaseInitResources() {
-  // 1. Init 失败或 Stop 未运行态：按依赖逆序释放，最后释放围栏
-  account_risk_release_worker_.Stop();
-  quote_health_monitor_.Stop();
-  account_risk_client_.Shutdown();
-  account_client_.Shutdown();
-  config_client_.Shutdown();
-  monitor_client_.Shutdown();
-  log_client_.Shutdown();
-  order_manager_.Shutdown();
-  DisconnectAdapters();
-  quote_api_.reset();
-  trader_api_.reset();
-  engine_fence_.Release();
-  initialized_ = false;
+ErrorCode TradingEngine::InitEventLanes() {
+  spdlog::info("InitEventLanes");
+  // Lane-Q / Lane-T 在构造时已就绪；reactor 线程在 StartEventLanes 启动
+  return ErrorCode::kSuccess;
+}
+
+ErrorCode TradingEngine::InitAdapters() {
+  // 1. 已装配则直接成功；config 未启用时跳过（单元测试可注入 mock API）
+  if (quote_api_ != nullptr && trader_api_ != nullptr) {
+    return ErrorCode::kSuccess;
+  }
+  if (!bootstrap_config_.support_services.config_service.enabled) {
+    spdlog::info("skip adapters (config_service disabled; tests may inject mock)");
+    return ErrorCode::kSuccess;
+  }
+
+  qtrade::config::v1::EngineConfig runtime_config;
+  {
+    std::lock_guard lock(runtime_config_mutex_);
+    runtime_config = runtime_config_;
+  }
+  if (runtime_config.execution_adapter().empty() || runtime_config.quote_connection_string().empty()) {
+    lifecycle_.Fail("ADAPTER_INIT_FAILED");
+    return ErrorCode::kNotInitialized;
+  }
+
+  // 2. 按适配器类型构造 API 与连接请求（mock / emt）
+  qtrade_sdk::quote::ConnectRequest quote_request;
+  qtrade_sdk::trader::ConnectRequest trader_request;
+  if (runtime_config.execution_adapter() == "mock") {
+    quote_request.name = "mock";
+    quote_request.connection_string = runtime_config.quote_connection_string();
+    trader_request.broker_id = "mock";
+    trader_request.account_id = bootstrap_config_.identity.account_id;
+    trader_request.connection_string = runtime_config.quote_connection_string();
+    SetQuoteApi(qtrade::adapter::mock::quote::CreateMockQuoteApi());
+    SetTraderApi(qtrade::adapter::mock::trader::CreateMockTraderApi());
+  } else if (runtime_config.execution_adapter() == "emt") {
+    if (!account_client_.IsInitialized()) {
+      lifecycle_.Fail("ADAPTER_INIT_FAILED");
+      return ErrorCode::kNotInitialized;
+    }
+    qtrade::account::v1::GetCredentialRequest credential_request;
+    credential_request.set_tenant_id(bootstrap_config_.identity.tenant_id);
+    credential_request.set_engine_id(bootstrap_config_.identity.engine_id);
+    credential_request.set_account_id(bootstrap_config_.identity.account_id);
+    qtrade::account::v1::GetCredentialResponse credential_response;
+    if (const auto result = account_client_.GetCredential(credential_request, credential_response);
+        result != ErrorCode::kSuccess) {
+      lifecycle_.Fail("ADAPTER_INIT_FAILED");
+      return result;
+    }
+    const auto& credential = credential_response.credential();
+    if (credential.account_id() != bootstrap_config_.identity.account_id || credential.connection_string().empty() ||
+        credential.password().empty()) {
+      lifecycle_.Fail("ADAPTER_INIT_FAILED");
+      return ErrorCode::kInternalError;
+    }
+    trader_request.broker_id = credential.broker_id();
+    trader_request.account_id = credential.account_id();
+    trader_request.connection_string = credential.connection_string();
+    trader_request.password = credential.password();
+    quote_request.name = "emt";
+    quote_request.connection_string = runtime_config.quote_connection_string();
+    quote_request.user = credential.account_id();
+    quote_request.password = credential.password();
+    SetQuoteApi(std::make_unique<qtrade::adapter::quote::EmtQuoteApi>());
+    SetTraderApi(std::make_unique<qtrade::adapter::trader::EmtTraderApi>());
+  } else {
+    lifecycle_.Fail("ADAPTER_INIT_FAILED");
+    return ErrorCode::kNotSupported;
+  }
+
+  // 3. 连接行情与交易通道
+  auto* quote_api = quote_api_.get();
+  auto* trader_api = trader_api_.get();
+  if (quote_api == nullptr || trader_api == nullptr) {
+    lifecycle_.Fail("ADAPTER_INIT_FAILED");
+    return ErrorCode::kNotInitialized;
+  }
+  if (const auto result = quote_api->Connect(quote_request); result != ErrorCode::kSuccess) {
+    quote_api->Disconnect();
+    lifecycle_.Fail("ADAPTER_INIT_FAILED");
+    return result;
+  }
+  if (const auto result = trader_api->Connect(trader_request); result != ErrorCode::kSuccess) {
+    quote_api->Disconnect();
+    trader_api->Disconnect();
+    lifecycle_.Fail("ADAPTER_INIT_FAILED");
+    return result;
+  }
+  return ErrorCode::kSuccess;
+}
+
+ErrorCode TradingEngine::InitConfigClient(const qtrade::common::config::QtradeEngineBootstrapConfig& config) {
+  // 校验 config-service 地址并初始化客户端（不拉运行配置）
+  const auto& config_service = config.support_services.config_service;
+  if (!config_service.enabled || config_service.host.empty() || config_service.port <= 0) {
+    return ErrorCode::kNotInitialized;
+  }
+
+  client::ConfigClientOptions client_opts;
+  client_opts.service_config = config_service;
+  return config_client_.Init(client_opts);
+}
+
+ErrorCode TradingEngine::FetchRuntimeConfig() {
+  spdlog::info("FetchRuntimeConfig");
+  if (!config_client_.IsInitialized()) {
+    spdlog::warn("config_client not initialized, skip FetchRuntimeConfig");
+    return ErrorCode::kSuccess;
+  }
+
+  // 1. 冷启动拉取引擎配置并应用（策略实例等工厂就绪后再 Apply）
+  qtrade::config::v1::GetEngineConfigRequest get_request;
+  get_request.set_engine_id(bootstrap_config_.identity.engine_id);
+  qtrade::config::v1::GetEngineConfigResponse get_response;
+  ErrorCode code = config_client_.GetEngineConfig(get_request, get_response);
+  if (code != ErrorCode::kSuccess) {
+    lifecycle_.Fail("GET_ENGINE_CONFIG_FAILED");
+    return code;
+  }
+  OnEngineConfig(get_response.engine());
+
+  // 2. 订阅热更新
+  qtrade::config::v1::SubscribeEngineConfigRequest subscribe_request;
+  subscribe_request.set_engine_id(bootstrap_config_.identity.engine_id);
+  subscribe_request.set_since_version(get_response.engine().version());
+  client::ConfigClient::SubscribeHandler on_subscribe =
+    [this](const qtrade::config::v1::SubscribeEngineConfigResponse& response) { OnEngineConfig(response.engine()); };
+  code = config_client_.SubscribeEngineConfig(subscribe_request, std::move(on_subscribe));
+  if (code != ErrorCode::kSuccess) {
+    lifecycle_.Fail("SUBSCRIBE_ENGINE_CONFIG_FAILED");
+    return code;
+  }
+  return ErrorCode::kSuccess;
+}
+
+ErrorCode TradingEngine::InitAccountRiskClient(const qtrade::common::config::QtradeEngineBootstrapConfig& config) {
+  client::AccountRiskClientOptions options;
+  options.service_config = config.support_services.account_risk_service;
+  return account_risk_client_.Init(options);
 }
 
 // =============================================================================
 // Start 子阶段
 // =============================================================================
 
-ErrorCode TradingEngine::EnsureAdaptersConnected() {
-  spdlog::info("[TradingEngine] Start-1 EnsureAdaptersConnected");
+ErrorCode TradingEngine::StartAdapters() {
+  spdlog::info("StartAdapters");
   // 1. 幂等装配并连接行情/交易 API（Init 阶段可能已连接）
   if (const auto result = InitAdapters(); result != ErrorCode::kSuccess) {
-    lifecycle_.Fail("ADAPTER_NOT_READY");
+    if (lifecycle_.State() != EngineLifecycleState::kFailed) {
+      lifecycle_.Fail("ADAPTER_NOT_READY");
+    }
     return result;
   }
   // 2. 交易通道必须在线，否则无法对账与发单
@@ -585,11 +683,11 @@ ErrorCode TradingEngine::EnsureAdaptersConnected() {
   return ErrorCode::kSuccess;
 }
 
-ErrorCode TradingEngine::ReconcileBrokerState() {
-  spdlog::info("[TradingEngine] Start-2 ReconcileBrokerState");
+ErrorCode TradingEngine::SyncBrokerSnapshot() {
+  spdlog::info("SyncBrokerSnapshot");
   auto* trader_api = trader_api_.get();
   const bool has_unreconciled_orders = !order_manager_.GetOrdersRequiringReconciliation().empty();
-  // 1. 有待对账订单或策略要求快照时，查询柜台并合并到 OMS/Account/Position
+  // 1. 有待对账订单或策略要求快照时，查询柜台并 Adopt 到 OMS/Account/Position
   if (trader_api != nullptr && (kRequireBrokerSnapshot || has_unreconciled_orders)) {
     const auto sync_result = SynchronizeBrokerState(trader_api);
     if (sync_result != ErrorCode::kSuccess && (kRequireBrokerSnapshot || !kAllowUnreconciledOrders)) {
@@ -604,36 +702,38 @@ ErrorCode TradingEngine::ReconcileBrokerState() {
   return ErrorCode::kSuccess;
 }
 
-ErrorCode TradingEngine::StartRuntimeModules() {
-  spdlog::info("[TradingEngine] Start-3 StartRuntimeModules");
-
-  // 1. 先启异步基础设施：risk outbox → 事件通道 → 健康监控 → 策略 → EMS
-  if (account_risk_client_.IsInitialized()) {
-    account_risk_release_worker_.Start();
-  }
+ErrorCode TradingEngine::StartEventLanes() {
+  spdlog::info("StartEventLanes");
   event_lanes_.Start();
   quote_health_monitor_.Start();
-  strategy_engine_.Start();
+  return ErrorCode::kSuccess;
+}
+
+ErrorCode TradingEngine::StartEngineModules() {
+  spdlog::info("StartEngineModules");
+  // Start 阶段交易模块：策略消费与 EMS 出站（InitEngineModules 仅 OMS/接线）
+  strategy_manager_.Start();
   execution_manager_.SetTraderApi(trader_api_.get());
   execution_manager_.Start();
+  running_.store(true, std::memory_order_release);
+  return ErrorCode::kSuccess;
+}
 
-  running_ = true;
-  // 2. 按配置快照订阅行情（Init 期间 OnEngineConfig 可能已写入 subscribed_instruments_）
+ErrorCode TradingEngine::StartMarketData() {
+  spdlog::info("StartMarketData");
+  std::vector<std::string> instruments;
   {
-    std::vector<std::string> instruments;
-    {
-      std::lock_guard lock(runtime_config_mutex_);
-      instruments.assign(subscribed_instruments_.begin(), subscribed_instruments_.end());
-    }
-    if (!instruments.empty()) {
-      SubscribeQuote(instruments);
-    }
+    std::lock_guard lock(runtime_config_mutex_);
+    instruments.assign(subscribed_instruments_.begin(), subscribed_instruments_.end());
+  }
+  if (!instruments.empty()) {
+    SubscribeQuote(instruments);
   }
   return ErrorCode::kSuccess;
 }
 
-ErrorCode TradingEngine::AdvancePostStartLifecycle() {
-  spdlog::info("[TradingEngine] Start-4 AdvancePostStartLifecycle");
+ErrorCode TradingEngine::AdvanceReadyGates() {
+  spdlog::info("AdvanceReadyGates");
   // BrokerSynced: 柜台快照已应用；RiskSynced: MVP 暂无独立 RPC 对账，保留阶段位供后续扩展
   if (lifecycle_.Advance(EngineLifecycleState::kBrokerSynced) != ErrorCode::kSuccess ||
       lifecycle_.Advance(EngineLifecycleState::kRiskSynced) != ErrorCode::kSuccess) {
@@ -649,132 +749,8 @@ ErrorCode TradingEngine::AdvancePostStartLifecycle() {
 }
 
 // =============================================================================
-// 控制面 client 辅助
+// 适配器接线 / 断开
 // =============================================================================
-
-ErrorCode TradingEngine::InitConfigClient(const qtrade::common::config::QtradeEngineConfig& config) {
-  // 1. 校验 config-service 地址并初始化客户端
-  const auto& config_service = config.support_services.config_service;
-  if (!config_service.enabled || config_service.host.empty() || config_service.port <= 0) {
-    return ErrorCode::kNotInitialized;
-  }
-
-  client::ConfigClientOptions client_opts;
-  client_opts.server_address = config_service.Address();
-  client_opts.tenant_id = config.identity.tenant_id;
-  client_opts.engine_id = config.identity.engine_id;
-
-  if (const auto rc = config_client_.Init(client_opts); rc != ErrorCode::kSuccess) {
-    return rc;
-  }
-
-  // 2. 拉取快照并启动配置监视
-  config_client_.SetOnSnapshot([this](const qtrade::config::v1::EngineConfig& config) { OnEngineConfig(config); });
-
-  if (const auto rc = config_client_.FetchSnapshot(); rc != ErrorCode::kSuccess) {
-    return rc;
-  }
-
-  if (const auto rc = config_client_.StartWatch(); rc != ErrorCode::kSuccess) {
-    return rc;
-  }
-
-  return ErrorCode::kSuccess;
-}
-
-ErrorCode TradingEngine::InitAccountRiskClient(const qtrade::common::config::QtradeEngineConfig& config) {
-  client::AccountRiskClientOptions options;
-  options.server_address = config.support_services.account_risk_service.Address();
-  options.tenant_id = config.identity.tenant_id;
-  options.account_id = config.identity.account_id;
-  options.engine_id = config.identity.engine_id;
-  options.timeout_ms = config.support_services.account_risk_service.timeout_ms;
-  return account_risk_client_.Init(options);
-}
-
-// =============================================================================
-// 适配器装配 / 接线 / 断开
-// =============================================================================
-
-ErrorCode TradingEngine::InitAdapters() {
-  // 1. 已装配则直接成功；否则读取运行时配置
-  if (quote_api_ != nullptr && trader_api_ != nullptr) {
-    return ErrorCode::kSuccess;
-  }
-
-  qtrade::config::v1::EngineConfig runtime_config;
-  {
-    std::lock_guard lock(runtime_config_mutex_);
-    runtime_config = runtime_config_;
-  }
-  if (runtime_config.execution_adapter().empty() || runtime_config.quote_connection_string().empty()) {
-    return ErrorCode::kNotInitialized;
-  }
-
-  // 2. 按适配器类型构造 API 与连接请求（mock / emt）
-  qtrade_sdk::quote::ConnectRequest quote_request;
-  qtrade_sdk::trader::ConnectRequest trader_request;
-  if (runtime_config.execution_adapter() == "mock") {
-    quote_request.name = "mock";
-    quote_request.connection_string = runtime_config.quote_connection_string();
-    trader_request.broker_id = "mock";
-    trader_request.account_id = config_.identity.account_id;
-    trader_request.connection_string = runtime_config.quote_connection_string();
-    SetQuoteApi(qtrade::adapter::mock::quote::CreateMockQuoteApi());
-    SetTraderApi(qtrade::adapter::mock::trader::CreateMockTraderApi());
-  } else if (runtime_config.execution_adapter() == "emt") {
-    const auto& account_service = config_.support_services.account_service;
-    if (!account_service.enabled || account_service.host.empty() || account_service.port <= 0) {
-      return ErrorCode::kNotInitialized;
-    }
-    client::AccountClientOptions options;
-    options.server_address = account_service.Address();
-    options.tenant_id = config_.identity.tenant_id;
-    options.engine_id = config_.identity.engine_id;
-    if (const auto result = account_client_.Init(options); result != ErrorCode::kSuccess) {
-      return result;
-    }
-    qtrade::account::v1::GetCredentialResponse credential_response;
-    if (const auto result = account_client_.GetCredential(config_.identity.account_id, credential_response);
-        result != ErrorCode::kSuccess) {
-      return result;
-    }
-    const auto& credential = credential_response.credential();
-    if (credential.account_id() != config_.identity.account_id || credential.connection_string().empty() ||
-        credential.password().empty()) {
-      return ErrorCode::kInternalError;
-    }
-    trader_request.broker_id = credential.broker_id();
-    trader_request.account_id = credential.account_id();
-    trader_request.connection_string = credential.connection_string();
-    trader_request.password = credential.password();
-    quote_request.name = "emt";
-    quote_request.connection_string = runtime_config.quote_connection_string();
-    quote_request.user = credential.account_id();
-    quote_request.password = credential.password();
-    SetQuoteApi(std::make_unique<qtrade::adapter::quote::EmtQuoteApi>());
-    SetTraderApi(std::make_unique<qtrade::adapter::trader::EmtTraderApi>());
-  } else {
-    return ErrorCode::kNotSupported;
-  }
-
-  // 3. 连接行情与交易通道
-  auto* quote_api = quote_api_.get();
-  auto* trader_api = trader_api_.get();
-  if (quote_api == nullptr || trader_api == nullptr) {
-    return ErrorCode::kNotInitialized;
-  }
-  if (const auto result = quote_api->Connect(quote_request); result != ErrorCode::kSuccess) {
-    quote_api->Disconnect();
-    return result;
-  }
-  if (const auto result = trader_api->Connect(trader_request); result != ErrorCode::kSuccess) {
-    quote_api->Disconnect();
-    trader_api->Disconnect();
-    return result;
-  }
-  return ErrorCode::kSuccess;
-}
 
 void TradingEngine::WireQuoteCallbacks() {
   if (quote_api_ == nullptr) {
@@ -786,7 +762,7 @@ void TradingEngine::WireQuoteCallbacks() {
     }
     if (!IsValidTick(tick)) {
       quote_health_monitor_.OnInvalidTick();
-      spdlog::warn("[TradingEngine] rejected invalid tick: instrument={}", tick.instrument);
+      spdlog::warn("rejected invalid tick: instrument={}", tick.instrument);
       return;
     }
     quote_health_monitor_.OnValidTick();
@@ -847,14 +823,14 @@ ErrorCode TradingEngine::SynchronizeBrokerState(qtrade_sdk::trader::TraderApi* t
     return ErrorCode::kNotSupported;
   }
   qtrade_sdk::trader::QueryAssetRequest asset_request;
-  asset_request.account_id = config_.identity.account_id;
+  asset_request.account_id = bootstrap_config_.identity.account_id;
   if (trader_api->QueryAsset(asset_request, asset_response) != ErrorCode::kSuccess) {
     return ErrorCode::kNotSupported;
   }
 
-  // 2. 应用回报并校验待对账订单已清空
+  // 2. 应用柜台订单快照（可冷启动采纳进内存 OMS，不补单）并校验待对账订单已清空
   for (const auto& report : orders_response.orders) {
-    order_manager_.ApplyOrderReport(report);
+    order_manager_.ReconcileBrokerOrder(report);
     const auto local = report.order_id.empty() ? order_manager_.GetOrderByClientId(report.client_order_id)
                                                : order_manager_.GetOrder(report.order_id);
     if (local.has_value()) {
@@ -882,22 +858,23 @@ ErrorCode TradingEngine::SynchronizeBrokerState(qtrade_sdk::trader::TraderApi* t
 void TradingEngine::OnEngineConfig(const qtrade::config::v1::EngineConfig& config) {
   // 1. 校验版本、身份与有效期；拒绝陈旧或运行中改适配器的快照
   if (config.version() == 0) {
-    spdlog::warn("[TradingEngine] invalid engine config version={}", config.version());
+    spdlog::warn("invalid engine config version={}", config.version());
     lifecycle_.Freeze("CONFIG_SNAPSHOT_INVALID");
     return;
   }
 
   const auto& engine = config;
-  if (engine.engine_id() != config_.identity.engine_id || engine.tenant_id() != config_.identity.tenant_id ||
-      engine.account_id() != config_.identity.account_id) {
-    spdlog::error("[TradingEngine] config identity mismatch");
+  if (engine.engine_id() != bootstrap_config_.identity.engine_id ||
+      engine.tenant_id() != bootstrap_config_.identity.tenant_id ||
+      engine.account_id() != bootstrap_config_.identity.account_id) {
+    spdlog::error("config identity mismatch");
     lifecycle_.Freeze("CONFIG_IDENTITY_MISMATCH");
     return;
   }
   const auto now_ms =
     std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
   if (engine.valid_until_unix_ms() > 0 && now_ms >= engine.valid_until_unix_ms()) {
-    spdlog::error("[TradingEngine] rejected expired engine config version={}", config.version());
+    spdlog::error("rejected expired engine config version={}", config.version());
     lifecycle_.Freeze("CONFIG_EXPIRED");
     return;
   }
@@ -905,14 +882,14 @@ void TradingEngine::OnEngineConfig(const qtrade::config::v1::EngineConfig& confi
   {
     std::lock_guard lock(runtime_config_mutex_);
     if (config.version() <= runtime_config_version_) {
-      spdlog::warn("[TradingEngine] ignored stale engine config version={}", config.version());
+      spdlog::warn("ignored stale engine config version={}", config.version());
       return;
     }
     if (running_.load(std::memory_order_acquire) && runtime_config_version_ != 0 &&
         (runtime_config_.execution_adapter() != engine.execution_adapter() ||
          runtime_config_.quote_connection_string() != engine.quote_connection_string())) {
       lifecycle_.Freeze("ADAPTER_RESTART_REQUIRED");
-      spdlog::error("[TradingEngine] adapter configuration changed while running; restart required");
+      spdlog::error("adapter configuration changed while running; restart required");
       return;
     }
   }
@@ -934,20 +911,21 @@ void TradingEngine::OnEngineConfig(const qtrade::config::v1::EngineConfig& confi
     return;
   }
 
-  std::vector<strategy::StrategyRuntimeConfig> strategy_configs;
-  strategy_configs.reserve(static_cast<std::size_t>(engine.strategies_size()));
-  for (const auto& strategy : engine.strategies()) {
-    strategy::StrategyRuntimeConfig config;
-    config.strategy_id = strategy.strategy_id();
-    config.plugin = strategy.plugin();
-    config.enabled = strategy.enabled();
-    config.instruments.assign(strategy.instruments().begin(), strategy.instruments().end());
-    config.params.insert(strategy.params().begin(), strategy.params().end());
-    strategy_configs.push_back(std::move(config));
-  }
-  if (strategy_engine_.ApplyConfiguration(strategy_configs) != ErrorCode::kSuccess) {
-    lifecycle_.Freeze("STRATEGY_CONFIG_INVALID");
-    return;
+  // 策略实例仅在 Init 后由 boot::LoadStrategies 装配；运行中变更须 Stop → 重新 Init
+  if (running_.load(std::memory_order_acquire)) {
+    bool strategies_changed = false;
+    {
+      std::lock_guard lock(runtime_config_mutex_);
+      strategies_changed = !StrategiesEqual(runtime_config_.strategies(), engine.strategies());
+    }
+    if (strategies_changed) {
+      lifecycle_.Freeze("STRATEGY_RESTART_REQUIRED");
+      spdlog::error("strategy configuration changed while running; stop and re-init required");
+      return;
+    }
+  } else {
+    spdlog::info("cached {} strategy config(s); instances will be created by LoadStrategies",
+                 engine.strategies_size());
   }
 
   std::unordered_set<std::string> desired_instruments;
@@ -1001,15 +979,14 @@ void TradingEngine::OnEngineConfig(const qtrade::config::v1::EngineConfig& confi
     }
   }
 
-  spdlog::info("[TradingEngine] config snapshot version={}, account={}, quote_source={}, strategies={}",
+  spdlog::info("config snapshot version={}, account={}, quote_source={}, strategies={}",
                config.version(),
-               config_.identity.account_id,
+               bootstrap_config_.identity.account_id,
                engine.quote_source(),
                engine.strategies_size());
 
   for (const auto& strategy : engine.strategies()) {
-    log_client_.Emit("info",
-                     "strategy " + strategy.strategy_id() + " enabled=" + (strategy.enabled() ? "true" : "false"));
+    spdlog::info("strategy {} enabled={}", strategy.strategy_id(), strategy.enabled());
   }
 }
 
@@ -1019,7 +996,7 @@ void TradingEngine::OnMarketHealthChanged(bool healthy) {
   if (!healthy) {
     if (state == EngineLifecycleState::kReady || state == EngineLifecycleState::kMarketHealthy) {
       lifecycle_.Freeze("MARKET_UNHEALTHY");
-      log_client_.Emit("warn", "engine frozen: market unhealthy");
+      spdlog::warn("engine frozen: market unhealthy");
     }
     return;
   }
@@ -1028,13 +1005,28 @@ void TradingEngine::OnMarketHealthChanged(bool healthy) {
   if (state == EngineLifecycleState::kRiskSynced) {
     if (lifecycle_.Advance(EngineLifecycleState::kMarketHealthy) == ErrorCode::kSuccess &&
         lifecycle_.Advance(EngineLifecycleState::kReady) == ErrorCode::kSuccess) {
-      log_client_.Emit("info", "trading engine READY");
-      monitor_client_.Counter("engine.ready", 1.0);
+      spdlog::info("trading engine READY");
     }
   } else if (state == EngineLifecycleState::kFrozen && lifecycle_.Reason() == "MARKET_UNHEALTHY") {
     if (lifecycle_.ResumeReady() == ErrorCode::kSuccess) {
-      log_client_.Emit("info", "trading engine resumed after market recovery");
+      spdlog::info("trading engine resumed after market recovery");
     }
+  }
+}
+
+void TradingEngine::ReleaseAccountRiskReservation(const std::string& order_id,
+                                                  qtrade::account_risk::v1::ReleaseOrderRequest::Reason reason) {
+  if (!account_risk_client_.IsInitialized() || order_id.empty()) {
+    return;
+  }
+  qtrade::account_risk::v1::ReleaseOrderRequest request;
+  request.set_tenant_id(bootstrap_config_.identity.tenant_id);
+  request.set_account_id(bootstrap_config_.identity.account_id);
+  request.set_order_id(order_id);
+  request.set_reason(reason);
+  qtrade::account_risk::v1::ReleaseOrderResponse response;
+  if (const auto rc = account_risk_client_.ReleaseOrder(request, response); rc != ErrorCode::kSuccess) {
+    spdlog::warn("ReleaseOrder failed: order_id={}, code={}", order_id, static_cast<int>(rc));
   }
 }
 

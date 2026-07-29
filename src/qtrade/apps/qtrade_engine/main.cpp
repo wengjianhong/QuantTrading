@@ -37,19 +37,19 @@ int main(int argc, char** argv) {
   }
 
   qtrade::engine::TradingEngine engine;
-  // 4. 初始化引擎（订单回放、控制面、适配器）
+  // 4. 初始化引擎（bootstrap → support clients → runtime_config → modules → adapters）
   if (!qtrade::engine::boot::InitEngine(engine, options_result.data.value())) {
     qtrade::common::system::NotifyError(0, "Failed to initialize engine");
     return EXIT_FAILURE;
   }
 
-  // 5. 注册策略工厂与演示策略实例
-  if (!qtrade::engine::boot::RegisterStrategies(engine)) {
-    qtrade::common::system::NotifyError(0, "Failed to register demo strategies");
+  // 5. 扫描策略插件目录并按 runtime_config.strategies 注册实例
+  if (!qtrade::engine::boot::LoadStrategies(engine)) {
+    qtrade::common::system::NotifyError(0, "Failed to load strategies from runtime config");
     return EXIT_FAILURE;
   }
 
-  // 6. 启动运行时（柜台对账、事件通道、策略/EMS）
+  // 6. 启动运行时（柜台对账、事件通道、策略/EMS、按配置订阅行情）
   if (!qtrade::engine::boot::StartEngine(engine)) {
     qtrade::common::system::NotifyError(0, "Failed to start engine");
     return EXIT_FAILURE;

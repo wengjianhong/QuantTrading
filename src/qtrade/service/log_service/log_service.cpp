@@ -5,7 +5,7 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/service/log_service/log_service.hpp"
 
-#include "qtrade/common/config/qtrade_log_service_config.hpp"
+#include "qtrade/common/config/qtrade_log_service_bootstrap_config.hpp"
 #include "qtrade/common/json/json_util.hpp"
 
 #include <spdlog/spdlog.h>
@@ -39,7 +39,7 @@ ErrorCode LogService::Initialize(const std::string& config_path) {
     return status_.last_error;
   }
 
-  const auto loaded = qtrade::common::config::ParseQtradeLogServiceConfig(*config_node);
+  const auto loaded = qtrade::common::config::ParseQtradeLogServiceBootstrapConfig(*config_node);
   if (!loaded.has_value()) {
     status_.state = qtrade::common::support::SupportServiceState::kFailed;
     status_.last_error = ErrorCode::kInternalError;

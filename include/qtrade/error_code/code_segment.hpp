@@ -97,8 +97,8 @@ enum class ModuleNumber : uint64_t {
   kPosition = MakeModuleId(static_cast<uint64_t>(ServiceNumber::kEngine), 9),
   /// 风险管理模块
   kRisk = MakeModuleId(static_cast<uint64_t>(ServiceNumber::kEngine), 10),
-  /// 策略引擎模块
-  kStrategyEngine = MakeModuleId(static_cast<uint64_t>(ServiceNumber::kEngine), 11),
+  /// 策略管理器模块
+  kStrategyManager = MakeModuleId(static_cast<uint64_t>(ServiceNumber::kEngine), 11),
 };
 
 }  // namespace qtrade

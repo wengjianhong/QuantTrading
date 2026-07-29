@@ -11,6 +11,7 @@
 #include <qtrade_sdk/quote/quote_struct.hpp>
 #include <qtrade_sdk/trader/trader_struct.hpp>
 
+#include <functional>
 #include <string>
 
 namespace qtrade::strategy {
@@ -26,12 +27,15 @@ struct StrategyConfig {
 /// @details 策略产生的交易信号
 struct Signal {
   std::string instrument;  /// 合约代码
-  int direction{};         /// 方向：-1=做空，0=平仓，1=做多
-  double strength{};       /// 信号强度（0.0~1.0）
+  int direction = 0;       /// 方向：-1=做空，0=平仓，1=做多
+  double strength = 0.0;   /// 信号强度（0.0~1.0）
 };
 
+/// @brief 策略发单回调（由引擎在创建实例后注入）
+using OrderSender = std::function<ErrorCode(const qtrade_sdk::trader::OrderRequest&)>;
+
 /// @brief 策略接口类
-/// @details 所有策略必须实现此接口
+/// @details 生命周期为 Init → Start → Stop；发单能力经 SetOrderSender 注入
 class IStrategy {
  public:
   virtual ~IStrategy() = default;
@@ -54,21 +58,11 @@ class IStrategy {
   /// @brief 停止策略
   virtual void Stop() = 0;
 
-  /// @brief Tick数据回调
-  /// @param tick 市场Tick数据
-  virtual void OnTick(const qtrade_sdk::quote::MarketTick& tick) = 0;
-
-  /// @brief Bar数据回调
-  /// @param bar K线数据
-  virtual void OnBar(const qtrade_sdk::quote::Bar& bar) = 0;
-
-  /// @brief 订单更新回调
-  /// @param order 订单信息
-  virtual void OnOrder(const qtrade_sdk::trader::Order& order) = 0;
-
-  /// @brief 成交更新回调
-  /// @param trade 成交信息
-  virtual void OnTrade(const qtrade_sdk::trader::Trade& trade) = 0;
+  /// @brief 注入发单回调；默认空实现（只读/信号策略可不覆盖）
+  /// @param sender 发单函数；空表示清除
+  virtual void SetOrderSender(OrderSender sender) {
+    (void)sender;
+  }
 
   /// @brief 发送交易信号
   /// @param signal 交易信号
@@ -85,6 +79,22 @@ class IStrategy {
   /// @param value 参数值
   /// @return ErrorCode::kSuccess 表示成功，其他表示失败
   virtual ErrorCode SetParameter(const std::string& key, const std::string& value) = 0;
+
+  /// @brief Tick数据回调
+  /// @param tick 市场Tick数据
+  virtual void OnTick(const qtrade_sdk::quote::MarketTick& tick) = 0;
+
+  /// @brief Bar数据回调
+  /// @param bar K线数据
+  virtual void OnBar(const qtrade_sdk::quote::Bar& bar) = 0;
+
+  /// @brief 订单更新回调
+  /// @param order 订单信息
+  virtual void OnOrder(const qtrade_sdk::trader::Order& order) = 0;
+
+  /// @brief 成交更新回调
+  /// @param trade 成交信息
+  virtual void OnTrade(const qtrade_sdk::trader::Trade& trade) = 0;
 };
 
 }  // namespace qtrade::strategy

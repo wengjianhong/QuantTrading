@@ -1,5 +1,5 @@
 /// @file      compliance_manager.hpp
-/// @brief     合规管理器
+/// @brief     合规管理器（实现 ComplianceApi）
 /// @details   对下单请求做字段合法性与可配置白名单/限幅检查
 /// @author    wengjianhong
 /// @date      2026-05-19
@@ -7,12 +7,12 @@
 #ifndef QTRADE_TRADING_ENGINE_COMPLIANCE_MANAGER_HPP_
 #define QTRADE_TRADING_ENGINE_COMPLIANCE_MANAGER_HPP_
 
-#include <qtrade/error_code/error_codes.hpp>
-#include <qtrade_sdk/trader/trader_struct.hpp>
+#include "qtrade/engine/cms/compliance_api.hpp"
 
 #include <cstdint>
 #include <limits>
 #include <mutex>
+#include <string>
 #include <unordered_set>
 
 namespace qtrade::engine::cms {
@@ -42,13 +42,13 @@ struct ComplianceRules {
 };
 
 /// @brief 订单字段与可配置白名单合规检查
-class ComplianceManager {
+class ComplianceManager final : public ComplianceApi {
  public:
   /// @brief 构造默认规则的合规管理器
   ComplianceManager() = default;
 
   /// @brief 析构合规管理器
-  ~ComplianceManager() = default;
+  ~ComplianceManager() override = default;
 
   /// @brief 原子替换合规规则
   /// @param rules 新规则
@@ -58,7 +58,7 @@ class ComplianceManager {
   /// @brief 检查订单是否满足合规规则
   /// @param request 下单请求
   /// @return 通过返回 kSuccess
-  [[nodiscard]] ErrorCode CheckOrder(const qtrade_sdk::trader::OrderRequest& request) const;
+  [[nodiscard]] ErrorCode CheckOrder(const qtrade_sdk::trader::OrderRequest& request) const override;
 
  private:
   /// 保护规则快照

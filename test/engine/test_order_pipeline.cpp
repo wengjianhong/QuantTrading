@@ -1,4 +1,4 @@
-#include "qtrade/common/config/qtrade_engine_config.hpp"
+#include "qtrade/common/config/qtrade_engine_bootstrap_config.hpp"
 #include "qtrade/engine/trading_engine.hpp"
 #include "qtrade_sdk/mock/quote/mock_quote_api.hpp"
 #include "qtrade_sdk/mock/trader/mock_trader_api.hpp"
@@ -35,11 +35,12 @@ void InstallConnectedMockQuote(qtrade::engine::TradingEngine& engine) {
 TEST(OrderPipeline, MockOrderFlowsThroughOmsAndTraderLane) {
   const std::string suffix = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
   qtrade::engine::TradingEngine engine;
-  qtrade::common::config::QtradeEngineConfig config;
+  qtrade::common::config::QtradeEngineBootstrapConfig config;
   config.identity.tenant_id = "test";
   config.identity.engine_id = "test-engine-" + suffix;
   config.identity.account_id = "test-account";
   config.support_services.config_service.enabled = false;
+  config.support_services.account_service.enabled = false;
   config.support_services.account_risk_service.enabled = false;
   config.support_services.log_service.extensions["topic"] = "test";
   ASSERT_EQ(engine.Init(config), qtrade::ErrorCode::kSuccess);
@@ -64,11 +65,11 @@ TEST(OrderPipeline, MockOrderFlowsThroughOmsAndTraderLane) {
   ASSERT_EQ(engine.SubmitOrder(request), qtrade::ErrorCode::kSuccess);
 
   WaitUntil([&] {
-    const auto order = engine.GetOrderManager().GetOrderByClientId(request.client_order_id);
+    const auto order = engine.GetOrderApi().GetOrderByClientId(request.client_order_id);
     return order.has_value() && order->status == qtrade_sdk::trader::OrderStatusType::kFilled;
   });
 
-  const auto order = engine.GetOrderManager().GetOrderByClientId(request.client_order_id);
+  const auto order = engine.GetOrderApi().GetOrderByClientId(request.client_order_id);
   ASSERT_TRUE(order.has_value());
   EXPECT_EQ(order->traded_volume, 2);
   EXPECT_EQ(order->left_volume, 0);
@@ -86,11 +87,12 @@ TEST(OrderPipeline, MockOrderFlowsThroughOmsAndTraderLane) {
 TEST(OrderPipeline, CancelFlowsThroughEmsAndVenueReport) {
   const std::string suffix = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
   qtrade::engine::TradingEngine engine;
-  qtrade::common::config::QtradeEngineConfig config;
+  qtrade::common::config::QtradeEngineBootstrapConfig config;
   config.identity.tenant_id = "test";
   config.identity.engine_id = "cancel-engine-" + suffix;
   config.identity.account_id = "test-account";
   config.support_services.config_service.enabled = false;
+  config.support_services.account_service.enabled = false;
   config.support_services.account_risk_service.enabled = false;
   config.support_services.log_service.extensions["topic"] = "test";
   ASSERT_EQ(engine.Init(config), qtrade::ErrorCode::kSuccess);
@@ -116,21 +118,21 @@ TEST(OrderPipeline, CancelFlowsThroughEmsAndVenueReport) {
   ASSERT_EQ(engine.SubmitOrder(request), qtrade::ErrorCode::kSuccess);
 
   WaitUntil([&] {
-    const auto order = engine.GetOrderManager().GetOrderByClientId(request.client_order_id);
+    const auto order = engine.GetOrderApi().GetOrderByClientId(request.client_order_id);
     return order.has_value() && order->order_emt_id != 0 &&
-           engine.GetOrderManager().GetLifecycleState(order->order_id) ==
+           engine.GetOrderApi().GetLifecycleState(order->order_id) ==
              qtrade::engine::oms::OrderLifecycleState::kWorking;
   });
-  const auto order = engine.GetOrderManager().GetOrderByClientId(request.client_order_id);
+  const auto order = engine.GetOrderApi().GetOrderByClientId(request.client_order_id);
   ASSERT_TRUE(order.has_value());
   ASSERT_NE(order->order_emt_id, 0U);
   ASSERT_EQ(engine.CancelOrder(order->order_id), qtrade::ErrorCode::kSuccess);
 
   WaitUntil([&] {
-    return engine.GetOrderManager().GetLifecycleState(order->order_id) ==
+    return engine.GetOrderApi().GetLifecycleState(order->order_id) ==
            qtrade::engine::oms::OrderLifecycleState::kCanceled;
   });
-  EXPECT_EQ(engine.GetOrderManager().GetLifecycleState(order->order_id),
+  EXPECT_EQ(engine.GetOrderApi().GetLifecycleState(order->order_id),
             qtrade::engine::oms::OrderLifecycleState::kCanceled);
 
   EXPECT_EQ(engine.Stop(), qtrade::ErrorCode::kSuccess);

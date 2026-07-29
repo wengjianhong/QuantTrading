@@ -1,71 +1,90 @@
 /// @file      order_pipeline.cpp
 /// @brief     OrderPipeline 发单准入编排实现
-/// @details   实现审计门禁、CMS/Risk 校验、E 段预占、OMS 落单与 EMS 入队及失败释放
 /// @author    wengjianhong
 /// @date      2026-07-15
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/engine/core/order_pipeline.hpp"
 
-#include "qtrade/client/account_risk_client/account_risk_client.hpp"
-#include "qtrade/client/log_client/log_client.hpp"
-
-#include <qtrade/proto/account_risk/v1/account_risk.pb.h>
+#include <spdlog/spdlog.h>
 
 namespace qtrade::engine {
 
-OrderPipeline::OrderPipeline(cms::ComplianceManager& compliance,
-                             risk::RiskManager& risk_manager,
-                             oms::OrderManager& order_manager,
-                             ems::ExecutionManager& execution_manager,
+OrderPipeline::OrderPipeline(cms::ComplianceApi& compliance,
+                             risk::RiskApi& risk,
+                             oms::OrderApi& orders,
+                             ems::ExecutionApi& execution,
                              qtrade::client::AccountRiskClient* account_risk_client)
   : compliance_(compliance),
-    risk_manager_(risk_manager),
-    order_manager_(order_manager),
-    execution_manager_(execution_manager),
+    risk_(risk),
+    orders_(orders),
+    execution_(execution),
     account_risk_client_(account_risk_client) {}
 
 void OrderPipeline::SetAccountRiskClient(qtrade::client::AccountRiskClient* account_risk_client) {
-  // Init 阶段注入，Submit 时执行 E 段预占
   account_risk_client_ = account_risk_client;
 }
 
-void OrderPipeline::SetLogClient(qtrade::client::LogClient* log_client) {
-  log_client_ = log_client;
+void OrderPipeline::SetAccountRiskIdentity(std::string tenant_id, std::string account_id, std::string engine_id) {
+  tenant_id_ = std::move(tenant_id);
+  account_id_ = std::move(account_id);
+  engine_id_ = std::move(engine_id);
 }
 
-void OrderPipeline::SetReleaseHandler(ReleaseHandler handler) {
-  // 预占后落单/入队失败时，通过 outbox worker 异步释放
-  release_handler_ = std::move(handler);
+void OrderPipeline::ReleaseReservation(const std::string& order_id,
+                                       qtrade::account_risk::v1::ReleaseOrderRequest::Reason reason) {
+  if (account_risk_client_ == nullptr || order_id.empty()) {
+    return;
+  }
+  qtrade::account_risk::v1::ReleaseOrderRequest request;
+  request.set_tenant_id(tenant_id_);
+  request.set_account_id(account_id_);
+  request.set_order_id(order_id);
+  request.set_reason(reason);
+  qtrade::account_risk::v1::ReleaseOrderResponse response;
+  if (const auto rc = account_risk_client_->ReleaseOrder(request, response); rc != ErrorCode::kSuccess) {
+    spdlog::warn("ReleaseOrder failed: order_id={}, code={}", order_id, static_cast<int>(rc));
+  }
 }
 
 ErrorCode OrderPipeline::Submit(const qtrade_sdk::trader::OrderRequest& request) {
-  // 1. 审计门禁、合规与实例风控
-  if (log_client_ != nullptr && log_client_->IsAuditHalted()) {
-    return ErrorCode::kInternalError;
-  }
   if (const auto rc = compliance_.CheckOrder(request); rc != ErrorCode::kSuccess) {
     return rc;
   }
-  if (const auto rc = risk_manager_.CheckOrder(request); rc != ErrorCode::kSuccess) {
+  if (const auto rc = risk_.CheckOrder(request); rc != ErrorCode::kSuccess) {
     return rc;
   }
-  if (request.client_order_id != 0 && order_manager_.GetOrderByClientId(request.client_order_id).has_value()) {
+  if (request.client_order_id != 0 && orders_.GetOrderByClientId(request.client_order_id).has_value()) {
     return ErrorCode::kSuccess;
   }
 
-  // 2. 分配订单 ID 并做 E 段预占
-  const std::string order_id = order_manager_.AllocateOrderId();
+  const std::string order_id = orders_.AllocateOrderId();
   if (account_risk_client_ != nullptr) {
+    qtrade::account_risk::v1::ReserveOrderRequest reserve_request;
+    reserve_request.set_tenant_id(tenant_id_);
+    reserve_request.set_account_id(account_id_);
+    reserve_request.set_risk_config_version(risk_.Version());
+    auto* intent = reserve_request.mutable_intent();
+    intent->set_order_id(order_id);
+    intent->set_engine_id(engine_id_);
+    intent->set_instrument_id(request.instrument);
+    intent->set_price(request.price);
+    intent->set_quantity(static_cast<std::uint64_t>(request.volume));
+    intent->set_estimated_notional(request.price * static_cast<double>(request.volume));
+    intent->set_side(std::to_string(static_cast<int>(request.side)));
+
     qtrade::account_risk::v1::ReserveOrderResponse response;
-    const auto reserve_result =
-      account_risk_client_->ReserveOrder(order_id, request, risk_manager_.Version(), response);
+    const auto reserve_result = account_risk_client_->ReserveOrder(reserve_request, response);
     const bool reserve_unknown = reserve_result == ErrorCode::kTimeout ||
                                  (reserve_result == ErrorCode::kSuccess &&
                                   response.decision() == qtrade::account_risk::v1::ReserveOrderResponse::UNKNOWN);
     if (reserve_unknown) {
-      qtrade::account_risk::v1::Reservation reservation;
-      const auto query_result = account_risk_client_->GetReservation(order_id, reservation);
-      if (query_result != ErrorCode::kSuccess || reservation.status() != "reserved") {
+      qtrade::account_risk::v1::GetReservationRequest query_request;
+      query_request.set_tenant_id(tenant_id_);
+      query_request.set_account_id(account_id_);
+      query_request.set_order_id(order_id);
+      qtrade::account_risk::v1::GetReservationResponse query_response;
+      const auto query_result = account_risk_client_->GetReservation(query_request, query_response);
+      if (query_result != ErrorCode::kSuccess || query_response.reservation().status() != "reserved") {
         return query_result == ErrorCode::kNotFound ? ErrorCode::kTimeout : query_result;
       }
     } else if (reserve_result != ErrorCode::kSuccess ||
@@ -74,36 +93,49 @@ ErrorCode OrderPipeline::Submit(const qtrade_sdk::trader::OrderRequest& request)
     }
   }
 
-  // 3. OMS 落单；失败则释放预占
-  const auto order = order_manager_.CreateOrder(request, order_id);
+  const auto order = orders_.CreateOrder(request, order_id);
   if (!order.has_value()) {
-    if (release_handler_) {
-      (void)release_handler_(order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
-    }
+    ReleaseReservation(order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
     return ErrorCode::kNotInitialized;
   }
-  const std::string& persisted_order_id = order->order_id;
-  const auto lifecycle = order_manager_.GetLifecycleState(persisted_order_id);
+  const std::string& created_order_id = order->order_id;
+  const auto lifecycle = orders_.GetLifecycleState(created_order_id);
   if (lifecycle.has_value() && *lifecycle != oms::OrderLifecycleState::kPrepared) {
     return ErrorCode::kSuccess;
   }
 
-  // 4. 持久化 EMS 入队事实后再交给执行线程
-  if (const auto rc = order_manager_.MarkEmsQueued(persisted_order_id); rc != ErrorCode::kSuccess) {
-    if (release_handler_) {
-      (void)release_handler_(persisted_order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
-    }
+  if (const auto rc = orders_.MarkEmsQueued(created_order_id); rc != ErrorCode::kSuccess) {
+    ReleaseReservation(created_order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
     return rc;
   }
 
-  const auto rc = execution_manager_.Enqueue(*order);
+  const auto rc = execution_.Enqueue(*order);
   if (rc != ErrorCode::kSuccess) {
-    (void)order_manager_.RecordSendResult(persisted_order_id, rc);
-    if (release_handler_) {
-      (void)release_handler_(persisted_order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
-    }
+    (void)orders_.RecordSendResult(created_order_id, rc);
+    ReleaseReservation(created_order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
   }
   return rc;
+}
+
+ErrorCode OrderPipeline::Cancel(const std::string& order_id) {
+  // 1. OMS 标记撤单意图
+  const auto order = orders_.GetOrder(order_id);
+  if (!order.has_value()) {
+    return ErrorCode::kNotFound;
+  }
+  if (const auto result = orders_.CancelOrder(order_id); result != ErrorCode::kSuccess) {
+    return result;
+  }
+
+  // 2. 入队 EMS 撤单；失败回写撤单结果
+  qtrade_sdk::trader::CancelOrderRequest request;
+  request.order_id = order_id;
+  request.order_emt_id = order->order_emt_id;
+  const auto result = execution_.EnqueueCancel(request);
+  if (result != ErrorCode::kSuccess) {
+    (void)orders_.RecordCancelResult(order_id, result);
+  }
+  return result;
 }
 
 }  // namespace qtrade::engine

@@ -16,18 +16,18 @@ class TradingEngine;
 /// @brief 引擎业务启动阶段（供 main 编排调用）
 namespace boot {
 
-/// @brief 注册策略工厂与策略实例
-/// @param engine 交易引擎
+/// @brief 按 runtime_config_.strategies 从插件目录加载并注册已启用策略实例
+/// @param engine 交易引擎（须已 Init 且持有 runtime_config_ / strategy_plugin_dir）
 /// @return 是否成功
-[[nodiscard]] bool RegisterStrategies(TradingEngine& engine);
+[[nodiscard]] bool LoadStrategies(TradingEngine& engine);
 
-/// @brief 调用 TradingEngine::Init
+/// @brief 调用 TradingEngine::Init（bootstrap → clients → runtime_config → modules → adapters）
 /// @param engine 交易引擎
 /// @param options 程序选项
 /// @return 是否成功
 [[nodiscard]] bool InitEngine(TradingEngine& engine, const qtrade::common::process_boot::ProgramOptions& options);
 
-/// @brief 调用 TradingEngine::Start（含演示行情订阅）
+/// @brief 调用 TradingEngine::Start（对账、通道、策略/EMS、按配置订阅行情）
 /// @param engine 交易引擎
 /// @return 是否成功
 [[nodiscard]] bool StartEngine(TradingEngine& engine);

@@ -1,5 +1,5 @@
 /// @file      account_client.cpp
-/// @brief     交易账户凭证客户端实现
+/// @brief     AccountService gRPC 客户端实现
 /// @author    wengjianhong
 /// @date      2026-07-03
 /// @copyright CC BY-NC-SA 4.0
@@ -13,6 +13,14 @@
 #include <chrono>
 
 namespace qtrade::client {
+namespace {
+
+[[nodiscard]] std::chrono::system_clock::time_point DeadlineFrom(const qtrade::common::config::ServiceConfig& cfg) {
+  const int timeout_ms = cfg.timeout_ms > 0 ? cfg.timeout_ms : 5000;
+  return std::chrono::system_clock::now() + std::chrono::milliseconds(timeout_ms);
+}
+
+}  // namespace
 
 struct AccountClient::Impl {
   AccountClientOptions options;
@@ -31,15 +39,18 @@ ErrorCode AccountClient::Init(const AccountClientOptions& options) {
   if (impl_->initialized) {
     return ErrorCode::kSystemError;
   }
-  if (options.server_address.empty()) {
+  if (options.service_config.host.empty() || options.service_config.port <= 0) {
     return ErrorCode::kInternalError;
   }
-
   impl_->options = options;
-  impl_->channel = grpc::CreateChannel(options.server_address, grpc::InsecureChannelCredentials());
+  impl_->channel = grpc::CreateChannel(options.service_config.Address(), grpc::InsecureChannelCredentials());
   impl_->stub = qtrade::account::v1::AccountService::NewStub(impl_->channel);
   impl_->initialized = true;
   return ErrorCode::kSuccess;
+}
+
+bool AccountClient::IsInitialized() const {
+  return impl_->initialized;
 }
 
 void AccountClient::Shutdown() {
@@ -48,35 +59,19 @@ void AccountClient::Shutdown() {
   impl_->initialized = false;
 }
 
-ErrorCode AccountClient::GetCredential(const std::string& account_id,
+ErrorCode AccountClient::GetCredential(const qtrade::account::v1::GetCredentialRequest& request,
                                        qtrade::account::v1::GetCredentialResponse& response) {
   if (!impl_->initialized || !impl_->stub) {
     return ErrorCode::kNotInitialized;
   }
-  if (account_id.empty()) {
-    return ErrorCode::kInternalError;
-  }
-
-  qtrade::account::v1::GetCredentialRequest request;
-  request.set_tenant_id(impl_->options.tenant_id);
-  request.set_engine_id(impl_->options.engine_id);
-  request.set_account_id(account_id);
-
   grpc::ClientContext context;
-  context.set_deadline(std::chrono::system_clock::now() + std::chrono::seconds(5));
-
+  context.set_deadline(DeadlineFrom(impl_->options.service_config));
   const grpc::Status status = impl_->stub->GetCredential(&context, request, &response);
   if (!status.ok()) {
     spdlog::warn("[AccountClient] GetCredential failed: {}", status.error_message());
     return ErrorCode::kTimeout;
   }
-
-  spdlog::info("[AccountClient] credential fetched for tenant={} account={}", impl_->options.tenant_id, account_id);
   return ErrorCode::kSuccess;
-}
-
-bool AccountClient::IsInitialized() const {
-  return impl_->initialized;
 }
 
 }  // namespace qtrade::client
