@@ -1,5 +1,5 @@
 /// @file      compliance_api.hpp
-/// @brief     CMS 对引擎内其他模块的稳定接口
+/// @brief     CMS 对引擎内其他模块提供的稳定接口
 /// @details   Pipeline 等兄弟模块只依赖本接口，不依赖 ComplianceManager。
 /// @author    wengjianhong
 /// @date      2026-07-29

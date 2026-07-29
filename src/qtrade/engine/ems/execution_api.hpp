@@ -1,5 +1,5 @@
 /// @file      execution_api.hpp
-/// @brief     EMS 对引擎内其他模块的稳定接口
+/// @brief     EMS 对引擎内其他模块提供的稳定接口
 /// @details   Pipeline 等兄弟模块只依赖本接口（入队），不依赖 ExecutionManager。
 ///            Start/Stop、TraderApi/OMS/account-risk 接线由组合根通过 ExecutionManager 完成。
 /// @author    wengjianhong

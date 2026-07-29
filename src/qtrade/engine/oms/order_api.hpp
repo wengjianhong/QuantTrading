@@ -1,5 +1,5 @@
 /// @file      order_api.hpp
-/// @brief     OMS 对引擎内其他模块的稳定接口
+/// @brief     OMS 对引擎内其他模块提供的稳定接口
 /// @details   Pipeline / EMS 等兄弟模块只依赖本接口，不依赖 OrderManager。
 ///            生命周期初始化、柜台对账等由组合根通过 OrderManager 调用。
 /// @author    wengjianhong
@@ -61,13 +61,12 @@ class OrderApi {
   /// @param client_order_id 策略侧客户端订单 ID
   /// @return 存在则返回订单快照
   [[nodiscard]] virtual std::optional<qtrade_sdk::trader::Order> GetOrderByClientId(
-      std::uint32_t client_order_id) const = 0;
+    std::uint32_t client_order_id) const = 0;
 
   /// @brief 查询订单生命周期状态
   /// @param order_id 全局订单 ID
   /// @return 订单存在时返回生命周期状态
-  [[nodiscard]] virtual std::optional<OrderLifecycleState> GetLifecycleState(
-      const std::string& order_id) const = 0;
+  [[nodiscard]] virtual std::optional<OrderLifecycleState> GetLifecycleState(const std::string& order_id) const = 0;
 
   /// @brief 记录订单已进入 EMS 队列
   /// @param order_id 全局订单 ID
