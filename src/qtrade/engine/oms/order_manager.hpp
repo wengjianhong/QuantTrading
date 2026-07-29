@@ -71,7 +71,7 @@ class OrderManager final : public OrderApi {
   /// @brief 撤销订单
   /// @param order_id 全局订单 ID
   /// @return 成功记录撤单请求并进入 kCancelPending
-  ErrorCode CancelOrder(const std::string& order_id);
+  ErrorCode CancelOrder(const std::string& order_id) override;
 
   /// @brief 记录订单已进入 EMS 队列
   /// @param order_id 全局订单 ID
@@ -98,7 +98,7 @@ class OrderManager final : public OrderApi {
   /// @brief 按全局订单 ID 查询
   /// @param order_id 全局订单 ID
   /// @return 存在则返回订单快照
-  std::optional<qtrade_sdk::trader::Order> GetOrder(const std::string& order_id) const;
+  [[nodiscard]] std::optional<qtrade_sdk::trader::Order> GetOrder(const std::string& order_id) const override;
 
   /// @brief 按客户端订单 ID 查询
   /// @param client_order_id 策略侧客户端订单 ID

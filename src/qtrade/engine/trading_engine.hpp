@@ -23,7 +23,7 @@
 #include "qtrade/engine/oms/order_manager.hpp"
 #include "qtrade/engine/position/position_manager.hpp"
 #include "qtrade/engine/risk/risk_manager.hpp"
-#include "qtrade/engine/strategy/strategy_engine.hpp"
+#include "qtrade/engine/strategy/strategy_manager.hpp"
 
 #include <qtrade/error_code/error_codes.hpp>
 #include <qtrade/proto/account_risk/v1/account_risk.pb.h>
@@ -85,8 +85,12 @@ class TradingEngine {
   /// @return 配置只读引用
   [[nodiscard]] const qtrade::common::config::QtradeEngineBootstrapConfig& GetConfig() const;
 
+  /// @brief 返回 config-service 下发的引擎运行配置快照
+  /// @return 配置副本
+  [[nodiscard]] qtrade::config::v1::EngineConfig GetRuntimeConfig() const;
+
   // ---------------------------------------------------------------------------
-  // 交易入口：发单 / 撤单
+  // 交易入口：发单 / 撤单（门禁后转交 OrderPipeline）
   // ---------------------------------------------------------------------------
 
   /// @brief 将策略请求送入 CMS → Risk → OMS → EMS 发单链
@@ -99,6 +103,10 @@ class TradingEngine {
   /// @return 成功进入 EMS 撤单队列返回 kSuccess；订单不存在返回 kNotFound；
   ///         OMS 拒绝或 EMS 入队失败返回对应错误码
   ErrorCode CancelOrder(const std::string& order_id);
+
+  /// @brief 获取发单流水线（策略 boot 可直接绑定 Submit/Cancel）
+  /// @return OrderPipeline 引用
+  OrderPipeline& GetOrderPipeline();
 
   // ---------------------------------------------------------------------------
   // 适配器与行情：注入 / 查询 / 订阅
@@ -140,9 +148,9 @@ class TradingEngine {
   /// @return 事件通道引用
   event_bus::EventLanes& GetEventLanes();
 
-  /// @brief 获取策略引擎引用
-  /// @return StrategyEngine 引用
-  strategy::StrategyEngine& GetStrategyEngine();
+  /// @brief 获取策略管理器引用
+  /// @return StrategyManager 引用
+  strategy::StrategyManager& GetStrategyManager();
 
   /// @brief 获取 OMS 模块间稳定接口
   /// @return OrderApi 引用
@@ -180,8 +188,11 @@ class TradingEngine {
   /// @brief 按 EngineConfig 装配并连接行情/交易适配器（config 未启用时可跳过）
   ErrorCode InitAdapters();
 
-  /// @brief 初始化并连接 config_client（GetEngineConfig + SubscribeEngineConfig）
+  /// @brief 初始化并连接 config_client（仅建连；拉配置见 FetchRuntimeConfig）
   ErrorCode InitConfigClient(const qtrade::common::config::QtradeEngineBootstrapConfig& config);
+
+  /// @brief 拉取并应用引擎运行配置（GetEngineConfig + SubscribeEngineConfig）
+  ErrorCode FetchRuntimeConfig();
 
   /// @brief 按配置初始化账户硬风控客户端
   ErrorCode InitAccountRiskClient(const qtrade::common::config::QtradeEngineBootstrapConfig& config);
@@ -199,7 +210,7 @@ class TradingEngine {
   /// @brief 启动 Lane-Q/Lane-T 与行情健康监控
   ErrorCode StartEventLanes();
 
-  /// @brief 启动策略引擎与 EMS
+  /// @brief 启动策略管理器与 EMS
   ErrorCode StartEngineModules();
 
   /// @brief 按已缓存合约列表订阅行情
@@ -253,7 +264,7 @@ class TradingEngine {
   /// 引擎生命周期状态机（仅本类读写）
   EngineLifecycle lifecycle_;
   /// 进程引导配置（qtrade_engine.json）
-  qtrade::common::config::QtradeEngineBootstrapConfig config_;
+  qtrade::common::config::QtradeEngineBootstrapConfig bootstrap_config_;
   /// config-service 下发的业务配置
   qtrade::config::v1::EngineConfig runtime_config_;
   /// 保护业务配置快照
@@ -269,8 +280,8 @@ class TradingEngine {
 
   /// Lane-Q / Lane-T 事件通道
   event_bus::EventLanes event_lanes_;
-  /// 策略引擎
-  strategy::StrategyEngine strategy_engine_;
+  /// 策略管理器
+  strategy::StrategyManager strategy_manager_;
   /// 行情健康监控
   QuoteHealthMonitor quote_health_monitor_;
   /// 行情适配器

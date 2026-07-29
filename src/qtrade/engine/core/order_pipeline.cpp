@@ -117,4 +117,25 @@ ErrorCode OrderPipeline::Submit(const qtrade_sdk::trader::OrderRequest& request)
   return rc;
 }
 
+ErrorCode OrderPipeline::Cancel(const std::string& order_id) {
+  // 1. OMS 标记撤单意图
+  const auto order = orders_.GetOrder(order_id);
+  if (!order.has_value()) {
+    return ErrorCode::kNotFound;
+  }
+  if (const auto result = orders_.CancelOrder(order_id); result != ErrorCode::kSuccess) {
+    return result;
+  }
+
+  // 2. 入队 EMS 撤单；失败回写撤单结果
+  qtrade_sdk::trader::CancelOrderRequest request;
+  request.order_id = order_id;
+  request.order_emt_id = order->order_emt_id;
+  const auto result = execution_.EnqueueCancel(request);
+  if (result != ErrorCode::kSuccess) {
+    (void)orders_.RecordCancelResult(order_id, result);
+  }
+  return result;
+}
+
 }  // namespace qtrade::engine

@@ -1,10 +1,10 @@
-/// @file      strategy_engine.cpp
-/// @brief     策略引擎实现
+/// @file      strategy_manager.cpp
+/// @brief     策略管理器实现
 /// @details   实现策略注册、生命周期管理及市场数据分发
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
-#include "strategy_engine.hpp"
+#include "strategy_manager.hpp"
 
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
@@ -14,13 +14,13 @@
 namespace qtrade::engine::strategy {
 
 // 构造时仅持有 EventLanes 引用，订阅与策略启停推迟到 Start()
-StrategyEngine::StrategyEngine(event_bus::EventLanes& event_lanes) : event_lanes_(event_lanes), running_(false) {}
+StrategyManager::StrategyManager(event_bus::EventLanes& event_lanes) : event_lanes_(event_lanes), running_(false) {}
 
-StrategyEngine::~StrategyEngine() {
+StrategyManager::~StrategyManager() {
   Stop();
 }
 
-void StrategyEngine::Start() {
+void StrategyManager::Start() {
   std::lock_guard<std::mutex> lock(mutex_);
   if (running_) {
     return;
@@ -41,10 +41,10 @@ void StrategyEngine::Start() {
     }
   }
 
-  spdlog::info("[StrategyEngine] started successfully with {} strategies", strategies_.size());
+  spdlog::info("[StrategyManager] started successfully with {} strategies", strategies_.size());
 }
 
-void StrategyEngine::Stop() {
+void StrategyManager::Stop() {
   std::lock_guard<std::mutex> lock(mutex_);
   if (!running_) {
     return;
@@ -60,22 +60,22 @@ void StrategyEngine::Stop() {
   }
 
   running_ = false;
-  spdlog::info("[StrategyEngine] stopped cleanly");
+  spdlog::info("[StrategyManager] stopped cleanly");
 }
 
 // 手动注册：无品种路由，行情将广播给所有启用策略
-void StrategyEngine::RegisterStrategy(std::unique_ptr<qtrade::strategy::IStrategy> strategy) {
+void StrategyManager::RegisterStrategy(std::unique_ptr<qtrade::strategy::IStrategy> strategy) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (!strategy) {
     return;
   }
   const std::string strategy_id = "manual-" + std::to_string(++manual_strategy_counter_);
   strategies_.emplace(strategy_id, StrategyEntry{std::move(strategy), true, false, false, {}});
-  spdlog::info("[StrategyEngine] registered new strategy");
+  spdlog::info("[StrategyManager] registered new strategy");
 }
 
 // 手动注册并绑定品种路由：同一品种只能归属一个策略
-ErrorCode StrategyEngine::RegisterStrategy(std::unique_ptr<qtrade::strategy::IStrategy> strategy,
+ErrorCode StrategyManager::RegisterStrategy(std::unique_ptr<qtrade::strategy::IStrategy> strategy,
                                            const std::vector<std::string>& instruments) {
   if (!strategy || instruments.empty()) {
     return ErrorCode::kInternalError;
@@ -97,7 +97,7 @@ ErrorCode StrategyEngine::RegisterStrategy(std::unique_ptr<qtrade::strategy::ISt
 }
 
 // 指定 strategy_id 注册，供配置下发与测试精确寻址
-ErrorCode StrategyEngine::RegisterStrategy(const std::string& strategy_id,
+ErrorCode StrategyManager::RegisterStrategy(const std::string& strategy_id,
                                            std::unique_ptr<qtrade::strategy::IStrategy> strategy,
                                            const std::vector<std::string>& instruments) {
   if (strategy_id.empty() || !strategy) {
@@ -121,7 +121,7 @@ ErrorCode StrategyEngine::RegisterStrategy(const std::string& strategy_id,
 }
 
 // 注册插件工厂，ApplyConfiguration 按 plugin 名延迟实例化策略
-ErrorCode StrategyEngine::RegisterFactory(const std::string& plugin, StrategyFactory factory) {
+ErrorCode StrategyManager::RegisterFactory(const std::string& plugin, StrategyFactory factory) {
   if (plugin.empty() || !factory) {
     return ErrorCode::kInternalError;
   }
@@ -129,7 +129,12 @@ ErrorCode StrategyEngine::RegisterFactory(const std::string& plugin, StrategyFac
   return factories_.emplace(plugin, std::move(factory)).second ? ErrorCode::kSuccess : ErrorCode::kSystemError;
 }
 
-ErrorCode StrategyEngine::ApplyConfiguration(const std::vector<StrategyRuntimeConfig>& configs) {
+bool StrategyManager::HasFactories() const {
+  std::lock_guard lock(mutex_);
+  return !factories_.empty();
+}
+
+ErrorCode StrategyManager::ApplyConfiguration(const std::vector<StrategyRuntimeConfig>& configs) {
   std::lock_guard lock(mutex_);
 
   // 1. 预检：策略 ID 唯一、工厂可得、启用策略品种不冲突
@@ -219,12 +224,12 @@ ErrorCode StrategyEngine::ApplyConfiguration(const std::vector<StrategyRuntimeCo
 }
 
 // 注入发单回调，策略通过 IStrategy 接口间接调用 engine.SubmitOrder
-void StrategyEngine::SetOrderSender(OrderSender sender) {
+void StrategyManager::SetOrderSender(OrderSender sender) {
   std::lock_guard<std::mutex> lock(mutex_);
   order_sender_ = std::move(sender);
 }
 
-void StrategyEngine::OnTickEvent(const qtrade_sdk::quote::MarketTick& tick) {
+void StrategyManager::OnTickEvent(const qtrade_sdk::quote::MarketTick& tick) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (!running_) {
     return;
@@ -234,7 +239,7 @@ void StrategyEngine::OnTickEvent(const qtrade_sdk::quote::MarketTick& tick) {
     try {
       route->second->OnTick(tick);
     } catch (const std::exception& e) {
-      spdlog::error("[StrategyEngine] routed strategy OnTick exception: {}", e.what());
+      spdlog::error("[StrategyManager] routed strategy OnTick exception: {}", e.what());
     }
     return;
   }
@@ -246,12 +251,12 @@ void StrategyEngine::OnTickEvent(const qtrade_sdk::quote::MarketTick& tick) {
     try {
       entry.strategy->OnTick(tick);
     } catch (const std::exception& e) {
-      spdlog::error("[StrategyEngine] strategy OnTick exception: {}", e.what());
+      spdlog::error("[StrategyManager] strategy OnTick exception: {}", e.what());
     }
   }
 }
 
-void StrategyEngine::OnBarEvent(const qtrade_sdk::quote::Bar& bar) {
+void StrategyManager::OnBarEvent(const qtrade_sdk::quote::Bar& bar) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (!running_) {
     return;
@@ -261,7 +266,7 @@ void StrategyEngine::OnBarEvent(const qtrade_sdk::quote::Bar& bar) {
     try {
       route->second->OnBar(bar);
     } catch (const std::exception& e) {
-      spdlog::error("[StrategyEngine] routed strategy OnBar exception: {}", e.what());
+      spdlog::error("[StrategyManager] routed strategy OnBar exception: {}", e.what());
     }
     return;
   }
@@ -273,12 +278,12 @@ void StrategyEngine::OnBarEvent(const qtrade_sdk::quote::Bar& bar) {
     try {
       entry.strategy->OnBar(bar);
     } catch (const std::exception& e) {
-      spdlog::error("[StrategyEngine] strategy OnBar exception: {}", e.what());
+      spdlog::error("[StrategyManager] strategy OnBar exception: {}", e.what());
     }
   }
 }
 
-void StrategyEngine::OnOrderEvent(const qtrade_sdk::trader::Order& order) {
+void StrategyManager::OnOrderEvent(const qtrade_sdk::trader::Order& order) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (!running_) {
     return;
@@ -292,12 +297,12 @@ void StrategyEngine::OnOrderEvent(const qtrade_sdk::trader::Order& order) {
     try {
       entry.strategy->OnOrder(order);
     } catch (const std::exception& e) {
-      spdlog::error("[StrategyEngine] strategy OnOrder exception: {}", e.what());
+      spdlog::error("[StrategyManager] strategy OnOrder exception: {}", e.what());
     }
   }
 }
 
-void StrategyEngine::OnTradeEvent(const qtrade_sdk::trader::Trade& trade) {
+void StrategyManager::OnTradeEvent(const qtrade_sdk::trader::Trade& trade) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (!running_) {
     return;
@@ -311,7 +316,7 @@ void StrategyEngine::OnTradeEvent(const qtrade_sdk::trader::Trade& trade) {
     try {
       entry.strategy->OnTrade(trade);
     } catch (const std::exception& e) {
-      spdlog::error("[StrategyEngine] strategy OnTrade exception: {}", e.what());
+      spdlog::error("[StrategyManager] strategy OnTrade exception: {}", e.what());
     }
   }
 }

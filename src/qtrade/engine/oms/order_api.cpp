@@ -121,10 +121,25 @@ std::optional<trader::Order> OrderManager::GetOrderByClientId(std::uint32_t clie
   return order_it == orders_.end() ? std::nullopt : std::optional<trader::Order>(order_it->second.order);
 }
 
+std::optional<trader::Order> OrderManager::GetOrder(const std::string& order_id) const {
+  std::lock_guard lock(mutex_);
+  const auto it = orders_.find(order_id);
+  return it != orders_.end() ? std::optional<trader::Order>(it->second.order) : std::nullopt;
+}
+
 std::optional<OrderLifecycleState> OrderManager::GetLifecycleState(const std::string& order_id) const {
   std::lock_guard lock(mutex_);
   const auto it = orders_.find(order_id);
   return it == orders_.end() ? std::nullopt : std::optional<OrderLifecycleState>(it->second.lifecycle_state);
+}
+
+ErrorCode OrderManager::CancelOrder(const std::string& order_id) {
+  std::lock_guard lock(mutex_);
+  auto it = orders_.find(order_id);
+  if (it == orders_.end()) {
+    return ErrorCode::kNotFound;
+  }
+  return ApplyTransition(it->second, OrderLifecycleState::kCancelPending);
 }
 
 }  // namespace qtrade::engine::oms

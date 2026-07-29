@@ -1,11 +1,11 @@
-/// @file      strategy_engine.hpp
-/// @brief     策略引擎
+/// @file      strategy_manager.hpp
+/// @brief     策略管理器
 /// @details   注册策略工厂与实例，按品种路由或广播分发 Tick/Bar/回报，并桥接发单回调
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
-#ifndef QTRADE_TRADING_ENGINE_STRATEGY_ENGINE_HPP_
-#define QTRADE_TRADING_ENGINE_STRATEGY_ENGINE_HPP_
+#ifndef QTRADE_TRADING_ENGINE_STRATEGY_MANAGER_HPP_
+#define QTRADE_TRADING_ENGINE_STRATEGY_MANAGER_HPP_
 #include "qtrade/engine/event_bus/event_lanes.hpp"
 
 #include <qtrade/error_code/error_codes.hpp>
@@ -39,17 +39,17 @@ struct StrategyRuntimeConfig {
 };
 
 /// @brief 策略注册、行情/回报分发与发单回调桥接
-class StrategyEngine {
+class StrategyManager {
  public:
   /// @brief 策略工厂函数
   using StrategyFactory = std::function<std::unique_ptr<qtrade::strategy::IStrategy>()>;
 
-  /// @brief 构造策略引擎并绑定事件通道
+  /// @brief 构造策略管理器并绑定事件通道
   /// @param event_lanes Lane-Q / Lane-T 事件门面
-  explicit StrategyEngine(event_bus::EventLanes& event_lanes);
+  explicit StrategyManager(event_bus::EventLanes& event_lanes);
 
-  /// @brief 析构策略引擎
-  ~StrategyEngine();
+  /// @brief 析构策略管理器
+  ~StrategyManager();
 
   /// @brief 启动并订阅事件通道
   void Start();
@@ -83,6 +83,9 @@ class StrategyEngine {
   /// @return 重复或非法工厂返回 kSystemError
   ErrorCode RegisterFactory(const std::string& plugin, StrategyFactory factory);
 
+  /// @brief 是否已注册至少一个策略工厂
+  [[nodiscard]] bool HasFactories() const;
+
   /// @brief 原子应用策略启停、参数和行情路由
   /// @param configs 全量策略定义
   /// @return 工厂缺失、参数设置失败或路由冲突时返回错误
@@ -91,6 +94,23 @@ class StrategyEngine {
   /// @brief 设置策略发单回调
   /// @param sender 发单函数
   void SetOrderSender(OrderSender sender);
+
+ private:
+  /// @brief 处理 Tick 事件并分发策略
+  /// @param tick 行情 Tick
+  void OnTickEvent(const qtrade_sdk::quote::MarketTick& tick);
+
+  /// @brief 处理 Bar 事件并分发策略
+  /// @param bar K 线
+  void OnBarEvent(const qtrade_sdk::quote::Bar& bar);
+
+  /// @brief 处理订单回报事件
+  /// @param order 订单快照
+  void OnOrderEvent(const qtrade_sdk::trader::Order& order);
+
+  /// @brief 处理成交回报事件
+  /// @param trade 成交快照
+  void OnTradeEvent(const qtrade_sdk::trader::Trade& trade);
 
  private:
   /// @brief 已注册策略条目
@@ -116,31 +136,15 @@ class StrategyEngine {
   /// 品种 → 策略路由表；为空时退化为广播
   std::unordered_map<std::string, qtrade::strategy::IStrategy*> instrument_routes_;
   /// Market / Return 双线程回调共用此锁，串行进入策略
-  std::mutex mutex_;
+  mutable std::mutex mutex_;
   /// 是否已 Start
   bool running_ = false;
   /// 发单回调
   OrderSender order_sender_;
   /// 手工注册策略 ID 计数器
   std::uint64_t manual_strategy_counter_ = 0;
-
-  /// @brief 处理 Tick 事件并分发策略
-  /// @param tick 行情 Tick
-  void OnTickEvent(const qtrade_sdk::quote::MarketTick& tick);
-
-  /// @brief 处理 Bar 事件并分发策略
-  /// @param bar K 线
-  void OnBarEvent(const qtrade_sdk::quote::Bar& bar);
-
-  /// @brief 处理订单回报事件
-  /// @param order 订单快照
-  void OnOrderEvent(const qtrade_sdk::trader::Order& order);
-
-  /// @brief 处理成交回报事件
-  /// @param trade 成交快照
-  void OnTradeEvent(const qtrade_sdk::trader::Trade& trade);
 };
 
 }  // namespace qtrade::engine::strategy
 
-#endif  // QTRADE_TRADING_ENGINE_STRATEGY_ENGINE_HPP_
+#endif  // QTRADE_TRADING_ENGINE_STRATEGY_MANAGER_HPP_

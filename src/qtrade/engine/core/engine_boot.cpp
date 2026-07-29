@@ -15,42 +15,64 @@
 
 #include <spdlog/spdlog.h>
 
+#include <vector>
+
 namespace qtrade::engine::boot {
+namespace {
 
-bool RegisterStrategies(TradingEngine& engine) {
-  spdlog::info("[engine_boot] RegisterStrategies");
+std::vector<strategy::StrategyRuntimeConfig> BuildStrategyRuntimeConfigs(
+  const qtrade::config::v1::EngineConfig& runtime_config) {
+  std::vector<strategy::StrategyRuntimeConfig> configs;
+  configs.reserve(static_cast<std::size_t>(runtime_config.strategies_size()));
+  for (const auto& strategy : runtime_config.strategies()) {
+    strategy::StrategyRuntimeConfig item;
+    item.strategy_id = strategy.strategy_id();
+    item.plugin = strategy.plugin();
+    item.enabled = strategy.enabled();
+    item.instruments.assign(strategy.instruments().begin(), strategy.instruments().end());
+    item.params.insert(strategy.params().begin(), strategy.params().end());
+    configs.push_back(std::move(item));
+  }
+  return configs;
+}
 
-  // 1. 构造发单桥接：策略 → engine.SubmitOrder
+}  // namespace
+
+bool LoadStrategies(TradingEngine& engine) {
+  spdlog::info("[engine_boot] LoadStrategies");
+
+  auto& strategy_manager = engine.GetStrategyManager();
+
+  // 1. 发单桥接：策略 → Engine.SubmitOrder（READY 门禁后转 OrderPipeline）
   auto order_sender = [&engine](const qtrade_sdk::trader::OrderRequest& request) {
     return engine.SubmitOrder(request);
   };
-  auto& strategy_engine = engine.GetStrategyEngine();
-  auto example_factory = [&order_sender] {
+  strategy_manager.SetOrderSender(order_sender);
+
+  // 2. 注册内置策略工厂（plugin 名与 config-service 下发一致）
+  auto example_factory = [order_sender] {
     auto strategy = qtrade::demo::CreateExampleStrategy();
     static_cast<qtrade::demo::ExampleStrategy*>(strategy.get())->SetOrderSender(order_sender);
     return strategy;
   };
-
-  // 2. 注册示例策略工厂（支持 config 中 plugin=example / example_strategy）
-  if (strategy_engine.RegisterFactory("example", example_factory) != ErrorCode::kSuccess ||
-      strategy_engine.RegisterFactory("example_strategy", example_factory) != ErrorCode::kSuccess) {
-    spdlog::error("[engine_boot] RegisterStrategies: factory register failed");
+  if (strategy_manager.RegisterFactory("example", example_factory) != ErrorCode::kSuccess ||
+      strategy_manager.RegisterFactory("example_strategy", example_factory) != ErrorCode::kSuccess) {
+    spdlog::error("[engine_boot] LoadStrategies: factory register failed");
     return false;
   }
 
-  // 3. 预注册一个 demo 实例并注入全局发单器
-  auto strategy = example_factory();
-  qtrade::strategy::StrategyConfig strategy_config;
-  strategy_config.name = "ExampleStrategy";
-  if (strategy->Init(strategy_config) != ErrorCode::kSuccess) {
-    spdlog::error("[engine_boot] RegisterStrategies: strategy Init failed");
+  // 3. 按 runtime_config 装配策略实例
+  const auto runtime_config = engine.GetRuntimeConfig();
+  const auto strategy_configs = BuildStrategyRuntimeConfigs(runtime_config);
+  if (strategy_configs.empty()) {
+    spdlog::warn("[engine_boot] LoadStrategies: runtime_config.strategies is empty");
+    return true;
+  }
+  if (strategy_manager.ApplyConfiguration(strategy_configs) != ErrorCode::kSuccess) {
+    spdlog::error("[engine_boot] LoadStrategies: ApplyConfiguration failed");
     return false;
   }
-  if (strategy_engine.RegisterStrategy("demo-example", std::move(strategy)) != ErrorCode::kSuccess) {
-    spdlog::error("[engine_boot] RegisterStrategies: strategy register failed");
-    return false;
-  }
-  strategy_engine.SetOrderSender(order_sender);
+  spdlog::info("[engine_boot] LoadStrategies: applied {} strategy config(s)", strategy_configs.size());
   return true;
 }
 
@@ -86,11 +108,7 @@ bool StartEngine(TradingEngine& engine) {
     spdlog::error("[engine_boot] StartEngine failed, code={}", static_cast<int>(error_code));
     return false;
   }
-
-  // 演示订阅：生产环境应由 config-service 下发的策略 instruments 驱动
-  if (auto* quote_api = engine.GetQuoteApi(); quote_api != nullptr && quote_api->IsConnected()) {
-    engine.SubscribeQuote({"IF2401", "IC2401"});
-  }
+  // 行情订阅由 StartMarketData 按 runtime_config 已启用策略的 instruments 驱动
   return true;
 }
 

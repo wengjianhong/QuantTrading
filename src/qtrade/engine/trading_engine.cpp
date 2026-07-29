@@ -68,7 +68,7 @@ constexpr bool kAllowUnreconciledOrders = false;
 // 构造 / 析构
 // =============================================================================
 
-TradingEngine::TradingEngine() : strategy_engine_(event_lanes_) {
+TradingEngine::TradingEngine() : strategy_manager_(event_lanes_) {
   // 构造阶段装配：行情健康→READY 门禁、Risk 读 OMS、Lane-T→OMS/账户/持仓/风控释放
   // EMS↔OMS 回写在 InitEngineModules 中通过 SetOrderApi 注入，不再使用句柄
   // 1. 将行情健康度与当前 OMS 状态接入 READY 门禁和风险计算
@@ -129,16 +129,16 @@ ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineBootstra
     return code;
   }
 
-  // 2. 支撑服务客户端
+  // 2. 支撑服务客户端（config / account / account_risk 建连）
   if (const ErrorCode code = InitSupportClients(); code != ErrorCode::kSuccess) {
     spdlog::error("InitSupportClients failed, code={}", static_cast<int>(code));
     Release();
     return code;
   }
 
-  // 3. 获取引擎配置
-  if (const ErrorCode code = GetEngineConfig(config_); code != ErrorCode::kSuccess) {
-    spdlog::error("GetEngineConfig failed, code={}", static_cast<int>(code));
+  // 3. 拉取引擎运行配置 → runtime_config_（策略实例在 boot 按此加载）
+  if (const ErrorCode code = FetchRuntimeConfig(); code != ErrorCode::kSuccess) {
+    spdlog::error("FetchRuntimeConfig failed, code={}", static_cast<int>(code));
     Release();
     return code;
   }
@@ -246,7 +246,7 @@ ErrorCode TradingEngine::Stop() {
 
 void TradingEngine::Release() {
   // 1. 释放引擎内模块（按依赖逆序释放）
-  strategy_engine_.Stop();
+  strategy_manager_.Stop();
   quote_health_monitor_.Stop();
   execution_manager_.Stop();
   DisconnectAdapters();
@@ -276,7 +276,12 @@ EngineLifecycleState TradingEngine::LifecycleState() const {
 }
 
 const qtrade::common::config::QtradeEngineBootstrapConfig& TradingEngine::GetConfig() const {
-  return config_;
+  return bootstrap_config_;
+}
+
+qtrade::config::v1::EngineConfig TradingEngine::GetRuntimeConfig() const {
+  std::lock_guard lock(runtime_config_mutex_);
+  return runtime_config_;
 }
 
 // =============================================================================
@@ -284,7 +289,7 @@ const qtrade::common::config::QtradeEngineBootstrapConfig& TradingEngine::GetCon
 // =============================================================================
 
 ErrorCode TradingEngine::SubmitOrder(const qtrade_sdk::trader::OrderRequest& request) {
-  // 1. 仅 READY 门禁通过后才接受新单，流水线：CMS → Risk → OMS → EMS
+  // 仅 READY 门禁通过后才接受新单；编排在 OrderPipeline
   if (!lifecycle_.IsReady()) {
     return ErrorCode::kNotInitialized;
   }
@@ -292,24 +297,7 @@ ErrorCode TradingEngine::SubmitOrder(const qtrade_sdk::trader::OrderRequest& req
 }
 
 ErrorCode TradingEngine::CancelOrder(const std::string& order_id) {
-  // 1. OMS 标记撤单意图
-  const auto order = order_manager_.GetOrder(order_id);
-  if (!order.has_value()) {
-    return ErrorCode::kNotFound;
-  }
-  if (const auto result = order_manager_.CancelOrder(order_id); result != ErrorCode::kSuccess) {
-    return result;
-  }
-
-  // 2. 入队 EMS 撤单；失败回写撤单结果
-  qtrade_sdk::trader::CancelOrderRequest request;
-  request.order_id = order_id;
-  request.order_emt_id = order->order_emt_id;
-  const auto result = execution_manager_.EnqueueCancel(request);
-  if (result != ErrorCode::kSuccess) {
-    (void)order_manager_.RecordCancelResult(order_id, result);
-  }
-  return result;
+  return order_pipeline_.Cancel(order_id);
 }
 
 // =============================================================================
@@ -373,8 +361,8 @@ event_bus::EventLanes& TradingEngine::GetEventLanes() {
   return event_lanes_;
 }
 
-strategy::StrategyEngine& TradingEngine::GetStrategyEngine() {
-  return strategy_engine_;
+strategy::StrategyManager& TradingEngine::GetStrategyManager() {
+  return strategy_manager_;
 }
 
 oms::OrderApi& TradingEngine::GetOrderApi() {
@@ -393,6 +381,10 @@ client::ConfigClient& TradingEngine::GetConfigClient() {
   return config_client_;
 }
 
+OrderPipeline& TradingEngine::GetOrderPipeline() {
+  return order_pipeline_;
+}
+
 // =============================================================================
 // Init 子阶段
 // =============================================================================
@@ -405,7 +397,7 @@ ErrorCode TradingEngine::ApplyBootstrapConfig(const qtrade::common::config::Qtra
   }
 
   // 2. 缓存进程引导配置，供身份校验与 client 地址解析
-  config_ = config;
+  bootstrap_config_ = config;
 
   // 3. 配置行情陈旧阈值，供 READY 门禁与 OnMarketHealthChanged 使用
   QuoteHealthOptions quote_health_options;
@@ -420,9 +412,9 @@ ErrorCode TradingEngine::ApplyBootstrapConfig(const qtrade::common::config::Qtra
 ErrorCode TradingEngine::InitSupportClients() {
   spdlog::info("InitSupportClients");
 
-  // 1. config-service：拉快照并订阅，驱动 OnEngineConfig
-  if (config_.support_services.config_service.enabled) {
-    if (const auto rc = InitConfigClient(config_); rc != ErrorCode::kSuccess) {
+  // 1. config-service：仅建连；拉配置在 FetchRuntimeConfig
+  if (bootstrap_config_.support_services.config_service.enabled) {
+    if (const auto rc = InitConfigClient(bootstrap_config_); rc != ErrorCode::kSuccess) {
       spdlog::error("config_client init failed, code={}", static_cast<int>(rc));
       lifecycle_.Fail("CONFIG_CLIENT_INIT_FAILED");
       return rc;
@@ -432,9 +424,9 @@ ErrorCode TradingEngine::InitSupportClients() {
   }
 
   // 2. account-service：仅建立通道；凭证在 InitAdapters（emt）按需 GetCredential
-  if (config_.support_services.account_service.enabled) {
+  if (bootstrap_config_.support_services.account_service.enabled) {
     client::AccountClientOptions options;
-    options.service_config = config_.support_services.account_service;
+    options.service_config = bootstrap_config_.support_services.account_service;
     if (const auto rc = account_client_.Init(options); rc != ErrorCode::kSuccess) {
       spdlog::error("account_client init failed, code={}", static_cast<int>(rc));
       lifecycle_.Fail("ACCOUNT_CLIENT_INIT_FAILED");
@@ -445,8 +437,8 @@ ErrorCode TradingEngine::InitSupportClients() {
   }
 
   // 3. account-risk-service：仅建立通道；pipeline 接线在 InitEngineModules
-  if (config_.support_services.account_risk_service.enabled) {
-    if (const auto rc = InitAccountRiskClient(config_); rc != ErrorCode::kSuccess) {
+  if (bootstrap_config_.support_services.account_risk_service.enabled) {
+    if (const auto rc = InitAccountRiskClient(bootstrap_config_); rc != ErrorCode::kSuccess) {
       spdlog::error("account_risk_client init failed, code={}", static_cast<int>(rc));
       lifecycle_.Fail("ACCOUNT_RISK_CLIENT_INIT_FAILED");
       return rc;
@@ -463,8 +455,8 @@ ErrorCode TradingEngine::InitEngineModules() {
 
   // 1. OMS：仅内存状态机；冷启动不回放本地订单，Working 态由柜台快照对账重建
   oms::OrderManagerOptions order_options;
-  order_options.tenant_id = config_.identity.tenant_id;
-  order_options.engine_id = config_.identity.engine_id;
+  order_options.tenant_id = bootstrap_config_.identity.tenant_id;
+  order_options.engine_id = bootstrap_config_.identity.engine_id;
   order_options.engine_epoch = kEngineEpoch;
   if (const auto rc = order_manager_.Initialize(order_options); rc != ErrorCode::kSuccess) {
     spdlog::error("order_manager init failed, code={}", static_cast<int>(rc));
@@ -476,10 +468,12 @@ ErrorCode TradingEngine::InitEngineModules() {
   execution_manager_.SetOrderApi(&order_manager_);
   if (account_risk_client_.IsInitialized()) {
     order_pipeline_.SetAccountRiskClient(&account_risk_client_);
-    order_pipeline_.SetAccountRiskIdentity(
-      config_.identity.tenant_id, config_.identity.account_id, config_.identity.engine_id);
+    order_pipeline_.SetAccountRiskIdentity(bootstrap_config_.identity.tenant_id,
+                                           bootstrap_config_.identity.account_id,
+                                           bootstrap_config_.identity.engine_id);
     execution_manager_.SetAccountRiskClient(&account_risk_client_);
-    execution_manager_.SetAccountRiskIdentity(config_.identity.tenant_id, config_.identity.account_id);
+    execution_manager_.SetAccountRiskIdentity(bootstrap_config_.identity.tenant_id,
+                                              bootstrap_config_.identity.account_id);
   }
 
   // 3. 模块初始化完成 → 允许进入 Start（kModulesReady）
@@ -501,7 +495,7 @@ ErrorCode TradingEngine::InitAdapters() {
   if (quote_api_ != nullptr && trader_api_ != nullptr) {
     return ErrorCode::kSuccess;
   }
-  if (!config_.support_services.config_service.enabled) {
+  if (!bootstrap_config_.support_services.config_service.enabled) {
     spdlog::info("skip adapters (config_service disabled; tests may inject mock)");
     return ErrorCode::kSuccess;
   }
@@ -523,7 +517,7 @@ ErrorCode TradingEngine::InitAdapters() {
     quote_request.name = "mock";
     quote_request.connection_string = runtime_config.quote_connection_string();
     trader_request.broker_id = "mock";
-    trader_request.account_id = config_.identity.account_id;
+    trader_request.account_id = bootstrap_config_.identity.account_id;
     trader_request.connection_string = runtime_config.quote_connection_string();
     SetQuoteApi(qtrade::adapter::mock::quote::CreateMockQuoteApi());
     SetTraderApi(qtrade::adapter::mock::trader::CreateMockTraderApi());
@@ -533,9 +527,9 @@ ErrorCode TradingEngine::InitAdapters() {
       return ErrorCode::kNotInitialized;
     }
     qtrade::account::v1::GetCredentialRequest credential_request;
-    credential_request.set_tenant_id(config_.identity.tenant_id);
-    credential_request.set_engine_id(config_.identity.engine_id);
-    credential_request.set_account_id(config_.identity.account_id);
+    credential_request.set_tenant_id(bootstrap_config_.identity.tenant_id);
+    credential_request.set_engine_id(bootstrap_config_.identity.engine_id);
+    credential_request.set_account_id(bootstrap_config_.identity.account_id);
     qtrade::account::v1::GetCredentialResponse credential_response;
     if (const auto result = account_client_.GetCredential(credential_request, credential_response);
         result != ErrorCode::kSuccess) {
@@ -543,7 +537,7 @@ ErrorCode TradingEngine::InitAdapters() {
       return result;
     }
     const auto& credential = credential_response.credential();
-    if (credential.account_id() != config_.identity.account_id || credential.connection_string().empty() ||
+    if (credential.account_id() != bootstrap_config_.identity.account_id || credential.connection_string().empty() ||
         credential.password().empty()) {
       lifecycle_.Fail("ADAPTER_INIT_FAILED");
       return ErrorCode::kInternalError;
@@ -585,7 +579,7 @@ ErrorCode TradingEngine::InitAdapters() {
 }
 
 ErrorCode TradingEngine::InitConfigClient(const qtrade::common::config::QtradeEngineBootstrapConfig& config) {
-  // 1. 校验 config-service 地址并初始化客户端
+  // 校验 config-service 地址并初始化客户端（不拉运行配置）
   const auto& config_service = config.support_services.config_service;
   if (!config_service.enabled || config_service.host.empty() || config_service.port <= 0) {
     return ErrorCode::kNotInitialized;
@@ -593,32 +587,38 @@ ErrorCode TradingEngine::InitConfigClient(const qtrade::common::config::QtradeEn
 
   client::ConfigClientOptions client_opts;
   client_opts.service_config = config_service;
+  return config_client_.Init(client_opts);
+}
 
-  if (const auto rc = config_client_.Init(client_opts); rc != ErrorCode::kSuccess) {
-    return rc;
+ErrorCode TradingEngine::FetchRuntimeConfig() {
+  spdlog::info("FetchRuntimeConfig");
+  if (!config_client_.IsInitialized()) {
+    spdlog::warn("config_client not initialized, skip FetchRuntimeConfig");
+    return ErrorCode::kSuccess;
   }
 
-  // 2. GetEngineConfig 冷启动 + SubscribeEngineConfig 热更新
+  // 1. 冷启动拉取引擎配置并应用（策略实例等工厂就绪后再 Apply）
   qtrade::config::v1::GetEngineConfigRequest get_request;
-  get_request.set_engine_id(config.identity.engine_id);
+  get_request.set_engine_id(bootstrap_config_.identity.engine_id);
   qtrade::config::v1::GetEngineConfigResponse get_response;
-  if (const auto rc = config_client_.GetEngineConfig(get_request, get_response); rc != ErrorCode::kSuccess) {
-    return rc;
+  ErrorCode code = config_client_.GetEngineConfig(get_request, get_response);
+  if (code != ErrorCode::kSuccess) {
+    lifecycle_.Fail("GET_ENGINE_CONFIG_FAILED");
+    return code;
   }
   OnEngineConfig(get_response.engine());
 
+  // 2. 订阅热更新
   qtrade::config::v1::SubscribeEngineConfigRequest subscribe_request;
-  subscribe_request.set_engine_id(config.identity.engine_id);
+  subscribe_request.set_engine_id(bootstrap_config_.identity.engine_id);
   subscribe_request.set_since_version(get_response.engine().version());
-  if (const auto rc =
-        config_client_.SubscribeEngineConfig(subscribe_request,
-                                             [this](const qtrade::config::v1::SubscribeEngineConfigResponse& response) {
-                                               OnEngineConfig(response.engine());
-                                             });
-      rc != ErrorCode::kSuccess) {
-    return rc;
+  client::ConfigClient::SubscribeHandler on_subscribe =
+    [this](const qtrade::config::v1::SubscribeEngineConfigResponse& response) { OnEngineConfig(response.engine()); };
+  code = config_client_.SubscribeEngineConfig(subscribe_request, std::move(on_subscribe));
+  if (code != ErrorCode::kSuccess) {
+    lifecycle_.Fail("SUBSCRIBE_ENGINE_CONFIG_FAILED");
+    return code;
   }
-
   return ErrorCode::kSuccess;
 }
 
@@ -679,7 +679,7 @@ ErrorCode TradingEngine::StartEventLanes() {
 ErrorCode TradingEngine::StartEngineModules() {
   spdlog::info("StartEngineModules");
   // Start 阶段交易模块：策略消费与 EMS 出站（InitEngineModules 仅 OMS/接线）
-  strategy_engine_.Start();
+  strategy_manager_.Start();
   execution_manager_.SetTraderApi(trader_api_.get());
   execution_manager_.Start();
   running_.store(true, std::memory_order_release);
@@ -790,7 +790,7 @@ ErrorCode TradingEngine::SynchronizeBrokerState(qtrade_sdk::trader::TraderApi* t
     return ErrorCode::kNotSupported;
   }
   qtrade_sdk::trader::QueryAssetRequest asset_request;
-  asset_request.account_id = config_.identity.account_id;
+  asset_request.account_id = bootstrap_config_.identity.account_id;
   if (trader_api->QueryAsset(asset_request, asset_response) != ErrorCode::kSuccess) {
     return ErrorCode::kNotSupported;
   }
@@ -831,8 +831,9 @@ void TradingEngine::OnEngineConfig(const qtrade::config::v1::EngineConfig& confi
   }
 
   const auto& engine = config;
-  if (engine.engine_id() != config_.identity.engine_id || engine.tenant_id() != config_.identity.tenant_id ||
-      engine.account_id() != config_.identity.account_id) {
+  if (engine.engine_id() != bootstrap_config_.identity.engine_id ||
+      engine.tenant_id() != bootstrap_config_.identity.tenant_id ||
+      engine.account_id() != bootstrap_config_.identity.account_id) {
     spdlog::error("config identity mismatch");
     lifecycle_.Freeze("CONFIG_IDENTITY_MISMATCH");
     return;
@@ -888,9 +889,15 @@ void TradingEngine::OnEngineConfig(const qtrade::config::v1::EngineConfig& confi
     config.params.insert(strategy.params().begin(), strategy.params().end());
     strategy_configs.push_back(std::move(config));
   }
-  if (strategy_engine_.ApplyConfiguration(strategy_configs) != ErrorCode::kSuccess) {
-    lifecycle_.Freeze("STRATEGY_CONFIG_INVALID");
-    return;
+  // 工厂尚未注册时跳过（冷启动由 boot::LoadStrategies 应用）；热更新时工厂已就绪
+  if (strategy_manager_.HasFactories()) {
+    if (strategy_manager_.ApplyConfiguration(strategy_configs) != ErrorCode::kSuccess) {
+      lifecycle_.Freeze("STRATEGY_CONFIG_INVALID");
+      return;
+    }
+  } else {
+    spdlog::info("skip strategy ApplyConfiguration until factories registered ({} entries cached in runtime_config)",
+                 strategy_configs.size());
   }
 
   std::unordered_set<std::string> desired_instruments;
@@ -946,7 +953,7 @@ void TradingEngine::OnEngineConfig(const qtrade::config::v1::EngineConfig& confi
 
   spdlog::info("config snapshot version={}, account={}, quote_source={}, strategies={}",
                config.version(),
-               config_.identity.account_id,
+               bootstrap_config_.identity.account_id,
                engine.quote_source(),
                engine.strategies_size());
 
@@ -985,8 +992,8 @@ void TradingEngine::ReleaseAccountRiskReservation(const std::string& order_id,
     return;
   }
   qtrade::account_risk::v1::ReleaseOrderRequest request;
-  request.set_tenant_id(config_.identity.tenant_id);
-  request.set_account_id(config_.identity.account_id);
+  request.set_tenant_id(bootstrap_config_.identity.tenant_id);
+  request.set_account_id(bootstrap_config_.identity.account_id);
   request.set_order_id(order_id);
   request.set_reason(reason);
   qtrade::account_risk::v1::ReleaseOrderResponse response;

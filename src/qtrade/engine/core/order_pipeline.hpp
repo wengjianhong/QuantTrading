@@ -42,6 +42,11 @@ class OrderPipeline {
   /// @brief 提交策略订单请求并走完整准入链路
   ErrorCode Submit(const qtrade_sdk::trader::OrderRequest& request);
 
+  /// @brief 撤销指定订单（OMS 标记 + EMS 撤单入队）
+  /// @param order_id 全局订单 ID
+  /// @return 成功进入 EMS 撤单队列返回 kSuccess；订单不存在返回 kNotFound
+  ErrorCode Cancel(const std::string& order_id);
+
  private:
   /// @brief 尽力调用 ReleaseOrder（失败仅影响预占回收，不改变本函数主路径返回值）
   void ReleaseReservation(const std::string& order_id,

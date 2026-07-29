@@ -26,8 +26,8 @@ struct StrategyConfig {
 /// @details 策略产生的交易信号
 struct Signal {
   std::string instrument;  /// 合约代码
-  int direction{};         /// 方向：-1=做空，0=平仓，1=做多
-  double strength{};       /// 信号强度（0.0~1.0）
+  int direction = 0;       /// 方向：-1=做空，0=平仓，1=做多
+  double strength = 0.0;   /// 信号强度（0.0~1.0）
 };
 
 /// @brief 策略接口类

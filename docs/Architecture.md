@@ -157,7 +157,7 @@ A 段只负责生成 `OrderIntent`，不等待远程服务或磁盘。
 | **跨实例** | 不同账户可在不同 `engine_id` 交易同一品种 | MVP 不支持同一账户通过拆实例运行“同品种多策略” |
 | **配置校验** | config-service 写入/下发前校验 | 同实例 `strategies[]` 的 `instruments` **不得重复**；违规则拒绝并审计 |
 
-**实例内** Tick 到达后，`StrategyEngine` 按品种 1:1 投递至唯一策略。MVP 如需同一账户、同一品种运行多个策略，应先合并为一个组合策略；跨实例共享账户属于后续能力。
+**实例内** Tick 到达后，`StrategyManager` 按品种 1:1 投递至唯一策略。MVP 如需同一账户、同一品种运行多个策略，应先合并为一个组合策略；跨实例共享账户属于后续能力。
 
 #### 2.5.4 MVP 部署示例（概念）
 
@@ -195,7 +195,7 @@ config-service 按 `engine_id` 返回专属 `EngineConfig`。策略启停和普�
 |**事件总线（EventLanes）**|分发 Tick/Bar 与订单/成交回报|只负责事件排队；不做业务校验、账簿更新或持久化|否，核心基础设施|Lane-Q 与 Lane-T 各自使用有界队列；队列满时按 §7.1 处理|
 |**行情健康监控（QuoteHealthMonitor）**|检测行情陈旧并驱动 READY 门禁|不做策略调度、订阅编排或二次排队|模块固定；`QuoteApi` 可替换|由 `TradingEngine` 持有 `QuoteApi` 并编排订阅；断线重连/切源在启动编排层执行|
 |**交易回报入站（TradingEngine）**|将 SDK 订单/成交回调发布到 Lane-T|不直接调用 OMS，也不发送订单|模块固定；`TraderApi` 可替换|OMS 更新由订单状态协调器负责|
-|**策略引擎（StrategyEngine）**|加载策略、分发事件、接收交易信号、管理生命周期|策略只能产生 `OrderIntent`，不能绕过 CMS、Risk、OMS；同一策略的 Tick/Bar/回报回调必须串行|是，`IStrategy` 动态插件|每个策略使用串行 mailbox；配置在事件边界原子生效|
+|**策略管理器（StrategyManager）**|加载策略、分发事件、接收交易信号、管理生命周期|策略只能产生 `OrderIntent`，不能绕过 CMS、Risk、OMS；同一策略的 Tick/Bar/回报回调必须串行|是，`IStrategy` 动态插件|每个策略使用串行 mailbox；配置在事件边界原子生效|
 |**合规（CMS）**|校验监管与静态硬规则，如禁交易名单、限购、日内频次|不维护实时资金/持仓账簿；规则变更必须审计|规则可配置，流程不可替换|位于策略信号后的首个准入关口；拦截原因进入 B/D 段留痕|
 |**实例风控（RiskManager）**|校验实例预算、策略/品种限制、PnL、行情健康和频率|只处理本实例内存状态；不裁决账户级资金/总敞口硬限制|规则可配置，执行器固定|A 段本地原子扣减预算；账户硬限制转交 E 段 `account-risk-service`|
 |**订单状态协调器 + OMS**|统一处理新订单、撤单、订单回报和成交回报|是 OMS、Account、PMS 的单写者；不执行策略、磁盘 I/O 或厂商协议|核心流程固定；订单类型可扩展|OMS 为进程内内存状态机；发单前不做订单主日志落盘；按订单顺序更新内存态|
@@ -251,7 +251,7 @@ config-service 按 `engine_id` 返回专属 `EngineConfig`。策略启停和普�
 
 | 通道 | 事件 | 典型路径 | 线程 |
 |---|---|---|---|
-| **Lane-Q** | Tick、Bar | 适配器 → TradingEngine → StrategyEngine → `OrderIntent` | `QuoteEventReactor` 线程 |
+| **Lane-Q** | Tick、Bar | 适配器 → TradingEngine → StrategyManager → `OrderIntent` | `QuoteEventReactor` 线程 |
 | **Lane-T** | Order、Trade | 适配器 → TradingEngine → 订单状态协调器 | `TraderEventReactor` 线程 |
 
 - **策略执行语义**：Tick、Bar、Order、Trade 都进入对应策略的同一个串行 mailbox；策略不会被两个线程同时回调。
@@ -432,7 +432,7 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
 - **稳定契约**：`IStrategy` 约定策略生命周期、市场/回报事件和交易信号交互；具体回调签名、参数接口属于 SDK 文档。
 - **边界**：策略通过自己的串行 mailbox 接收行情和回报，只能产生 `OrderIntent`，不直接操作 OMS、账户凭证或支撑服务。MVP 中，同账户同品种的多个模型必须合并为一个组合策略；不同账户可拆到不同 `engine_id`。
 - **交付与隔离**：策略以动态插件独立构建和版本化，发布前由 strategy-service 扫描、签名和沙箱编译。Production 档位默认一租户一实例；同进程插件只适用于受信任代码，不能当作强安全隔离。
-- **生命周期**：启停、参数和版本灰度均由控制面经 config-service 下发；插件加载、回滚与资源/版本观测由策略引擎和 strategy-service 协同完成。
+- **生命周期**：启停、参数和版本灰度均由控制面经 config-service 下发；插件加载、回滚与资源/版本观测由策略管理器和 strategy-service 协同完成。
 
 ---
 
@@ -528,14 +528,14 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
 
 | 通道 | 适配器 → TradingEngine → `Publish*` | 出队后 Handler |
 |---|---|---|
-| **Lane-Q** | 行情适配器 → `TradingEngine` | `StrategyEngine` → CMS → 实例 Risk → `OrderIntent` |
+| **Lane-Q** | 行情适配器 → `TradingEngine` | `StrategyManager` → CMS → 实例 Risk → `OrderIntent` |
 | **Lane-T** | 交易适配器 → `TradingEngine` | 订单状态协调器 → OMS/Account/PMS → 策略 mailbox |
 
 **1. 行情 → 发单（A → [E] → OMS(内存) → C）**
 
 ```text
 外部行情 → 适配器 → TradingEngine → Lane-Q
-  → StrategyEngine → CMS → 实例 Risk → OrderIntent 入队          [A 段]
+  → StrategyManager → CMS → 实例 Risk → OrderIntent 入队          [A 段]
   → 订单准入线程 → EMS admission token
   → account-risk-service ReserveOrder（Production 强制）         [E 段]
   → 订单状态协调器 → OMS 内存受理                                 [无 J 段]

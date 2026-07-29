@@ -68,29 +68,6 @@ std::optional<trader::Order> OrderManager::CreateOrder(const trader::OrderReques
   return CreateOrder(request, AllocateOrderId());
 }
 
-
-
-ErrorCode OrderManager::CancelOrder(const std::string& order_id) {
-  std::lock_guard lock(mutex_);
-  auto it = orders_.find(order_id);
-  if (it == orders_.end()) {
-    return ErrorCode::kNotFound;
-  }
-  return ApplyTransition(it->second, OrderLifecycleState::kCancelPending);
-}
-
-
-
-
-
-std::optional<trader::Order> OrderManager::GetOrder(const std::string& order_id) const {
-  std::lock_guard lock(mutex_);
-  const auto it = orders_.find(order_id);
-  return it != orders_.end() ? std::optional<trader::Order>(it->second.order) : std::nullopt;
-}
-
-
-
 std::vector<trader::Order> OrderManager::GetOrdersRequiringReconciliation() const {
   std::lock_guard lock(mutex_);
   std::vector<trader::Order> orders;

@@ -1,5 +1,5 @@
 #include "qtrade/engine/event_bus/event_lanes.hpp"
-#include "qtrade/engine/strategy/strategy_engine.hpp"
+#include "qtrade/engine/strategy/strategy_manager.hpp"
 
 #include <gtest/gtest.h>
 
@@ -69,7 +69,7 @@ class ConfigurableStrategy final : public qtrade::strategy::IStrategy {
 
 TEST(StrategyConfig, CreatesAndControlsConfiguredStrategy) {
   qtrade::engine::event_bus::EventLanes lanes;
-  qtrade::engine::strategy::StrategyEngine engine(lanes);
+  qtrade::engine::strategy::StrategyManager engine(lanes);
   const auto state = std::make_shared<StrategyState>();
   ASSERT_EQ(engine.RegisterFactory("test", [state] { return std::make_unique<ConfigurableStrategy>(state); }),
             qtrade::ErrorCode::kSuccess);
@@ -102,7 +102,7 @@ TEST(StrategyConfig, CreatesAndControlsConfiguredStrategy) {
 
 TEST(StrategyConfig, RejectsDuplicateInstrumentRoutes) {
   qtrade::engine::event_bus::EventLanes lanes;
-  qtrade::engine::strategy::StrategyEngine engine(lanes);
+  qtrade::engine::strategy::StrategyManager engine(lanes);
   ASSERT_EQ(engine.RegisterFactory(
               "test", [] { return std::make_unique<ConfigurableStrategy>(std::make_shared<StrategyState>()); }),
             qtrade::ErrorCode::kSuccess);
