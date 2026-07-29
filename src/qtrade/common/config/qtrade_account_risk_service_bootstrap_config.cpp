@@ -1,15 +1,16 @@
-/// @file      qtrade_account_risk_service_config.cpp
-/// @brief     QtradeAccountRiskServiceConfig 解析实现
+/// @file      qtrade_account_risk_service_bootstrap_config.cpp
+/// @brief     QtradeAccountRiskServiceBootstrapConfig 解析实现
 /// @author    wengjianhong
 /// @date      2026-07-16
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade/common/config/qtrade_account_risk_service_config.hpp"
+#include "qtrade/common/config/qtrade_account_risk_service_bootstrap_config.hpp"
 
 #include "spdlog/spdlog.h"
 
 namespace qtrade::common::config {
 
-std::optional<QtradeAccountRiskServiceConfig> ParseQtradeAccountRiskServiceConfig(const nlohmann::json& config_node) {
+std::optional<QtradeAccountRiskServiceBootstrapConfig> ParseQtradeAccountRiskServiceBootstrapConfig(
+  const nlohmann::json& config_node) {
   if (!config_node.is_object()) {
     return std::nullopt;
   }
@@ -22,7 +23,7 @@ std::optional<QtradeAccountRiskServiceConfig> ParseQtradeAccountRiskServiceConfi
     return std::nullopt;
   }
 
-  QtradeAccountRiskServiceConfig config;
+  QtradeAccountRiskServiceBootstrapConfig config;
   config.grpc = grpc.value();
   if (config_node.contains("database") && config_node.at("database").is_object()) {
     config.database = ParseDatabaseConfigFromSection(config_node.at("database"));

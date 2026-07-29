@@ -1,10 +1,10 @@
-/// @file      qtrade_log_service_config.hpp
+/// @file      qtrade_log_service_bootstrap_config.hpp
 /// @brief     qtrade_log_service.json 配置结构
 /// @author    wengjianhong
 /// @date      2026-07-15
 /// @copyright CC BY-NC-SA 4.0
-#ifndef QTRADE_COMMON_CONFIG_QTRADE_LOG_SERVICE_CONFIG_HPP_
-#define QTRADE_COMMON_CONFIG_QTRADE_LOG_SERVICE_CONFIG_HPP_
+#ifndef QTRADE_COMMON_CONFIG_QTRADE_LOG_SERVICE_BOOTSTRAP_CONFIG_HPP_
+#define QTRADE_COMMON_CONFIG_QTRADE_LOG_SERVICE_BOOTSTRAP_CONFIG_HPP_
 
 #include "qtrade/common/config/service_config.hpp"
 
@@ -14,7 +14,7 @@
 namespace qtrade::common::config {
 
 /// @brief 对应 config/qtrade_log_service.json
-struct QtradeLogServiceConfig {
+struct QtradeLogServiceBootstrapConfig {
   /// gRPC 监听
   ServiceConfig grpc;
   /// 存储后端类型
@@ -32,8 +32,9 @@ struct QtradeLogServiceConfig {
 /// @brief 从日志服务配置 JSON 对象解析
 /// @param config_node 形如 { "grpc", "storage", "ingest" } 的对象
 /// @return 解析结果；非对象或必填字段无效时返回 nullopt
-[[nodiscard]] std::optional<QtradeLogServiceConfig> ParseQtradeLogServiceConfig(const nlohmann::json& config_node);
+[[nodiscard]] std::optional<QtradeLogServiceBootstrapConfig> ParseQtradeLogServiceBootstrapConfig(
+  const nlohmann::json& config_node);
 
 }  // namespace qtrade::common::config
 
-#endif  // QTRADE_COMMON_CONFIG_QTRADE_LOG_SERVICE_CONFIG_HPP_
+#endif  // QTRADE_COMMON_CONFIG_QTRADE_LOG_SERVICE_BOOTSTRAP_CONFIG_HPP_

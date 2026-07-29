@@ -117,7 +117,7 @@ TradingEngine::~TradingEngine() {
 // 生命周期：Init → Start → Stop，以及状态查询
 // =============================================================================
 
-ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineConfig& config) {
+ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineBootstrapConfig& config) {
   if (initialized_) {
     return ErrorCode::kSuccess;
   }
@@ -136,21 +136,28 @@ ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineConfig& 
     return code;
   }
 
-  // 3. 引擎内模块（内存 OMS 等）→ kReplayed（历史命名：模块已就绪，非 journal 回放）
+  // 3. 获取引擎配置
+  if (const ErrorCode code = GetEngineConfig(config_); code != ErrorCode::kSuccess) {
+    spdlog::error("GetEngineConfig failed, code={}", static_cast<int>(code));
+    Release();
+    return code;
+  }
+
+  // 4. 引擎内模块（内存 OMS 等）→ kModulesReady
   if (const ErrorCode code = InitEngineModules(); code != ErrorCode::kSuccess) {
     spdlog::error("InitEngineModules failed, code={}", static_cast<int>(code));
     Release();
     return code;
   }
 
-  // 4. 事件通道（本阶段不 Start）
+  // 5. 事件通道
   if (const ErrorCode code = InitEventLanes(); code != ErrorCode::kSuccess) {
     spdlog::error("InitEventLanes failed, code={}", static_cast<int>(code));
     Release();
     return code;
   }
 
-  // 5. 行情/交易适配器
+  // 6. 行情/交易适配器
   if (const ErrorCode code = InitAdapters(); code != ErrorCode::kSuccess) {
     spdlog::error("InitAdapters failed, code={}", static_cast<int>(code));
     Release();
@@ -163,7 +170,7 @@ ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineConfig& 
 }
 
 ErrorCode TradingEngine::Start() {
-  // 前置校验：须 Init 完成且生命周期处于 kReplayed
+  // 前置校验：须 Init 完成且生命周期处于 kModulesReady
   if (!initialized_) {
     spdlog::error("Init TradingEngine must be called before Start TradingEngine.");
     return ErrorCode::kNotInitialized;
@@ -172,7 +179,7 @@ ErrorCode TradingEngine::Start() {
     spdlog::error("TradingEngine is already running.");
     return ErrorCode::kSystemError;
   }
-  if (lifecycle_.State() != EngineLifecycleState::kReplayed) {
+  if (lifecycle_.State() != EngineLifecycleState::kModulesReady) {
     lifecycle_.Fail("INVALID_START_STATE");
     return ErrorCode::kSystemError;
   }
@@ -237,14 +244,6 @@ ErrorCode TradingEngine::Stop() {
   return ErrorCode::kSuccess;
 }
 
-bool TradingEngine::IsRunning() const {
-  return running_;
-}
-
-bool TradingEngine::IsReady() const {
-  return lifecycle_.IsReady();
-}
-
 void TradingEngine::Release() {
   // 1. 释放引擎内模块（按依赖逆序释放）
   strategy_engine_.Stop();
@@ -264,11 +263,19 @@ void TradingEngine::Release() {
   trader_api_.reset();
 }
 
+bool TradingEngine::IsRunning() const {
+  return running_;
+}
+
+bool TradingEngine::IsReady() const {
+  return lifecycle_.IsReady();
+}
+
 EngineLifecycleState TradingEngine::LifecycleState() const {
   return lifecycle_.State();
 }
 
-const qtrade::common::config::QtradeEngineConfig& TradingEngine::GetConfig() const {
+const qtrade::common::config::QtradeEngineBootstrapConfig& TradingEngine::GetConfig() const {
   return config_;
 }
 
@@ -390,7 +397,7 @@ client::ConfigClient& TradingEngine::GetConfigClient() {
 // Init 子阶段
 // =============================================================================
 
-ErrorCode TradingEngine::ApplyBootstrapConfig(const qtrade::common::config::QtradeEngineConfig& config) {
+ErrorCode TradingEngine::ApplyBootstrapConfig(const qtrade::common::config::QtradeEngineBootstrapConfig& config) {
   spdlog::info("ApplyBootstrapConfig");
   // 1. 进入 Bootstrap；后续失败可据此定位到配置加载前
   if (lifecycle_.Advance(EngineLifecycleState::kBootstrap) != ErrorCode::kSuccess) {
@@ -475,8 +482,8 @@ ErrorCode TradingEngine::InitEngineModules() {
     execution_manager_.SetAccountRiskIdentity(config_.identity.tenant_id, config_.identity.account_id);
   }
 
-  // 3. 模块初始化完成 → 允许进入 Start（kReplayed：历史命名，表示 OMS/模块已就绪）
-  if (lifecycle_.Advance(EngineLifecycleState::kReplayed) != ErrorCode::kSuccess) {
+  // 3. 模块初始化完成 → 允许进入 Start（kModulesReady）
+  if (lifecycle_.Advance(EngineLifecycleState::kModulesReady) != ErrorCode::kSuccess) {
     lifecycle_.Fail("ENGINE_MODULES_INIT_FAILED");
     return ErrorCode::kSystemError;
   }
@@ -577,7 +584,7 @@ ErrorCode TradingEngine::InitAdapters() {
   return ErrorCode::kSuccess;
 }
 
-ErrorCode TradingEngine::InitConfigClient(const qtrade::common::config::QtradeEngineConfig& config) {
+ErrorCode TradingEngine::InitConfigClient(const qtrade::common::config::QtradeEngineBootstrapConfig& config) {
   // 1. 校验 config-service 地址并初始化客户端
   const auto& config_service = config.support_services.config_service;
   if (!config_service.enabled || config_service.host.empty() || config_service.port <= 0) {
@@ -615,7 +622,7 @@ ErrorCode TradingEngine::InitConfigClient(const qtrade::common::config::QtradeEn
   return ErrorCode::kSuccess;
 }
 
-ErrorCode TradingEngine::InitAccountRiskClient(const qtrade::common::config::QtradeEngineConfig& config) {
+ErrorCode TradingEngine::InitAccountRiskClient(const qtrade::common::config::QtradeEngineBootstrapConfig& config) {
   client::AccountRiskClientOptions options;
   options.service_config = config.support_services.account_risk_service;
   return account_risk_client_.Init(options);

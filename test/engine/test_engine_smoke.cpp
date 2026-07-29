@@ -4,7 +4,7 @@
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade/common/config/qtrade_engine_config.hpp"
+#include "qtrade/common/config/qtrade_engine_bootstrap_config.hpp"
 #include "qtrade/engine/trading_engine.hpp"
 #include "qtrade_sdk/mock/quote/mock_quote_api.hpp"
 #include "qtrade_sdk/mock/trader/mock_trader_api.hpp"
@@ -47,7 +47,7 @@ void InstallMockAdapters(qtrade::engine::TradingEngine& engine) {
 }  // namespace
 
 TEST(EngineSmoke, TradingEngineStartStop) {
-  qtrade::common::config::QtradeEngineConfig config;
+  qtrade::common::config::QtradeEngineBootstrapConfig config;
   config.identity.tenant_id = "test";
   config.identity.engine_id =
     "test-engine-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
@@ -77,7 +77,7 @@ TEST(EngineSmoke, MarketTickSize) {
 
 TEST(EngineSmoke, InjectedMockAdaptersReachReady) {
   const std::string suffix = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
-  qtrade::common::config::QtradeEngineConfig config;
+  qtrade::common::config::QtradeEngineBootstrapConfig config;
   config.identity.tenant_id = "test";
   config.identity.engine_id = "configured-mock-" + suffix;
   config.identity.account_id = "test-account";

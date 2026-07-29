@@ -1,13 +1,14 @@
-/// @file      qtrade_log_service_config.cpp
-/// @brief     QtradeLogServiceConfig 解析实现
+/// @file      qtrade_log_service_bootstrap_config.cpp
+/// @brief     QtradeLogServiceBootstrapConfig 解析实现
 /// @author    wengjianhong
 /// @date      2026-07-15
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade/common/config/qtrade_log_service_config.hpp"
+#include "qtrade/common/config/qtrade_log_service_bootstrap_config.hpp"
 
 namespace qtrade::common::config {
 
-std::optional<QtradeLogServiceConfig> ParseQtradeLogServiceConfig(const nlohmann::json& config_node) {
+std::optional<QtradeLogServiceBootstrapConfig> ParseQtradeLogServiceBootstrapConfig(
+  const nlohmann::json& config_node) {
   if (!config_node.is_object()) {
     return std::nullopt;
   }
@@ -21,7 +22,7 @@ std::optional<QtradeLogServiceConfig> ParseQtradeLogServiceConfig(const nlohmann
 
   const auto& storage = config_node.at("storage");
   const auto& ingest = config_node.at("ingest");
-  QtradeLogServiceConfig out;
+  QtradeLogServiceBootstrapConfig out;
   out.grpc = grpc.value();
   out.storage_type = storage.value("type", "");
   out.storage_path = storage.value("path", "");

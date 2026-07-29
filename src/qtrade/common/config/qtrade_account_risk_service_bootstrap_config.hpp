@@ -1,10 +1,10 @@
-/// @file      qtrade_account_risk_service_config.hpp
+/// @file      qtrade_account_risk_service_bootstrap_config.hpp
 /// @brief     qtrade_account_risk_service.json 配置结构
 /// @author    wengjianhong
 /// @date      2026-07-16
 /// @copyright CC BY-NC-SA 4.0
-#ifndef QTRADE_COMMON_CONFIG_QTRADE_ACCOUNT_RISK_SERVICE_CONFIG_HPP_
-#define QTRADE_COMMON_CONFIG_QTRADE_ACCOUNT_RISK_SERVICE_CONFIG_HPP_
+#ifndef QTRADE_COMMON_CONFIG_QTRADE_ACCOUNT_RISK_SERVICE_BOOTSTRAP_CONFIG_HPP_
+#define QTRADE_COMMON_CONFIG_QTRADE_ACCOUNT_RISK_SERVICE_BOOTSTRAP_CONFIG_HPP_
 
 #include "qtrade/common/config/database_config.hpp"
 #include "qtrade/common/config/service_config.hpp"
@@ -22,7 +22,7 @@ struct AccountRiskReservationConfig {
 };
 
 /// @brief 对应 config/qtrade_account_risk_service.json
-struct QtradeAccountRiskServiceConfig {
+struct QtradeAccountRiskServiceBootstrapConfig {
   /// gRPC 监听（JSON 键仍为 grpc）
   ServiceConfig grpc;
   /// 数据库
@@ -34,9 +34,9 @@ struct QtradeAccountRiskServiceConfig {
 /// @brief 从账户硬风控服务配置 JSON 对象解析
 /// @param config_node 形如 { "grpc", "database", "reservation" } 的对象
 /// @return 解析结果；非对象或缺必填段时返回 nullopt
-[[nodiscard]] std::optional<QtradeAccountRiskServiceConfig> ParseQtradeAccountRiskServiceConfig(
+[[nodiscard]] std::optional<QtradeAccountRiskServiceBootstrapConfig> ParseQtradeAccountRiskServiceBootstrapConfig(
   const nlohmann::json& config_node);
 
 }  // namespace qtrade::common::config
 
-#endif  // QTRADE_COMMON_CONFIG_QTRADE_ACCOUNT_RISK_SERVICE_CONFIG_HPP_
+#endif  // QTRADE_COMMON_CONFIG_QTRADE_ACCOUNT_RISK_SERVICE_BOOTSTRAP_CONFIG_HPP_

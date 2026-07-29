@@ -635,13 +635,13 @@ A 段 enqueue → Outbound → log_client / monitor_client / …（fire-and-forg
 引擎统一使用以下生命周期：
 
 ```text
-BOOTSTRAP → MODULES_READY(kReplayed)
+BOOTSTRAP → MODULES_READY(kModulesReady)
   → BROKER_SYNCED → RISK_SYNCED → MARKET_HEALTHY → READY
   → FREEZE → DRAIN → STOPPED
 ```
 
 - 只有 `READY` 可以接受新单。
-- `MODULES_READY`（生命周期枚举仍名 `kReplayed`）表示引擎内模块（含内存 OMS）已初始化，**不是**订单 journal 回放。
+- `MODULES_READY`（`kModulesReady`）表示引擎内模块（含内存 OMS）已初始化，**不是**订单 journal 回放。
 - `FREEZE/DRAIN` 允许撤单和回报，禁止新单；停机前应尽量完成撤单确认与预占释放尽力调用。
 - 存在 `SendUnknown`、孤儿预占、配置过期、行情不健康或对账差异时，不得进入 `READY`；人工豁免必须审批并审计。
 - **进程级故障**：自动重启后依次执行：OMS 冷启动为空 → 登录柜台 → 查询未终结订单和成交并以 **Adopt** 重建 Working 内存态（**不补发**）→ 对账 account-risk 未终结预占 → 检查行情健康 → 人工或受控恢复策略。**禁止**按本地旧意图、journal 回放或运行日志自动补单。单实例由部署保证；当前不使用本地文件围栏。

@@ -12,7 +12,7 @@
 #include "qtrade/client/account_client/account_client.hpp"
 #include "qtrade/client/account_risk_client/account_risk_client.hpp"
 #include "qtrade/client/config_client/config_client.hpp"
-#include "qtrade/common/config/qtrade_engine_config.hpp"
+#include "qtrade/common/config/qtrade_engine_bootstrap_config.hpp"
 #include "qtrade/engine/account/account_manager.hpp"
 #include "qtrade/engine/cms/compliance_manager.hpp"
 #include "qtrade/engine/core/engine_lifecycle.hpp"
@@ -53,22 +53,21 @@ class TradingEngine {
   // 生命周期：Init → Start → Stop，以及状态查询
   // ---------------------------------------------------------------------------
 
-  /// @brief 初始化引擎（编排 Init 子阶段，须在 Start 之前调用）
-  /// @details 子阶段：ApplyBootstrapConfig → InitSupportClients → InitEngineModules
-  ///          → InitEventLanes → InitAdapters（实现见 cpp 内部）
-  /// @param config 进程引导配置（config/account 地址、tenant 等）
+  /// @brief 初始化引擎
+  /// @param config 进程引导配置
   /// @return ErrorCode::kSuccess 表示成功
-  ErrorCode Init(const qtrade::common::config::QtradeEngineConfig& config);
+  ErrorCode Init(const qtrade::common::config::QtradeEngineBootstrapConfig& config);
 
-  /// @brief 启动运行时（编排 Start 子阶段，须先 Init）
-  /// @details 子阶段：StartAdapters → SyncBrokerSnapshot → StartEventLanes
-  ///          → StartEngineModules → StartMarketData → AdvanceReadyGates
+  /// @brief 启动引擎
   /// @return ErrorCode::kSuccess 表示成功
   ErrorCode Start();
 
-  /// @brief 停止所有子模块与 client（排空后调用 Release）
+  /// @brief 停止所有子模块与 client
   /// @return 已运行并完成停机返回 kSuccess；未运行返回 kSystemError
   ErrorCode Stop();
+
+  /// @brief 释放资源
+  void Release();
 
   /// @brief 引擎是否处于运行中
   /// @return true 表示已 Start
@@ -78,16 +77,13 @@ class TradingEngine {
   /// @return 仅生命周期为 READY 时返回 true
   [[nodiscard]] bool IsReady() const;
 
-  /// @brief 释放资源
-  void Release();
-
   /// @brief 查询当前生命周期状态
   /// @return 当前生命周期状态
   [[nodiscard]] EngineLifecycleState LifecycleState() const;
 
   /// @brief 返回当前进程引导配置快照
   /// @return 配置只读引用
-  [[nodiscard]] const qtrade::common::config::QtradeEngineConfig& GetConfig() const;
+  [[nodiscard]] const qtrade::common::config::QtradeEngineBootstrapConfig& GetConfig() const;
 
   // ---------------------------------------------------------------------------
   // 交易入口：发单 / 撤单
@@ -170,12 +166,12 @@ class TradingEngine {
   // ---------------------------------------------------------------------------
 
   /// @brief 缓存引导配置、配置行情健康阈值 → kBootstrap
-  ErrorCode ApplyBootstrapConfig(const qtrade::common::config::QtradeEngineConfig& config);
+  ErrorCode ApplyBootstrapConfig(const qtrade::common::config::QtradeEngineBootstrapConfig& config);
 
   /// @brief 初始化支撑服务客户端（config / account / account_risk）
   ErrorCode InitSupportClients();
 
-  /// @brief 初始化引擎内模块（内存 OMS、account-risk 接线等）→ kReplayed
+  /// @brief 初始化引擎内模块（内存 OMS、account-risk 接线等）→ kModulesReady
   ErrorCode InitEngineModules();
 
   /// @brief 初始化事件通道（本阶段仅确认就绪；Start 时再启动 reactor）
@@ -185,10 +181,10 @@ class TradingEngine {
   ErrorCode InitAdapters();
 
   /// @brief 初始化并连接 config_client（GetEngineConfig + SubscribeEngineConfig）
-  ErrorCode InitConfigClient(const qtrade::common::config::QtradeEngineConfig& config);
+  ErrorCode InitConfigClient(const qtrade::common::config::QtradeEngineBootstrapConfig& config);
 
   /// @brief 按配置初始化账户硬风控客户端
-  ErrorCode InitAccountRiskClient(const qtrade::common::config::QtradeEngineConfig& config);
+  ErrorCode InitAccountRiskClient(const qtrade::common::config::QtradeEngineBootstrapConfig& config);
 
   // ---------------------------------------------------------------------------
   // Start 子阶段（由 Start() 按序调用）
@@ -257,7 +253,7 @@ class TradingEngine {
   /// 引擎生命周期状态机（仅本类读写）
   EngineLifecycle lifecycle_;
   /// 进程引导配置（qtrade_engine.json）
-  qtrade::common::config::QtradeEngineConfig config_;
+  qtrade::common::config::QtradeEngineBootstrapConfig config_;
   /// config-service 下发的业务配置
   qtrade::config::v1::EngineConfig runtime_config_;
   /// 保护业务配置快照

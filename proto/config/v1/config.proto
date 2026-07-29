@@ -39,14 +39,14 @@ message RiskBudget {
 message EngineConfig {
     // 引擎实例标识
     string engine_id = 1;
-    // 主行情源
-    string quote_source = 2;
-    // 策略绑定列表
-    repeated StrategyConfig strategies = 3;
     // 租户标识；必须与引导配置一致
-    string tenant_id = 4;
+    string tenant_id = 2;
     // 引擎使用的交易账户引用，不含凭证
-    string account_id = 5;
+    string account_id = 3;
+    // 主行情源
+    string quote_source = 4;
+    // 策略绑定列表
+    repeated StrategyConfig strategies = 5;
     // 备用行情源；空表示不启用自动切换
     string quote_failover = 6;
     // 实例级弱一致风险预算

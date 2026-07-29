@@ -5,7 +5,7 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/service/account_risk_service/account_risk_service.hpp"
 
-#include "qtrade/common/config/qtrade_account_risk_service_config.hpp"
+#include "qtrade/common/config/qtrade_account_risk_service_bootstrap_config.hpp"
 #include "qtrade/common/json/json_util.hpp"
 #include "qtrade/dao/dao_define.hpp"
 #include "qtrade/framework/dao/ddl_utils.hpp"
@@ -32,7 +32,7 @@ ErrorCode AccountRiskService::Initialize(const std::string& config_path) {
   }
 
   // 2. 解析 L0 配置并解析监听地址
-  const auto config = qtrade::common::config::ParseQtradeAccountRiskServiceConfig(*config_node);
+  const auto config = qtrade::common::config::ParseQtradeAccountRiskServiceBootstrapConfig(*config_node);
   if (!config.has_value()) {
     state_ = qtrade::common::support::SupportServiceState::kFailed;
     return last_error_ = ErrorCode::kInternalError;

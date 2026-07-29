@@ -1,9 +1,9 @@
-/// @file      qtrade_engine_config.cpp
-/// @brief     QtradeEngineConfig 解析实现
+/// @file      qtrade_engine_bootstrap_config.cpp
+/// @brief     QtradeEngineBootstrapConfig 解析实现
 /// @author    wengjianhong
 /// @date      2026-07-16
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade/common/config/qtrade_engine_config.hpp"
+#include "qtrade/common/config/qtrade_engine_bootstrap_config.hpp"
 
 #include "spdlog/spdlog.h"
 
@@ -25,7 +25,7 @@ namespace {
 
 }  // namespace
 
-std::optional<QtradeEngineConfig> ParseQtradeEngineConfig(const nlohmann::json& config_node) {
+std::optional<QtradeEngineBootstrapConfig> ParseQtradeEngineBootstrapConfig(const nlohmann::json& config_node) {
   if (!config_node.is_object()) {
     spdlog::error("engine config must be an object");
     return std::nullopt;
@@ -42,7 +42,7 @@ std::optional<QtradeEngineConfig> ParseQtradeEngineConfig(const nlohmann::json& 
   const auto& identity = config_node.at("identity");
   const auto& support_services = config_node.at("support_services");
 
-  QtradeEngineConfig config;
+  QtradeEngineBootstrapConfig config;
   config.identity.tenant_id = identity.value("tenant_id", "");
   config.identity.engine_id = identity.value("engine_id", "");
   config.identity.account_id = identity.value("account_id", "");

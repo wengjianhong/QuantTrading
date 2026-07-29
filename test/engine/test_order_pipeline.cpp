@@ -1,4 +1,4 @@
-#include "qtrade/common/config/qtrade_engine_config.hpp"
+#include "qtrade/common/config/qtrade_engine_bootstrap_config.hpp"
 #include "qtrade/engine/trading_engine.hpp"
 #include "qtrade_sdk/mock/quote/mock_quote_api.hpp"
 #include "qtrade_sdk/mock/trader/mock_trader_api.hpp"
@@ -35,7 +35,7 @@ void InstallConnectedMockQuote(qtrade::engine::TradingEngine& engine) {
 TEST(OrderPipeline, MockOrderFlowsThroughOmsAndTraderLane) {
   const std::string suffix = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
   qtrade::engine::TradingEngine engine;
-  qtrade::common::config::QtradeEngineConfig config;
+  qtrade::common::config::QtradeEngineBootstrapConfig config;
   config.identity.tenant_id = "test";
   config.identity.engine_id = "test-engine-" + suffix;
   config.identity.account_id = "test-account";
@@ -86,7 +86,7 @@ TEST(OrderPipeline, MockOrderFlowsThroughOmsAndTraderLane) {
 TEST(OrderPipeline, CancelFlowsThroughEmsAndVenueReport) {
   const std::string suffix = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
   qtrade::engine::TradingEngine engine;
-  qtrade::common::config::QtradeEngineConfig config;
+  qtrade::common::config::QtradeEngineBootstrapConfig config;
   config.identity.tenant_id = "test";
   config.identity.engine_id = "cancel-engine-" + suffix;
   config.identity.account_id = "test-account";

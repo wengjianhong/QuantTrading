@@ -1,10 +1,10 @@
-/// @file      qtrade_engine_config.hpp
+/// @file      qtrade_engine_bootstrap_config.hpp
 /// @brief     qtrade_engine.json 进程引导配置
 /// @author    wengjianhong
 /// @date      2026-07-16
 /// @copyright CC BY-NC-SA 4.0
-#ifndef QTRADE_COMMON_CONFIG_QTRADE_ENGINE_CONFIG_HPP_
-#define QTRADE_COMMON_CONFIG_QTRADE_ENGINE_CONFIG_HPP_
+#ifndef QTRADE_COMMON_CONFIG_QTRADE_ENGINE_BOOTSTRAP_CONFIG_HPP_
+#define QTRADE_COMMON_CONFIG_QTRADE_ENGINE_BOOTSTRAP_CONFIG_HPP_
 
 #include "qtrade/common/config/service_config.hpp"
 
@@ -37,7 +37,7 @@ struct QtradeEngineSupportServices {
 
 /// @brief 对应 config/qtrade_engine.json
 /// @details 仅含实例身份与支撑服务端点。所有业务、适配器和可选策略由 config-service 下发。
-struct QtradeEngineConfig {
+struct QtradeEngineBootstrapConfig {
   /// 实例身份
   QtradeEngineIdentity identity;
   /// 支撑服务连出配置
@@ -47,8 +47,9 @@ struct QtradeEngineConfig {
 /// @brief 从引擎进程配置 JSON 对象解析
 /// @param config_node 形如 { "identity", "support_services" } 的对象
 /// @return 解析结果；非对象或必填段缺失时返回 nullopt
-[[nodiscard]] std::optional<QtradeEngineConfig> ParseQtradeEngineConfig(const nlohmann::json& config_node);
+[[nodiscard]] std::optional<QtradeEngineBootstrapConfig> ParseQtradeEngineBootstrapConfig(
+  const nlohmann::json& config_node);
 
 }  // namespace qtrade::common::config
 
-#endif  // QTRADE_COMMON_CONFIG_QTRADE_ENGINE_CONFIG_HPP_
+#endif  // QTRADE_COMMON_CONFIG_QTRADE_ENGINE_BOOTSTRAP_CONFIG_HPP_

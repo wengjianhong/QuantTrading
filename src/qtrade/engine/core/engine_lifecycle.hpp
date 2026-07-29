@@ -22,8 +22,8 @@ enum class EngineLifecycleState {
   kNew = 0,
   /// 正在加载引导配置与依赖
   kBootstrap,
-  /// 引擎内模块已就绪（历史命名；当前不再表示 journal 回放）
-  kReplayed,
+  /// 引擎内模块已就绪（OMS/接线等）
+  kModulesReady,
   /// 柜台订单与成交已对账
   kBrokerSynced,
   /// 账户预占已对账

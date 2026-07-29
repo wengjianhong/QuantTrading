@@ -1,17 +1,18 @@
-/// @file      qtrade_config_service_config.cpp
-/// @brief     QtradeConfigServiceConfig 解析实现
+/// @file      qtrade_account_service_bootstrap_config.cpp
+/// @brief     QtradeAccountServiceBootstrapConfig 解析实现
 /// @author    wengjianhong
 /// @date      2026-07-15
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade/common/config/qtrade_config_service_config.hpp"
+#include "qtrade/common/config/qtrade_account_service_bootstrap_config.hpp"
 
 #include "spdlog/spdlog.h"
 
 namespace qtrade::common::config {
 
-std::optional<QtradeConfigServiceConfig> ParseQtradeConfigServiceConfig(const nlohmann::json& config_node) {
+std::optional<QtradeAccountServiceBootstrapConfig> ParseQtradeAccountServiceBootstrapConfig(
+  const nlohmann::json& config_node) {
   if (!config_node.is_object()) {
-    spdlog::error("config service config must be an object");
+    spdlog::error("account service config must be an object");
     return std::nullopt;
   }
   if (!config_node.contains("grpc") || !config_node.at("grpc").is_object()) {
@@ -24,7 +25,7 @@ std::optional<QtradeConfigServiceConfig> ParseQtradeConfigServiceConfig(const nl
     return std::nullopt;
   }
 
-  QtradeConfigServiceConfig out;
+  QtradeAccountServiceBootstrapConfig out;
   out.grpc = grpc.value();
   if (config_node.contains("database") && config_node.at("database").is_object()) {
     out.database = ParseDatabaseConfigFromSection(config_node.at("database"));

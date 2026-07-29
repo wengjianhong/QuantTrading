@@ -6,7 +6,7 @@
 #include "qtrade/engine/core/engine_boot.hpp"
 
 #include "qtrade/common/boot/process_boot.hpp"
-#include "qtrade/common/config/qtrade_engine_config.hpp"
+#include "qtrade/common/config/qtrade_engine_bootstrap_config.hpp"
 #include "qtrade/common/json/json_util.hpp"
 #include "qtrade/common/system/signal.hpp"
 #include "qtrade/engine/trading_engine.hpp"
@@ -63,7 +63,7 @@ bool InitEngine(TradingEngine& engine, const qtrade::common::process_boot::Progr
   }
 
   // 2. 解析配置文件
-  const auto config = qtrade::common::config::ParseQtradeEngineConfig(config_node.value());
+  const auto config = qtrade::common::config::ParseQtradeEngineBootstrapConfig(config_node.value());
   if (!config) {
     spdlog::error("[engine_boot] InitEngine: failed to parse config");
     return false;
