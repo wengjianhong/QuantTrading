@@ -11,8 +11,8 @@
 #include "qtrade/common/system/signal.hpp"
 #include "qtrade/engine/trading_engine.hpp"
 #include "qtrade/engine/trading_engine_define.hpp"
-#include "strategy/example_strategy.hpp"
 
+#include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
 #include <vector>
@@ -42,37 +42,64 @@ bool LoadStrategies(TradingEngine& engine) {
   spdlog::info("[engine_boot] LoadStrategies");
 
   auto& strategy_manager = engine.GetStrategyManager();
+  auto& plugin_loader = engine.GetStrategyPluginLoader();
 
-  // 1. 发单桥接：策略 → Engine.SubmitOrder（READY 门禁后转 OrderPipeline）
-  auto order_sender = [&engine](const qtrade_sdk::trader::OrderRequest& request) {
-    return engine.SubmitOrder(request);
-  };
-  strategy_manager.SetOrderSender(order_sender);
-
-  // 2. 注册内置策略工厂（plugin 名与 config-service 下发一致）
-  auto example_factory = [order_sender] {
-    auto strategy = qtrade::demo::CreateExampleStrategy();
-    static_cast<qtrade::demo::ExampleStrategy*>(strategy.get())->SetOrderSender(order_sender);
-    return strategy;
-  };
-  if (strategy_manager.RegisterFactory("example", example_factory) != ErrorCode::kSuccess ||
-      strategy_manager.RegisterFactory("example_strategy", example_factory) != ErrorCode::kSuccess) {
-    spdlog::error("[engine_boot] LoadStrategies: factory register failed");
+  // 1. 扫描策略插件目录
+  const auto& plugin_dir = engine.GetConfig().strategy_plugin_dir;
+  if (plugin_loader.LoadDirectory(plugin_dir) != ErrorCode::kSuccess) {
+    spdlog::error("[engine_boot] LoadStrategies: LoadDirectory failed dir={}", plugin_dir);
     return false;
   }
 
-  // 3. 按 runtime_config 装配策略实例
+  // 2. 按 runtime_config 创建并注册启用中的策略
   const auto runtime_config = engine.GetRuntimeConfig();
   const auto strategy_configs = BuildStrategyRuntimeConfigs(runtime_config);
   if (strategy_configs.empty()) {
     spdlog::warn("[engine_boot] LoadStrategies: runtime_config.strategies is empty");
     return true;
   }
-  if (strategy_manager.ApplyConfiguration(strategy_configs) != ErrorCode::kSuccess) {
-    spdlog::error("[engine_boot] LoadStrategies: ApplyConfiguration failed");
-    return false;
+
+  qtrade::strategy::OrderSender order_sender = [&engine](const qtrade_sdk::trader::OrderRequest& request) {
+    return engine.SubmitOrder(request);
+  };
+
+  for (const auto& config : strategy_configs) {
+    if (!config.enabled) {
+      spdlog::info("[engine_boot] LoadStrategies: skip disabled strategy {}", config.strategy_id);
+      continue;
+    }
+    auto strategy = plugin_loader.Create(config.plugin);
+    if (!strategy) {
+      spdlog::error(
+        "[engine_boot] LoadStrategies: unknown plugin={} strategy_id={}", config.plugin, config.strategy_id);
+      return false;
+    }
+    strategy->SetOrderSender(order_sender);
+
+    qtrade::strategy::StrategyConfig init_config;
+    init_config.name = config.strategy_id;
+    init_config.parameter_blob = nlohmann::json(config.params).dump();
+    if (strategy->Init(init_config) != ErrorCode::kSuccess) {
+      spdlog::error("[engine_boot] LoadStrategies: Init failed strategy_id={}", config.strategy_id);
+      return false;
+    }
+    for (const auto& [key, value] : config.params) {
+      if (strategy->SetParameter(key, value) != ErrorCode::kSuccess) {
+        spdlog::error(
+          "[engine_boot] LoadStrategies: SetParameter failed strategy_id={} key={}", config.strategy_id, key);
+        return false;
+      }
+    }
+
+    if (strategy_manager.RegisterStrategy(config.strategy_id, std::move(strategy), config.instruments) !=
+        ErrorCode::kSuccess) {
+      spdlog::error("[engine_boot] LoadStrategies: RegisterStrategy failed strategy_id={}", config.strategy_id);
+      return false;
+    }
   }
-  spdlog::info("[engine_boot] LoadStrategies: applied {} strategy config(s)", strategy_configs.size());
+
+  spdlog::info("[engine_boot] LoadStrategies: registered enabled strategies from {} config(s)",
+               strategy_configs.size());
   return true;
 }
 

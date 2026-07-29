@@ -15,7 +15,6 @@ add_executable(qtrade_tests ${ALL_TEST_FILES})
 # Include Directories
 target_include_directories(qtrade_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_SOURCE_DIR}/demo
 )
 
 # Link Libraries
@@ -26,10 +25,15 @@ target_link_libraries(qtrade_tests PRIVATE
     GTest::gtest_main
 )
 
+# Ensure example_strategy is built before running StrategyPluginLoader tests
+add_dependencies(qtrade_tests example_strategy)
+
 # Discover and Run Tests
 include(GoogleTest)
 gtest_discover_tests(qtrade_tests
     PROPERTIES
         LABELS "unit_test"
         DISCOVERY_TIMEOUT 60
+        # StrategyPluginLoader tests locate .so via this environment variable
+        ENVIRONMENT "QTRADE_STRATEGY_PLUGIN_DIR=${CMAKE_BINARY_DIR}/lib/strategies"
 )

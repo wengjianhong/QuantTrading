@@ -27,5 +27,6 @@
       "timeout_ms": 2000,
       "topic": "qtrade_engine"
     }
-  }
+  },
+  "strategy_plugin_dir": "/usr/local/qtrade/lib/strategies"
 }

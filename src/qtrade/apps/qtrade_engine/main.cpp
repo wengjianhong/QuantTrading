@@ -43,7 +43,7 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  // 5. 按 runtime_config.strategies 注册工厂并加载策略实例
+  // 5. 扫描策略插件目录并按 runtime_config.strategies 注册实例
   if (!qtrade::engine::boot::LoadStrategies(engine)) {
     qtrade::common::system::NotifyError(0, "Failed to load strategies from runtime config");
     return EXIT_FAILURE;

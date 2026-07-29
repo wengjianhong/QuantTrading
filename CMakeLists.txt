@@ -42,6 +42,11 @@ include(${CMAKE_SOURCE_DIR}/cmake/app/qtrade_engine.cmake)
 include(${CMAKE_SOURCE_DIR}/cmake/app/qtrade_services.cmake)
 
 # -----------------------------------------------------------------------------
+# Strategy plugins
+# -----------------------------------------------------------------------------
+include(${CMAKE_SOURCE_DIR}/cmake/strategy/qtrade_strategy_plugins.cmake)
+
+# -----------------------------------------------------------------------------
 # Install (downstream: find_package(qtrade CONFIG))
 # -----------------------------------------------------------------------------
 include(${CMAKE_SOURCE_DIR}/cmake/qtrade_install.cmake)

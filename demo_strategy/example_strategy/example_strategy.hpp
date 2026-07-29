@@ -8,16 +8,13 @@
 #define QTRADE_TRADE_DEMO_EXAMPLE_STRATEGY_HPP
 #include <qtrade/strategy/strategy.hpp>
 
-#include <functional>
 #include <memory>
 
 namespace qtrade::demo {
 
-// 简单的趋势跟踪策略
+/// @brief 简单的趋势跟踪策略
 class ExampleStrategy final : public strategy::IStrategy {
  public:
-  using OrderSender = std::function<ErrorCode(const qtrade_sdk::trader::OrderRequest&)>;
-
   ExampleStrategy();
   ~ExampleStrategy() override;
 
@@ -26,6 +23,8 @@ class ExampleStrategy final : public strategy::IStrategy {
   void Pause() override;
   void Resume() override;
   void Stop() override;
+
+  void SetOrderSender(strategy::OrderSender sender) override;
 
   void OnTick(const qtrade_sdk::quote::MarketTick& tick) override;
   void OnBar(const qtrade_sdk::quote::Bar& bar) override;
@@ -36,17 +35,14 @@ class ExampleStrategy final : public strategy::IStrategy {
   std::string GetParameter(const std::string& key) const override;
   ErrorCode SetParameter(const std::string& key, const std::string& value) override;
 
-  // 设置订单发送器
-  void SetOrderSender(OrderSender sender);
-
  private:
-  OrderSender order_sender_;
+  strategy::OrderSender order_sender_;
   bool running_;
   double last_price_;
   int position_;  // -1 short, 0 flat, 1 long
 };
 
-// 工厂函数
+/// @brief 工厂函数（非插件路径 / 测试用）
 std::unique_ptr<strategy::IStrategy> CreateExampleStrategy();
 
 }  // namespace qtrade::demo

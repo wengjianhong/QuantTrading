@@ -117,7 +117,7 @@ ErrorCode ExampleStrategy::SetParameter(const std::string& key, const std::strin
   return ErrorCode::kSuccess;
 }
 
-void ExampleStrategy::SetOrderSender(OrderSender sender) {
+void ExampleStrategy::SetOrderSender(strategy::OrderSender sender) {
   order_sender_ = std::move(sender);
 }
 

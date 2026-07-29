@@ -57,6 +57,34 @@ constexpr bool kAllowUnreconciledOrders = false;
          !(order.volume > 0 && order.traded_volume > order.volume);
 }
 
+[[nodiscard]] bool StrategiesEqual(
+  const google::protobuf::RepeatedPtrField<qtrade::config::v1::StrategyConfig>& lhs,
+  const google::protobuf::RepeatedPtrField<qtrade::config::v1::StrategyConfig>& rhs) {
+  if (lhs.size() != rhs.size()) {
+    return false;
+  }
+  for (int i = 0; i < lhs.size(); ++i) {
+    const auto& a = lhs.Get(i);
+    const auto& b = rhs.Get(i);
+    if (a.strategy_id() != b.strategy_id() || a.plugin() != b.plugin() || a.enabled() != b.enabled() ||
+        a.instruments_size() != b.instruments_size() || a.params_size() != b.params_size()) {
+      return false;
+    }
+    for (int j = 0; j < a.instruments_size(); ++j) {
+      if (a.instruments(j) != b.instruments(j)) {
+        return false;
+      }
+    }
+    for (const auto& [key, value] : a.params()) {
+      const auto it = b.params().find(key);
+      if (it == b.params().end() || it->second != value) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 [[nodiscard]] bool IsValidTrade(const qtrade_sdk::trader::Trade& trade) {
   return !trade.instrument.empty() && trade.volume > 0 && std::isfinite(trade.price) && trade.price >= 0.0 &&
          !(trade.order_id.empty() && trade.order_emt_id == 0 && trade.client_order_id == 0);
@@ -247,6 +275,7 @@ ErrorCode TradingEngine::Stop() {
 void TradingEngine::Release() {
   // 1. 释放引擎内模块（按依赖逆序释放）
   strategy_manager_.Stop();
+  strategy_plugin_loader_.UnloadAll();
   quote_health_monitor_.Stop();
   execution_manager_.Stop();
   DisconnectAdapters();
@@ -363,6 +392,10 @@ event_bus::EventLanes& TradingEngine::GetEventLanes() {
 
 strategy::StrategyManager& TradingEngine::GetStrategyManager() {
   return strategy_manager_;
+}
+
+strategy::StrategyPluginLoader& TradingEngine::GetStrategyPluginLoader() {
+  return strategy_plugin_loader_;
 }
 
 oms::OrderApi& TradingEngine::GetOrderApi() {
@@ -878,26 +911,21 @@ void TradingEngine::OnEngineConfig(const qtrade::config::v1::EngineConfig& confi
     return;
   }
 
-  std::vector<strategy::StrategyRuntimeConfig> strategy_configs;
-  strategy_configs.reserve(static_cast<std::size_t>(engine.strategies_size()));
-  for (const auto& strategy : engine.strategies()) {
-    strategy::StrategyRuntimeConfig config;
-    config.strategy_id = strategy.strategy_id();
-    config.plugin = strategy.plugin();
-    config.enabled = strategy.enabled();
-    config.instruments.assign(strategy.instruments().begin(), strategy.instruments().end());
-    config.params.insert(strategy.params().begin(), strategy.params().end());
-    strategy_configs.push_back(std::move(config));
-  }
-  // 工厂尚未注册时跳过（冷启动由 boot::LoadStrategies 应用）；热更新时工厂已就绪
-  if (strategy_manager_.HasFactories()) {
-    if (strategy_manager_.ApplyConfiguration(strategy_configs) != ErrorCode::kSuccess) {
-      lifecycle_.Freeze("STRATEGY_CONFIG_INVALID");
+  // 策略实例仅在 Init 后由 boot::LoadStrategies 装配；运行中变更须 Stop → 重新 Init
+  if (running_.load(std::memory_order_acquire)) {
+    bool strategies_changed = false;
+    {
+      std::lock_guard lock(runtime_config_mutex_);
+      strategies_changed = !StrategiesEqual(runtime_config_.strategies(), engine.strategies());
+    }
+    if (strategies_changed) {
+      lifecycle_.Freeze("STRATEGY_RESTART_REQUIRED");
+      spdlog::error("strategy configuration changed while running; stop and re-init required");
       return;
     }
   } else {
-    spdlog::info("skip strategy ApplyConfiguration until factories registered ({} entries cached in runtime_config)",
-                 strategy_configs.size());
+    spdlog::info("cached {} strategy config(s); instances will be created by LoadStrategies",
+                 engine.strategies_size());
   }
 
   std::unordered_set<std::string> desired_instruments;

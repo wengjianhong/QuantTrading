@@ -40,6 +40,7 @@ TEST(OrderPipeline, MockOrderFlowsThroughOmsAndTraderLane) {
   config.identity.engine_id = "test-engine-" + suffix;
   config.identity.account_id = "test-account";
   config.support_services.config_service.enabled = false;
+  config.support_services.account_service.enabled = false;
   config.support_services.account_risk_service.enabled = false;
   config.support_services.log_service.extensions["topic"] = "test";
   ASSERT_EQ(engine.Init(config), qtrade::ErrorCode::kSuccess);
@@ -91,6 +92,7 @@ TEST(OrderPipeline, CancelFlowsThroughEmsAndVenueReport) {
   config.identity.engine_id = "cancel-engine-" + suffix;
   config.identity.account_id = "test-account";
   config.support_services.config_service.enabled = false;
+  config.support_services.account_service.enabled = false;
   config.support_services.account_risk_service.enabled = false;
   config.support_services.log_service.extensions["topic"] = "test";
   ASSERT_EQ(engine.Init(config), qtrade::ErrorCode::kSuccess);

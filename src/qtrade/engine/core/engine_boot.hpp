@@ -16,8 +16,8 @@ class TradingEngine;
 /// @brief 引擎业务启动阶段（供 main 编排调用）
 namespace boot {
 
-/// @brief 注册策略工厂，并按 runtime_config_.strategies 加载实例
-/// @param engine 交易引擎（须已 Init 且持有 runtime_config_）
+/// @brief 按 runtime_config_.strategies 从插件目录加载并注册已启用策略实例
+/// @param engine 交易引擎（须已 Init 且持有 runtime_config_ / strategy_plugin_dir）
 /// @return 是否成功
 [[nodiscard]] bool LoadStrategies(TradingEngine& engine);
 

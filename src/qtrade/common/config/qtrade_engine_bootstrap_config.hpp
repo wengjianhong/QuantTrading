@@ -36,12 +36,14 @@ struct QtradeEngineSupportServices {
 };
 
 /// @brief 对应 config/qtrade_engine.json
-/// @details 仅含实例身份与支撑服务端点。所有业务、适配器和可选策略由 config-service 下发。
+/// @details 含实例身份、支撑服务端点与策略插件目录。业务/适配器/策略清单由 config-service 下发。
 struct QtradeEngineBootstrapConfig {
   /// 实例身份
   QtradeEngineIdentity identity;
   /// 支撑服务连出配置
   QtradeEngineSupportServices support_services;
+  /// 策略插件 .so 目录（启动时扫描加载）
+  std::string strategy_plugin_dir;
 };
 
 /// @brief 从引擎进程配置 JSON 对象解析

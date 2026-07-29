@@ -53,6 +53,7 @@ TEST(EngineSmoke, TradingEngineStartStop) {
     "test-engine-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
   config.identity.account_id = "test-account";
   config.support_services.config_service.enabled = false;
+  config.support_services.account_service.enabled = false;
   config.support_services.account_risk_service.enabled = false;
   config.support_services.log_service.extensions["topic"] = "test";
   qtrade::engine::TradingEngine engine;
@@ -82,6 +83,7 @@ TEST(EngineSmoke, InjectedMockAdaptersReachReady) {
   config.identity.engine_id = "configured-mock-" + suffix;
   config.identity.account_id = "test-account";
   config.support_services.config_service.enabled = false;
+  config.support_services.account_service.enabled = false;
   config.support_services.account_risk_service.enabled = false;
   config.support_services.log_service.extensions["topic"] = "test";
   qtrade::engine::TradingEngine engine;

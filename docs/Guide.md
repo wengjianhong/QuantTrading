@@ -140,7 +140,7 @@ qtrade/
 
 3. 尚未创建的目录（如 `history_market_service/`）可在对应里程碑落地时补齐。**接入层（网关/控制台）为外部独立项目，不在本仓库。**
 
-4. 策略代码**由独立仓库维护**，本仓库仅保留 `demo/strategy/` 作为开发示例；策略独立仓库规范见 **§7.2**。
+4. 策略代码**由独立仓库维护**，本仓库仅保留 `demo_strategy/` 作为开发示例（每策略一目录）；策略独立仓库规范见 **§7.2**。
 
 5. **gRPC 接入模式**（支撑服务）：
    - **Unary-only**（如 `account_service`）：同步 `Service::Service` + `SupportSyncServiceImpl`；`grpc/` 薄路由，`handler/` 按 RPC 继承 `GrpcHandlerInterface`

@@ -64,6 +64,11 @@ std::optional<QtradeEngineBootstrapConfig> ParseQtradeEngineBootstrapConfig(cons
   config.support_services.account_service = account_service.value();
   config.support_services.account_risk_service = account_risk_service.value();
   config.support_services.log_service = log_service.value();
+  config.strategy_plugin_dir = config_node.value("strategy_plugin_dir", "");
+  if (config.strategy_plugin_dir.empty()) {
+    spdlog::error("strategy_plugin_dir required");
+    return std::nullopt;
+  }
 
   if (config.support_services.account_risk_service.enabled &&
       config.support_services.account_risk_service.timeout_ms <= 0) {
