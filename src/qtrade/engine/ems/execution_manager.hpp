@@ -1,6 +1,7 @@
 /// @file      execution_manager.hpp
 /// @brief     交易执行管理器
-/// @details   有界队列异步报单/撤单；独立工作线程调用 TraderApi，结果经回调回写 OMS
+/// @details   有界队列异步报单/撤单；独立工作线程调用 TraderApi，结果直接回写 OMS；
+///            发送失败时尽力调用 account-risk ReleaseOrder。
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
@@ -13,21 +14,23 @@
 
 #include <condition_variable>
 #include <deque>
-#include <functional>
 #include <mutex>
 #include <string>
 #include <thread>
+
+namespace qtrade::client {
+class AccountRiskClient;
+}
+
+namespace qtrade::engine::oms {
+class OrderManager;
+}
 
 namespace qtrade::engine::ems {
 
 /// @brief 引擎内 EMS：有界队列异步报单与撤单
 class ExecutionManager {
  public:
-  /// @brief 发送前持久化回调
-  using BeforeSendHandler = std::function<ErrorCode(const std::string& order_id)>;
-  /// @brief 交易通道调用结果回调
-  using ResultHandler = std::function<void(const std::string& order_id, ErrorCode result)>;
-
   /// @brief 析构并停止工作线程
   ~ExecutionManager();
 
@@ -41,11 +44,16 @@ class ExecutionManager {
   /// @param trader_api 交易适配器指针；可为 nullptr 表示解除绑定
   void SetTraderApi(qtrade_sdk::trader::TraderApi* trader_api);
 
-  /// @brief 设置发送前与发送结果回调
-  /// @param before_send 调用 TraderApi 前执行；失败时不发送
-  /// @param send_result SendOrder 返回后执行
-  /// @param cancel_result CancelOrder 返回后执行
-  void SetResultHandlers(BeforeSendHandler before_send, ResultHandler send_result, ResultHandler cancel_result);
+  /// @brief 绑定 OMS，用于发送前标记与结果回写
+  /// @param order_manager 订单管理器；可为 nullptr
+  void SetOrderManager(oms::OrderManager* order_manager);
+
+  /// @brief 绑定 account-risk 客户端（发送失败时释放预占）
+  /// @param account_risk_client 客户端；可为 nullptr 表示不释放
+  void SetAccountRiskClient(qtrade::client::AccountRiskClient* account_risk_client);
+
+  /// @brief 设置 ReleaseOrder 所需的租户/账户身份
+  void SetAccountRiskIdentity(std::string tenant_id, std::string account_id);
 
   /// @brief 将新单加入 EMS 有界队列
   /// @param order OMS 订单快照
@@ -79,18 +87,26 @@ class ExecutionManager {
   /// @brief 工作线程主循环：出队并调用交易通道
   void Run();
 
+  /// @brief 发送失败时尽力释放 account-risk 预占
+  void ReleaseReservationOnSendFailure(qtrade::client::AccountRiskClient* account_risk_client,
+                                       const std::string& tenant_id,
+                                       const std::string& account_id,
+                                       const std::string& order_id);
+
   /// EMS 队列容量
   static constexpr std::size_t kQueueCapacity = 8192;
   /// 交易通道 API；未设置时入队失败
   qtrade_sdk::trader::TraderApi* trader_api_ = nullptr;
+  /// OMS；未设置时跳过状态回写
+  oms::OrderManager* order_manager_ = nullptr;
+  /// account-risk；未设置时跳过失败释放
+  qtrade::client::AccountRiskClient* account_risk_client_ = nullptr;
+  /// ReleaseOrder 租户 ID
+  std::string tenant_id_;
+  /// ReleaseOrder 账户 ID
+  std::string account_id_;
   /// 待发送工作项队列；撤单从队头插入
   std::deque<WorkItem> pending_items_;
-  /// 发送前持久化回调
-  BeforeSendHandler before_send_;
-  /// 新单发送结果回调
-  ResultHandler send_result_;
-  /// 撤单发送结果回调
-  ResultHandler cancel_result_;
   /// 保护队列与运行状态
   std::mutex mutex_;
   /// 工作线程等待/唤醒条件变量

@@ -2,29 +2,22 @@
 /// @brief     交易引擎本体（Init / Start / Stop 与运行时编排）
 /// @details   不负责进程入口；进程阶段由 apps/qtrade_engine/main.cpp + engine_boot 完成。
 ///            Init 只编排子阶段；EngineLifecycle 仅由本类推进，不下沉到子模块。
+///            交易核心模块与 Client 由 EngineModules 持有。
 ///            须 Init 后 Start，仅 READY 接受新单。
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
 #ifndef QTRADE_TRADING_ENGINE_TRADING_ENGINE_HPP_
 #define QTRADE_TRADING_ENGINE_TRADING_ENGINE_HPP_
-#include "qtrade/client/account_client/account_client.hpp"
-#include "qtrade/client/account_risk_client/account_risk_client.hpp"
-#include "qtrade/client/config_client/config_client.hpp"
 #include "qtrade/common/config/qtrade_engine_config.hpp"
-#include "qtrade/engine/account/account_manager.hpp"
-#include "qtrade/engine/cms/compliance_manager.hpp"
 #include "qtrade/engine/core/engine_lifecycle.hpp"
-#include "qtrade/engine/core/order_pipeline.hpp"
+#include "qtrade/engine/trading_engine_struct.hpp"
 #include "qtrade/engine/core/quote_health_monitor.hpp"
-#include "qtrade/engine/ems/execution_manager.hpp"
 #include "qtrade/engine/event_bus/event_lanes.hpp"
-#include "qtrade/engine/oms/order_manager.hpp"
-#include "qtrade/engine/position/position_manager.hpp"
-#include "qtrade/engine/risk/risk_manager.hpp"
 #include "qtrade/engine/strategy/strategy_engine.hpp"
 
 #include <qtrade/error_code/error_codes.hpp>
+#include <qtrade/proto/account_risk/v1/account_risk.pb.h>
 #include <qtrade/proto/config/v1/config.pb.h>
 #include <qtrade_sdk/quote/quote_api.hpp>
 #include <qtrade_sdk/trader/trader_api.hpp>
@@ -59,8 +52,8 @@ class TradingEngine {
   ErrorCode Init(const qtrade::common::config::QtradeEngineConfig& config);
 
   /// @brief 启动运行时（编排 Start 子阶段，须先 Init）
-  /// @details 子阶段：EnsureAdaptersConnected → ReconcileBrokerState → StartRuntimeModules
-  ///          → AdvancePostStartLifecycle（BrokerSynced/RiskSynced → 行情门禁 → Ready）
+  /// @details 子阶段：StartAdapters → SyncBrokerSnapshot → StartEventLanes
+  ///          → StartEngineModules → StartMarketData → AdvanceReadyGates
   /// @return ErrorCode::kSuccess 表示成功
   ErrorCode Start();
 
@@ -192,17 +185,23 @@ class TradingEngine {
   // Start 子阶段（由 Start() 按序调用）
   // ---------------------------------------------------------------------------
 
-  /// @brief Start-1: 确保行情/交易适配器已连接（幂等）
-  ErrorCode EnsureAdaptersConnected();
+  /// @brief 幂等确认行情/交易适配器已连接
+  ErrorCode StartAdapters();
 
-  /// @brief Start-2: 柜台订单/成交/资金/持仓对账
-  ErrorCode ReconcileBrokerState();
+  /// @brief 拉取柜台快照并 Adopt 进 OMS/Account/Position
+  ErrorCode SyncBrokerSnapshot();
 
-  /// @brief Start-3: 启动事件通道、策略与 EMS，并订阅合约
-  ErrorCode StartRuntimeModules();
+  /// @brief 启动 Lane-Q/Lane-T 与行情健康监控
+  ErrorCode StartEventLanes();
 
-  /// @brief Start-4: 推进 BrokerSynced/RiskSynced，并按行情门禁尝试 READY
-  ErrorCode AdvancePostStartLifecycle();
+  /// @brief 启动策略引擎与 EMS（Start 阶段的交易模块；Init 的 EngineModules 仅为 OMS/接线）
+  ErrorCode StartEngineModules();
+
+  /// @brief 按已缓存合约列表订阅行情
+  ErrorCode StartMarketData();
+
+  /// @brief 推进 BrokerSynced/RiskSynced，并按行情门禁尝试 READY
+  ErrorCode AdvanceReadyGates();
 
   // ---------------------------------------------------------------------------
   // 适配器接线 / 断开
@@ -275,34 +274,11 @@ class TradingEngine {
   std::unique_ptr<qtrade_sdk::trader::TraderApi> trader_api_;
 
   // ---------------------------------------------------------------------------
-  // 成员：交易核心模块
+  // 成员：交易核心模块 + 支撑 Client
   // ---------------------------------------------------------------------------
 
-  /// 合规模块
-  cms::ComplianceManager compliance_;
-  /// 执行管理模块
-  ems::ExecutionManager execution_manager_;
-  /// 订单管理模块
-  oms::OrderManager order_manager_;
-  /// 账户管理模块
-  account::AccountManager account_manager_;
-  /// 持仓管理模块
-  position::PositionManager position_manager_;
-  /// 风险管理模块
-  risk::RiskManager risk_manager_;
-  /// 发单准入流水线
-  OrderPipeline order_pipeline_ = OrderPipeline(compliance_, risk_manager_, order_manager_, execution_manager_);
-
-  // ---------------------------------------------------------------------------
-  // 成员：支撑服务的GRPC客户端
-  // ---------------------------------------------------------------------------
-
-  /// 控制面 gRPC 客户端
-  client::ConfigClient config_client_;
-  /// 账户凭证客户端
-  client::AccountClient account_client_;
-  /// E 段账户硬风控客户端
-  client::AccountRiskClient account_risk_client_;
+  /// 交易核心模块与 gRPC Client（公开成员，见 trading_engine_struct.hpp）
+  EngineModules modules_;
 };
 
 }  // namespace qtrade::engine
