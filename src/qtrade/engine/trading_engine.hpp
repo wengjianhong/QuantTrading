@@ -2,18 +2,27 @@
 /// @brief     交易引擎本体（Init / Start / Stop 与运行时编排）
 /// @details   不负责进程入口；进程阶段由 apps/qtrade_engine/main.cpp + engine_boot 完成。
 ///            Init 只编排子阶段；EngineLifecycle 仅由本类推进，不下沉到子模块。
-///            交易核心模块与 Client 由 EngineModules 持有。
+///            组合根持有各 Manager / Client；跨模块协作只通过 XxxApi。
 ///            须 Init 后 Start，仅 READY 接受新单。
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
 #ifndef QTRADE_TRADING_ENGINE_TRADING_ENGINE_HPP_
 #define QTRADE_TRADING_ENGINE_TRADING_ENGINE_HPP_
+#include "qtrade/client/account_client/account_client.hpp"
+#include "qtrade/client/account_risk_client/account_risk_client.hpp"
+#include "qtrade/client/config_client/config_client.hpp"
 #include "qtrade/common/config/qtrade_engine_config.hpp"
+#include "qtrade/engine/account/account_manager.hpp"
+#include "qtrade/engine/cms/compliance_manager.hpp"
 #include "qtrade/engine/core/engine_lifecycle.hpp"
-#include "qtrade/engine/trading_engine_struct.hpp"
+#include "qtrade/engine/core/order_pipeline.hpp"
 #include "qtrade/engine/core/quote_health_monitor.hpp"
+#include "qtrade/engine/ems/execution_manager.hpp"
 #include "qtrade/engine/event_bus/event_lanes.hpp"
+#include "qtrade/engine/oms/order_manager.hpp"
+#include "qtrade/engine/position/position_manager.hpp"
+#include "qtrade/engine/risk/risk_manager.hpp"
 #include "qtrade/engine/strategy/strategy_engine.hpp"
 
 #include <qtrade/error_code/error_codes.hpp>
@@ -139,9 +148,9 @@ class TradingEngine {
   /// @return StrategyEngine 引用
   strategy::StrategyEngine& GetStrategyEngine();
 
-  /// @brief 获取订单管理模块引用
-  /// @return OrderManager 引用
-  oms::OrderManager& GetOrderManager();
+  /// @brief 获取 OMS 模块间稳定接口
+  /// @return OrderApi 引用
+  oms::OrderApi& GetOrderApi();
 
   /// @brief 获取账户管理模块引用
   /// @return AccountManager 引用
@@ -194,7 +203,7 @@ class TradingEngine {
   /// @brief 启动 Lane-Q/Lane-T 与行情健康监控
   ErrorCode StartEventLanes();
 
-  /// @brief 启动策略引擎与 EMS（Start 阶段的交易模块；Init 的 EngineModules 仅为 OMS/接线）
+  /// @brief 启动策略引擎与 EMS
   ErrorCode StartEngineModules();
 
   /// @brief 按已缓存合约列表订阅行情
@@ -274,11 +283,32 @@ class TradingEngine {
   std::unique_ptr<qtrade_sdk::trader::TraderApi> trader_api_;
 
   // ---------------------------------------------------------------------------
-  // 成员：交易核心模块 + 支撑 Client
+  // 成员：交易核心内的子模块
   // ---------------------------------------------------------------------------
+  /// 合规模块
+  cms::ComplianceManager compliance_;
+  /// 实例风控
+  risk::RiskManager risk_manager_;
+  /// 订单管理
+  oms::OrderManager order_manager_;
+  /// 执行管理
+  ems::ExecutionManager execution_manager_;
+  /// 账户资金
+  account::AccountManager account_manager_;
+  /// 持仓
+  position::PositionManager position_manager_;
+  /// 发单流水线（须在 compliance/risk/order/execution 之后）
+  OrderPipeline order_pipeline_{compliance_, risk_manager_, order_manager_, execution_manager_};
 
-  /// 交易核心模块与 gRPC Client（公开成员，见 trading_engine_struct.hpp）
-  EngineModules modules_;
+  // ---------------------------------------------------------------------------
+  // 成员：支撑服务 gRPC 客户端
+  // ---------------------------------------------------------------------------
+  /// 配置服务客户端
+  client::ConfigClient config_client_;
+  /// 账户凭证客户端
+  client::AccountClient account_client_;
+  /// 账户硬风控客户端
+  client::AccountRiskClient account_risk_client_;
 };
 
 }  // namespace qtrade::engine

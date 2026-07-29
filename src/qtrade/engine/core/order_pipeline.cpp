@@ -9,15 +9,15 @@
 
 namespace qtrade::engine {
 
-OrderPipeline::OrderPipeline(cms::ComplianceManager& compliance,
-                             risk::RiskManager& risk_manager,
-                             oms::OrderManager& order_manager,
-                             ems::ExecutionManager& execution_manager,
+OrderPipeline::OrderPipeline(cms::ComplianceApi& compliance,
+                             risk::RiskApi& risk,
+                             oms::OrderApi& orders,
+                             ems::ExecutionApi& execution,
                              qtrade::client::AccountRiskClient* account_risk_client)
   : compliance_(compliance),
-    risk_manager_(risk_manager),
-    order_manager_(order_manager),
-    execution_manager_(execution_manager),
+    risk_(risk),
+    orders_(orders),
+    execution_(execution),
     account_risk_client_(account_risk_client) {}
 
 void OrderPipeline::SetAccountRiskClient(qtrade::client::AccountRiskClient* account_risk_client) {
@@ -50,19 +50,19 @@ ErrorCode OrderPipeline::Submit(const qtrade_sdk::trader::OrderRequest& request)
   if (const auto rc = compliance_.CheckOrder(request); rc != ErrorCode::kSuccess) {
     return rc;
   }
-  if (const auto rc = risk_manager_.CheckOrder(request); rc != ErrorCode::kSuccess) {
+  if (const auto rc = risk_.CheckOrder(request); rc != ErrorCode::kSuccess) {
     return rc;
   }
-  if (request.client_order_id != 0 && order_manager_.GetOrderByClientId(request.client_order_id).has_value()) {
+  if (request.client_order_id != 0 && orders_.GetOrderByClientId(request.client_order_id).has_value()) {
     return ErrorCode::kSuccess;
   }
 
-  const std::string order_id = order_manager_.AllocateOrderId();
+  const std::string order_id = orders_.AllocateOrderId();
   if (account_risk_client_ != nullptr) {
     qtrade::account_risk::v1::ReserveOrderRequest reserve_request;
     reserve_request.set_tenant_id(tenant_id_);
     reserve_request.set_account_id(account_id_);
-    reserve_request.set_risk_config_version(risk_manager_.Version());
+    reserve_request.set_risk_config_version(risk_.Version());
     auto* intent = reserve_request.mutable_intent();
     intent->set_order_id(order_id);
     intent->set_engine_id(engine_id_);
@@ -93,25 +93,25 @@ ErrorCode OrderPipeline::Submit(const qtrade_sdk::trader::OrderRequest& request)
     }
   }
 
-  const auto order = order_manager_.CreateOrder(request, order_id);
+  const auto order = orders_.CreateOrder(request, order_id);
   if (!order.has_value()) {
     ReleaseReservation(order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
     return ErrorCode::kNotInitialized;
   }
   const std::string& created_order_id = order->order_id;
-  const auto lifecycle = order_manager_.GetLifecycleState(created_order_id);
+  const auto lifecycle = orders_.GetLifecycleState(created_order_id);
   if (lifecycle.has_value() && *lifecycle != oms::OrderLifecycleState::kPrepared) {
     return ErrorCode::kSuccess;
   }
 
-  if (const auto rc = order_manager_.MarkEmsQueued(created_order_id); rc != ErrorCode::kSuccess) {
+  if (const auto rc = orders_.MarkEmsQueued(created_order_id); rc != ErrorCode::kSuccess) {
     ReleaseReservation(created_order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
     return rc;
   }
 
-  const auto rc = execution_manager_.Enqueue(*order);
+  const auto rc = execution_.Enqueue(*order);
   if (rc != ErrorCode::kSuccess) {
-    (void)order_manager_.RecordSendResult(created_order_id, rc);
+    (void)orders_.RecordSendResult(created_order_id, rc);
     ReleaseReservation(created_order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
   }
   return rc;

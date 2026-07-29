@@ -1,5 +1,5 @@
 /// @file      risk_manager.hpp
-/// @brief     风险管理器
+/// @brief     风险管理器（实现 RiskApi）
 /// @details   校验单笔参数、活动订单数与累计名义敞口是否超出实例风险预算
 /// @author    wengjianhong
 /// @date      2026-05-19
@@ -8,10 +8,8 @@
 #ifndef QTRADE_TRADING_ENGINE_RISK_MANAGER_HPP_
 #define QTRADE_TRADING_ENGINE_RISK_MANAGER_HPP_
 
-#include <qtrade/error_code/error_codes.hpp>
-#include <qtrade_sdk/trader/trader_struct.hpp>
+#include "qtrade/engine/risk/risk_api.hpp"
 
-#include <cstdint>
 #include <functional>
 #include <limits>
 #include <mutex>
@@ -35,13 +33,13 @@ struct RiskLimits {
 };
 
 /// @brief 订单参数、活动订单与名义敞口风控
-class RiskManager {
+class RiskManager final : public RiskApi {
  public:
   /// @brief 构造默认预算的风险管理器
   RiskManager() = default;
 
   /// @brief 析构风险管理器
-  ~RiskManager() = default;
+  ~RiskManager() override = default;
 
   /// @brief 原子替换风险预算
   /// @param limits 新风险预算
@@ -57,11 +55,11 @@ class RiskManager {
   /// @brief 检查订单参数、单笔和累计预算
   /// @param request 下单请求
   /// @return 通过返回 kSuccess
-  [[nodiscard]] ErrorCode CheckOrder(const qtrade_sdk::trader::OrderRequest& request) const;
+  [[nodiscard]] ErrorCode CheckOrder(const qtrade_sdk::trader::OrderRequest& request) const override;
 
   /// @brief 查询当前风险配置版本
   /// @return 风险配置版本
-  [[nodiscard]] std::uint64_t Version() const;
+  [[nodiscard]] std::uint64_t Version() const override;
 
  private:
   /// 保护预算与状态读取器

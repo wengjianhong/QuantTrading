@@ -1,5 +1,5 @@
 /// @file      order_manager.hpp
-/// @brief     订单管理器（进程内内存状态机）
+/// @brief     订单管理器（进程内内存状态机；实现 OrderApi）
 /// @details   管理订单生命周期状态机与 client_order_id 索引；不落盘。
 ///            崩溃恢复以柜台快照对账 Adopt 为准，不回放本地订单、不按旧意图补单。
 /// @author    wengjianhong
@@ -8,44 +8,17 @@
 #ifndef QTRADE_TRADING_ENGINE_ORDER_MANAGER_HPP_
 #define QTRADE_TRADING_ENGINE_ORDER_MANAGER_HPP_
 
-#include <qtrade/error_code/error_codes.hpp>
-#include <qtrade_sdk/trader/trader_struct.hpp>
+#include "qtrade/engine/oms/order_api.hpp"
+
 #include <qtrade_sdk/trader/trader_types.hpp>
 
 #include <atomic>
-#include <cstdint>
 #include <mutex>
-#include <optional>
-#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 namespace qtrade::engine::oms {
-
-/// @brief 引擎内订单生命周期状态
-enum class OrderLifecycleState : std::uint8_t {
-  /// 已完成本地准入
-  kPrepared = 0,
-  /// 已进入 EMS 队列
-  kEmsQueued = 1,
-  /// 正在调用交易通道发送
-  kSendPending = 2,
-  /// 通道已接受，等待后续回报
-  kWorking = 3,
-  /// 已部分成交
-  kPartiallyFilled = 4,
-  /// 已全部成交
-  kFilled = 5,
-  /// 撤单请求已提交
-  kCancelPending = 6,
-  /// 已撤单
-  kCanceled = 7,
-  /// 已拒绝或确定发送失败
-  kRejected = 8,
-  /// 发送结果未知，须查询柜台
-  kSendUnknown = 9,
-};
 
 /// @brief OMS 初始化选项
 struct OrderManagerOptions {
@@ -58,13 +31,13 @@ struct OrderManagerOptions {
 };
 
 /// @brief 引擎内订单状态与索引管理（仅内存）
-class OrderManager {
+class OrderManager final : public OrderApi {
  public:
   /// @brief 构造订单管理器
   OrderManager();
 
   /// @brief 析构订单管理器
-  ~OrderManager();
+  ~OrderManager() override;
 
   /// @brief 初始化内存 OMS（清空表并绑定身份）
   /// @param options OMS 初始化选项
@@ -81,14 +54,14 @@ class OrderManager {
 
   /// @brief 在账户预占前分配全局订单 ID
   /// @return 新分配的订单 ID 字符串
-  [[nodiscard]] std::string AllocateOrderId();
+  [[nodiscard]] std::string AllocateOrderId() override;
 
   /// @brief 使用已预分配的订单 ID 创建 OMS 订单
   /// @param request 下单请求
   /// @param order_id 已分配的全局订单 ID
   /// @return 创建成功返回订单；未 Initialize 返回 nullopt
   std::optional<qtrade_sdk::trader::Order> CreateOrder(const qtrade_sdk::trader::OrderRequest& request,
-                                                       const std::string& order_id);
+                                                       const std::string& order_id) override;
 
   /// @brief 发送订单（兼容入口）
   /// @param request 下单请求
@@ -103,24 +76,24 @@ class OrderManager {
   /// @brief 记录订单已进入 EMS 队列
   /// @param order_id 全局订单 ID
   /// @return 成功返回 kSuccess
-  ErrorCode MarkEmsQueued(const std::string& order_id);
+  ErrorCode MarkEmsQueued(const std::string& order_id) override;
 
   /// @brief 记录订单开始调用交易通道
   /// @param order_id 全局订单 ID
   /// @return 成功返回 kSuccess
-  ErrorCode MarkSendPending(const std::string& order_id);
+  ErrorCode MarkSendPending(const std::string& order_id) override;
 
   /// @brief 记录交易通道发送结果
   /// @param order_id 全局订单 ID
   /// @param result 交易通道返回码；kTimeout 进入 SendUnknown
   /// @return 状态更新结果
-  ErrorCode RecordSendResult(const std::string& order_id, ErrorCode result);
+  ErrorCode RecordSendResult(const std::string& order_id, ErrorCode result) override;
 
   /// @brief 记录撤单调用结果
   /// @param order_id 全局订单 ID
   /// @param result 交易通道返回码
   /// @return 状态更新结果
-  ErrorCode RecordCancelResult(const std::string& order_id, ErrorCode result);
+  ErrorCode RecordCancelResult(const std::string& order_id, ErrorCode result) override;
 
   /// @brief 按全局订单 ID 查询
   /// @param order_id 全局订单 ID
@@ -130,12 +103,13 @@ class OrderManager {
   /// @brief 按客户端订单 ID 查询
   /// @param client_order_id 策略侧客户端订单 ID
   /// @return 存在则返回订单快照
-  std::optional<qtrade_sdk::trader::Order> GetOrderByClientId(std::uint32_t client_order_id) const;
+  [[nodiscard]] std::optional<qtrade_sdk::trader::Order> GetOrderByClientId(
+      std::uint32_t client_order_id) const override;
 
   /// @brief 查询订单生命周期状态
   /// @param order_id 全局订单 ID
   /// @return 订单存在时返回生命周期状态
-  [[nodiscard]] std::optional<OrderLifecycleState> GetLifecycleState(const std::string& order_id) const;
+  [[nodiscard]] std::optional<OrderLifecycleState> GetLifecycleState(const std::string& order_id) const override;
 
   /// @brief 返回仍需向柜台查询的活动/不确定订单
   /// @return SendPending、SendUnknown、Working、CancelPending 且尚未 MarkReconciled 的订单快照

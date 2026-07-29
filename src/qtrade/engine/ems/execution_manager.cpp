@@ -7,7 +7,7 @@
 #include "qtrade/engine/ems/execution_manager.hpp"
 
 #include "qtrade/client/account_risk_client/account_risk_client.hpp"
-#include "qtrade/engine/oms/order_manager.hpp"
+#include "qtrade/engine/oms/order_api.hpp"
 
 #include <spdlog/spdlog.h>
 
@@ -50,9 +50,9 @@ void ExecutionManager::SetTraderApi(qtrade_sdk::trader::TraderApi* trader_api) {
   trader_api_ = trader_api;
 }
 
-void ExecutionManager::SetOrderManager(oms::OrderManager* order_manager) {
+void ExecutionManager::SetOrderApi(oms::OrderApi* order_api) {
   std::lock_guard lock(mutex_);
-  order_manager_ = order_manager;
+  order_api_ = order_api;
 }
 
 void ExecutionManager::SetAccountRiskClient(qtrade::client::AccountRiskClient* account_risk_client) {
@@ -84,51 +84,13 @@ void ExecutionManager::ReleaseReservationOnSendFailure(qtrade::client::AccountRi
   }
 }
 
-// 新单入队：FIFO 发送，队列满返回 kResourceExhausted
-ErrorCode ExecutionManager::Enqueue(const qtrade_sdk::trader::Order& order) {
-  {
-    std::lock_guard lock(mutex_);
-    if (!running_ || !trader_api_) {
-      return ErrorCode::kNotInitialized;
-    }
-    if (pending_items_.size() >= kQueueCapacity) {
-      return ErrorCode::kResourceExhausted;
-    }
-    WorkItem item;
-    item.type = WorkItem::Type::kSend;
-    item.order = order;
-    pending_items_.push_back(std::move(item));
-  }
-  cv_.notify_one();
-  return ErrorCode::kSuccess;
-}
-
-// 撤单入队：优先插队到队头，降低撤单延迟
-ErrorCode ExecutionManager::EnqueueCancel(const qtrade_sdk::trader::CancelOrderRequest& request) {
-  {
-    std::lock_guard lock(mutex_);
-    if (!running_ || !trader_api_) {
-      return ErrorCode::kNotInitialized;
-    }
-    if (pending_items_.size() >= kQueueCapacity) {
-      return ErrorCode::kResourceExhausted;
-    }
-    WorkItem item;
-    item.type = WorkItem::Type::kCancel;
-    item.cancel = request;
-    pending_items_.push_front(std::move(item));
-  }
-  cv_.notify_one();
-  return ErrorCode::kSuccess;
-}
-
 // 工作线程主循环：出队 → MarkSendPending → SendOrder / CancelOrder → 回写 OMS
 void ExecutionManager::Run() {
   while (true) {
     // 1. 等待出队并拷贝依赖指针/身份
     WorkItem item;
     qtrade_sdk::trader::TraderApi* trader_api = nullptr;
-    oms::OrderManager* order_manager = nullptr;
+    oms::OrderApi* order_api = nullptr;
     qtrade::client::AccountRiskClient* account_risk_client = nullptr;
     std::string tenant_id;
     std::string account_id;
@@ -141,7 +103,7 @@ void ExecutionManager::Run() {
       item = std::move(pending_items_.front());
       pending_items_.pop_front();
       trader_api = trader_api_;
-      order_manager = order_manager_;
+      order_api = order_api_;
       account_risk_client = account_risk_client_;
       tenant_id = tenant_id_;
       account_id = account_id_;
@@ -150,18 +112,18 @@ void ExecutionManager::Run() {
     // 2. 撤单：调通道并回写 OMS
     if (item.type == WorkItem::Type::kCancel) {
       const auto result = trader_api != nullptr ? trader_api->CancelOrder(item.cancel) : ErrorCode::kNotInitialized;
-      if (order_manager != nullptr) {
-        (void)order_manager->RecordCancelResult(item.cancel.order_id, result);
+      if (order_api != nullptr) {
+        (void)order_api->RecordCancelResult(item.cancel.order_id, result);
       }
       continue;
     }
 
     // 3. 新单：发送前标记；失败则回写并释放预占，不调用通道
     const auto& order = item.order;
-    if (order_manager != nullptr) {
-      const auto pending_rc = order_manager->MarkSendPending(order.order_id);
+    if (order_api != nullptr) {
+      const auto pending_rc = order_api->MarkSendPending(order.order_id);
       if (pending_rc != ErrorCode::kSuccess) {
-        (void)order_manager->RecordSendResult(order.order_id, pending_rc);
+        (void)order_api->RecordSendResult(order.order_id, pending_rc);
         ReleaseReservationOnSendFailure(account_risk_client, tenant_id, account_id, order.order_id);
         continue;
       }
@@ -180,8 +142,8 @@ void ExecutionManager::Run() {
     request.position_effect = order.position_effect;
     request.business_type = order.business_type;
     const auto result = trader_api != nullptr ? trader_api->SendOrder(request) : ErrorCode::kNotInitialized;
-    if (order_manager != nullptr) {
-      (void)order_manager->RecordSendResult(order.order_id, result);
+    if (order_api != nullptr) {
+      (void)order_api->RecordSendResult(order.order_id, result);
     }
     if (result != ErrorCode::kSuccess) {
       ReleaseReservationOnSendFailure(account_risk_client, tenant_id, account_id, order.order_id);
