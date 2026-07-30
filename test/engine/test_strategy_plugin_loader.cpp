@@ -44,8 +44,11 @@ TEST(StrategyPluginLoader, LoadsExamplePluginAndCreatesInstance) {
   auto strategy = loader.Create("example");
   ASSERT_NE(strategy, nullptr);
   qtrade::strategy::StrategyConfig config;
-  config.name = "ut-example";
+  config.strategy_id = "ut-example";
+  config.strategy_name = "example";
+  config.enabled = true;
   EXPECT_EQ(strategy->Init(config), qtrade::ErrorCode::kSuccess);
+  EXPECT_EQ(strategy->GetStrategyConfig().strategy_id, "ut-example");
   EXPECT_EQ(strategy->Start(), qtrade::ErrorCode::kSuccess);
   strategy->Stop();
 }

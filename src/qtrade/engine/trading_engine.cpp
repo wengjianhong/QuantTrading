@@ -57,27 +57,36 @@ constexpr bool kAllowUnreconciledOrders = false;
          !(order.volume > 0 && order.traded_volume > order.volume);
 }
 
-[[nodiscard]] bool StrategiesEqual(
-  const google::protobuf::RepeatedPtrField<qtrade::config::v1::StrategyConfig>& lhs,
-  const google::protobuf::RepeatedPtrField<qtrade::config::v1::StrategyConfig>& rhs) {
+[[nodiscard]] bool StrategiesEqual(const google::protobuf::RepeatedPtrField<qtrade::config::v1::StrategyConfig>& lhs,
+                                   const google::protobuf::RepeatedPtrField<qtrade::config::v1::StrategyConfig>& rhs) {
   if (lhs.size() != rhs.size()) {
     return false;
   }
   for (int i = 0; i < lhs.size(); ++i) {
     const auto& a = lhs.Get(i);
     const auto& b = rhs.Get(i);
-    if (a.strategy_id() != b.strategy_id() || a.plugin() != b.plugin() || a.enabled() != b.enabled() ||
-        a.instruments_size() != b.instruments_size() || a.params_size() != b.params_size()) {
+    if (a.strategy_id() != b.strategy_id() || a.strategy_name() != b.strategy_name() || a.enabled() != b.enabled() ||
+        a.instruments_size() != b.instruments_size() || a.order_volume() != b.order_volume() ||
+        a.max_position() != b.max_position() || a.order_cooldown_ms() != b.order_cooldown_ms() ||
+        a.has_window_size() != b.has_window_size() || a.has_order_threshold() != b.has_order_threshold() ||
+        a.has_stop_loss_percent() != b.has_stop_loss_percent() ||
+        a.has_take_profit_percent() != b.has_take_profit_percent()) {
+      return false;
+    }
+    if (a.has_window_size() && a.window_size() != b.window_size()) {
+      return false;
+    }
+    if (a.has_order_threshold() && a.order_threshold() != b.order_threshold()) {
+      return false;
+    }
+    if (a.has_stop_loss_percent() && a.stop_loss_percent() != b.stop_loss_percent()) {
+      return false;
+    }
+    if (a.has_take_profit_percent() && a.take_profit_percent() != b.take_profit_percent()) {
       return false;
     }
     for (int j = 0; j < a.instruments_size(); ++j) {
       if (a.instruments(j) != b.instruments(j)) {
-        return false;
-      }
-    }
-    for (const auto& [key, value] : a.params()) {
-      const auto it = b.params().find(key);
-      if (it == b.params().end() || it->second != value) {
         return false;
       }
     }
@@ -570,8 +579,8 @@ ErrorCode TradingEngine::InitAdapters() {
       return result;
     }
     const auto& credential = credential_response.credential();
-    if (credential.account_id() != bootstrap_config_.config.identity.account_id || credential.connection_string().empty() ||
-        credential.password().empty()) {
+    if (credential.account_id() != bootstrap_config_.config.identity.account_id ||
+        credential.connection_string().empty() || credential.password().empty()) {
       lifecycle_.Fail("ADAPTER_INIT_FAILED");
       return ErrorCode::kInternalError;
     }
@@ -924,8 +933,7 @@ void TradingEngine::OnEngineConfig(const qtrade::config::v1::EngineConfig& confi
       return;
     }
   } else {
-    spdlog::info("cached {} strategy config(s); instances will be created by LoadStrategies",
-                 engine.strategies_size());
+    spdlog::info("cached {} strategy config(s); instances will be created by LoadStrategies", engine.strategies_size());
   }
 
   std::unordered_set<std::string> desired_instruments;

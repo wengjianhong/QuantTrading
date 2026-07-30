@@ -225,10 +225,16 @@ qtrade/
   "quote_failover": "emt-backup",
   "strategies": [{
     "strategy_id": "mean_reversion_01",
-    "plugin": "libmean_reversion.so",
+    "strategy_name": "libmean_reversion.so",
     "enabled": true,
     "instruments": ["IF2506", "IH2506"],
-    "params": { "lookback": "20", "threshold": "0.02" }
+    "order_volume": 1,
+    "max_position": 2,
+    "order_cooldown_ms": 1000,
+    "window_size": 20,
+    "order_threshold": 0.02,
+    "stop_loss_percent": 0.01,
+    "take_profit_percent": 0.02
   }]
 }
 ```

@@ -31,20 +31,6 @@ using StrategyPtr = std::unique_ptr<qtrade::strategy::IStrategy, void (*)(qtrade
   return StrategyPtr{strategy.release(), [](qtrade::strategy::IStrategy* p) { delete p; }};
 }
 
-/// @brief 配置中心下发的单个策略运行定义（供 boot 装配时使用）
-struct StrategyRuntimeConfig {
-  /// 策略实例 ID
-  std::string strategy_id;
-  /// 策略插件名
-  std::string plugin;
-  /// 是否启用
-  bool enabled = false;
-  /// 行情路由合约
-  std::vector<std::string> instruments;
-  /// 策略参数
-  std::unordered_map<std::string, std::string> params;
-};
-
 /// @brief 策略实例注册、行情/回报分发与发单回调桥接
 class StrategyManager {
  public:

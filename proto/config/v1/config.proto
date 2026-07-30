@@ -17,21 +17,40 @@ message StrategyConfig {
     // 策略实例标识
     string strategy_id = 1;
     // 策略插件名
-    string plugin = 2;
+    string strategy_name = 2;
     // 是否启用
     bool enabled = 3;
     // 订阅合约列表
     repeated string instruments = 4;
-    // 策略参数键值对
-    map<string, string> params = 5;
+    // 单笔下单量
+    int64 order_volume = 5;
+    // 最大持仓（绝对值）
+    int64 max_position = 6;
+    // 发单冷却（毫秒）
+    int32 order_cooldown_ms = 7;
+
+    // ========== 可选参数 ==========
+    // 策略计算窗口(K线/Tick样本数量)
+    optional int32 window_size = 8;
+    // 下单信号阈值（信号强度大于此值时才发单）
+    optional double order_threshold = 9;
+    // 止损比例（持仓亏损超过此比例时止损）
+    optional double stop_loss_percent = 10;
+    // 止盈比例（持仓盈利超过此比例时止盈）
+    optional double take_profit_percent = 11;
 }
 
 // 实例级弱一致风险预算。账户硬限制由 account-risk-service 独立裁决。
 message RiskBudget {
+    // 配置中心单调递增版本，用于拒绝旧配置和断线续传
     uint64 version = 1;
+    // 最大名义价值
     double max_notional = 2;
+    // 最大保证金
     double max_margin = 3;
+    // 最大开仓订单数
     uint64 max_open_orders = 4;
+    // 安全缓冲
     double safety_buffer = 5;
 }
 

@@ -45,7 +45,7 @@ int main(int argc, char** argv) {
 
   qtrade::engine::TradingEngine engine;
   // 5. 初始化引擎（bootstrap → support clients → runtime_config → modules → adapters）
-  if (!qtrade::engine::boot::InitEngine(engine, bootstrap_config.value())) {
+  if (engine.Init(bootstrap_config.value()) != qtrade::ErrorCode::kSuccess) {
     qtrade::common::system::NotifyError(0, "Failed to initialize engine");
     return EXIT_FAILURE;
   }

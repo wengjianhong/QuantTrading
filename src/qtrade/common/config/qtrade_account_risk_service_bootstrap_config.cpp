@@ -30,6 +30,7 @@ std::optional<QtradeAccountRiskServiceBootstrapConfig> ParseQtradeAccountRiskSer
     spdlog::error("config missing or not an object");
     return std::nullopt;
   }
+
   const auto& process = config_node.at("config");
   out.config.log_dir = process.value("log_dir", out.config.log_dir);
   out.config.log_filename = process.value("log_filename", out.config.log_filename);
