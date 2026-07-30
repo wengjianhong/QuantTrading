@@ -48,14 +48,13 @@ void InstallMockAdapters(qtrade::engine::TradingEngine& engine) {
 
 TEST(EngineSmoke, TradingEngineStartStop) {
   qtrade::common::config::QtradeEngineBootstrapConfig config;
-  config.identity.tenant_id = "test";
-  config.identity.engine_id =
+  config.config.identity.tenant_id = "test";
+  config.config.identity.engine_id =
     "test-engine-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
-  config.identity.account_id = "test-account";
+  config.config.identity.account_id = "test-account";
   config.support_services.config_service.enabled = false;
   config.support_services.account_service.enabled = false;
   config.support_services.account_risk_service.enabled = false;
-  config.support_services.log_service.extensions["topic"] = "test";
   qtrade::engine::TradingEngine engine;
   ASSERT_EQ(engine.Init(config), qtrade::ErrorCode::kSuccess);
   InstallMockAdapters(engine);
@@ -79,13 +78,12 @@ TEST(EngineSmoke, MarketTickSize) {
 TEST(EngineSmoke, InjectedMockAdaptersReachReady) {
   const std::string suffix = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
   qtrade::common::config::QtradeEngineBootstrapConfig config;
-  config.identity.tenant_id = "test";
-  config.identity.engine_id = "configured-mock-" + suffix;
-  config.identity.account_id = "test-account";
+  config.config.identity.tenant_id = "test";
+  config.config.identity.engine_id = "configured-mock-" + suffix;
+  config.config.identity.account_id = "test-account";
   config.support_services.config_service.enabled = false;
   config.support_services.account_service.enabled = false;
   config.support_services.account_risk_service.enabled = false;
-  config.support_services.log_service.extensions["topic"] = "test";
   qtrade::engine::TradingEngine engine;
   ASSERT_EQ(engine.Init(config), qtrade::ErrorCode::kSuccess);
   InstallMockAdapters(engine);

@@ -45,7 +45,7 @@ bool LoadStrategies(TradingEngine& engine) {
   auto& plugin_loader = engine.GetStrategyPluginLoader();
 
   // 1. 扫描策略插件目录
-  const auto& plugin_dir = engine.GetConfig().strategy_plugin_dir;
+  const auto& plugin_dir = engine.GetConfig().config.strategy.plugin_dir;
   if (plugin_loader.LoadDirectory(plugin_dir) != ErrorCode::kSuccess) {
     spdlog::error("[engine_boot] LoadStrategies: LoadDirectory failed dir={}", plugin_dir);
     return false;
@@ -103,29 +103,29 @@ bool LoadStrategies(TradingEngine& engine) {
   return true;
 }
 
-bool InitEngine(TradingEngine& engine, const qtrade::common::process_boot::ProgramOptions& options) {
-  // 1. 加载配置文件
-  const auto config_node = qtrade::common::LoadJsonFile(options.config_path);
-  if (!config_node) {
-    spdlog::error("[engine_boot] InitEngine: failed to load config file");
-    return false;
-  }
-
-  // 2. 解析配置文件
-  const auto config = qtrade::common::config::ParseQtradeEngineBootstrapConfig(config_node.value());
-  if (!config) {
-    spdlog::error("[engine_boot] InitEngine: failed to parse config");
-    return false;
-  }
-
-  // 3. 初始化引擎
-  const ErrorCode error_code = engine.Init(config.value());
+bool InitEngine(TradingEngine& engine, const qtrade::common::config::QtradeEngineBootstrapConfig& config) {
+  spdlog::info("[engine_boot] InitEngine");
+  const ErrorCode error_code = engine.Init(config);
   if (error_code != ErrorCode::kSuccess) {
     spdlog::error("[engine_boot] InitEngine failed, code={}", static_cast<int>(error_code));
     return false;
   }
-
   return true;
+}
+
+std::optional<qtrade::common::config::QtradeEngineBootstrapConfig> LoadBootstrapConfig(
+  const qtrade::common::process_boot::ProgramOptions& options) {
+  const auto config_node = qtrade::common::LoadJsonFile(options.config_path);
+  if (!config_node) {
+    spdlog::error("[engine_boot] LoadBootstrapConfig: failed to load config file");
+    return std::nullopt;
+  }
+  const auto config = qtrade::common::config::ParseQtradeEngineBootstrapConfig(config_node.value());
+  if (!config) {
+    spdlog::error("[engine_boot] LoadBootstrapConfig: failed to parse config");
+    return std::nullopt;
+  }
+  return config;
 }
 
 bool StartEngine(TradingEngine& engine) {

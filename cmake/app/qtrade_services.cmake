@@ -8,7 +8,7 @@
 # ---------------------------------------------------------------------------
 
 # @brief 添加支撑微服务（static lib + executable）
-# @param executable_name 可执行目标名，如 qtrade_log_service
+# @param executable_name 可执行目标名，如 qtrade_config_service
 # @param service_impl_dir 实现目录名，对应 src/qtrade/service/<dir>/
 function(qtrade_add_support_service executable_name service_impl_dir)
   set(static_target "${executable_name}_static")
@@ -35,12 +35,10 @@ endfunction()
 qtrade_add_support_service(qtrade_config_service config_service)
 qtrade_add_support_service(qtrade_account_service account_service)
 qtrade_add_support_service(qtrade_account_risk_service account_risk_service)
-qtrade_add_support_service(qtrade_log_service log_service)
 
 # For qtrade_install.cmake: install to bin/
 set(QTRADE_SERVICE_TARGETS
     qtrade_config_service
     qtrade_account_service
     qtrade_account_risk_service
-    qtrade_log_service
 )

@@ -36,13 +36,12 @@ TEST(OrderPipeline, MockOrderFlowsThroughOmsAndTraderLane) {
   const std::string suffix = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
   qtrade::engine::TradingEngine engine;
   qtrade::common::config::QtradeEngineBootstrapConfig config;
-  config.identity.tenant_id = "test";
-  config.identity.engine_id = "test-engine-" + suffix;
-  config.identity.account_id = "test-account";
+  config.config.identity.tenant_id = "test";
+  config.config.identity.engine_id = "test-engine-" + suffix;
+  config.config.identity.account_id = "test-account";
   config.support_services.config_service.enabled = false;
   config.support_services.account_service.enabled = false;
   config.support_services.account_risk_service.enabled = false;
-  config.support_services.log_service.extensions["topic"] = "test";
   ASSERT_EQ(engine.Init(config), qtrade::ErrorCode::kSuccess);
 
   InstallConnectedMockQuote(engine);
@@ -88,13 +87,12 @@ TEST(OrderPipeline, CancelFlowsThroughEmsAndVenueReport) {
   const std::string suffix = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
   qtrade::engine::TradingEngine engine;
   qtrade::common::config::QtradeEngineBootstrapConfig config;
-  config.identity.tenant_id = "test";
-  config.identity.engine_id = "cancel-engine-" + suffix;
-  config.identity.account_id = "test-account";
+  config.config.identity.tenant_id = "test";
+  config.config.identity.engine_id = "cancel-engine-" + suffix;
+  config.config.identity.account_id = "test-account";
   config.support_services.config_service.enabled = false;
   config.support_services.account_service.enabled = false;
   config.support_services.account_risk_service.enabled = false;
-  config.support_services.log_service.extensions["topic"] = "test";
   ASSERT_EQ(engine.Init(config), qtrade::ErrorCode::kSuccess);
 
   InstallConnectedMockQuote(engine);

@@ -10,17 +10,24 @@
 namespace qtrade::common::config {
 namespace {
 
-/// @brief 解析 support_services 中的指定端点
-/// @param support_services support_services 对象
-/// @param key 服务键名
-/// @return 解析结果
-[[nodiscard]] std::optional<ServiceConfig> ParseRequiredSupportService(const nlohmann::json& support_services,
-                                                                       const char* key) {
-  if (!support_services.contains(key) || !support_services.at(key).is_object()) {
-    spdlog::error("support_services.{} missing or not an object", key);
+/// @brief 在 support_services 数组中按 name 查找并解析端点
+[[nodiscard]] std::optional<ServiceConfig> ParseSupportServiceByName(const nlohmann::json& support_services,
+                                                                     const char* name) {
+  if (!support_services.is_array()) {
+    spdlog::error("support_services must be an array");
     return std::nullopt;
   }
-  return ParseServiceEndpoint(support_services.at(key));
+  for (const auto& item : support_services) {
+    if (!item.is_object()) {
+      continue;
+    }
+    if (item.value("name", "") != name) {
+      continue;
+    }
+    return ParseServiceEndpoint(item);
+  }
+  spdlog::error("support_services entry name={} not found", name);
+  return std::nullopt;
 }
 
 }  // namespace
@@ -30,56 +37,69 @@ std::optional<QtradeEngineBootstrapConfig> ParseQtradeEngineBootstrapConfig(cons
     spdlog::error("engine config must be an object");
     return std::nullopt;
   }
-  if (!config_node.contains("identity") || !config_node.at("identity").is_object()) {
-    spdlog::error("identity missing");
+  if (!config_node.contains("config") || !config_node.at("config").is_object()) {
+    spdlog::error("config missing or not an object");
     return std::nullopt;
   }
-  if (!config_node.contains("support_services") || !config_node.at("support_services").is_object()) {
-    spdlog::error("support_services missing");
+  if (!config_node.contains("support_services") || !config_node.at("support_services").is_array()) {
+    spdlog::error("support_services missing or not an array");
     return std::nullopt;
   }
 
-  const auto& identity = config_node.at("identity");
+  const auto& process = config_node.at("config");
+  if (!process.contains("identity") || !process.at("identity").is_object()) {
+    spdlog::error("config.identity missing");
+    return std::nullopt;
+  }
+  if (!process.contains("strategy") || !process.at("strategy").is_object()) {
+    spdlog::error("config.strategy missing");
+    return std::nullopt;
+  }
+
+  const auto& identity = process.at("identity");
+  const auto& strategy = process.at("strategy");
   const auto& support_services = config_node.at("support_services");
 
-  QtradeEngineBootstrapConfig config;
-  config.identity.tenant_id = identity.value("tenant_id", "");
-  config.identity.engine_id = identity.value("engine_id", "");
-  config.identity.account_id = identity.value("account_id", "");
-  if (config.identity.tenant_id.empty() || config.identity.engine_id.empty() || config.identity.account_id.empty()) {
-    spdlog::error("identity.tenant_id/engine_id/account_id required");
+  QtradeEngineBootstrapConfig out;
+  out.config.log_dir = process.value("log_dir", out.config.log_dir);
+  out.config.log_filename = process.value("log_filename", out.config.log_filename);
+  if (out.config.log_dir.empty() || out.config.log_filename.empty()) {
+    spdlog::error("config.log_dir/log_filename required");
     return std::nullopt;
   }
 
-  const auto config_service = ParseRequiredSupportService(support_services, "config_service");
-  const auto account_service = ParseRequiredSupportService(support_services, "account_service");
-  const auto account_risk_service = ParseRequiredSupportService(support_services, "account_risk_service");
-  const auto log_service = ParseRequiredSupportService(support_services, "log_service");
-  if (!config_service.has_value() || !account_service.has_value() || !account_risk_service.has_value() ||
-      !log_service.has_value()) {
+  out.config.identity.tenant_id = identity.value("tenant_id", "");
+  out.config.identity.engine_id = identity.value("engine_id", "");
+  out.config.identity.account_id = identity.value("account_id", "");
+  if (out.config.identity.tenant_id.empty() || out.config.identity.engine_id.empty() ||
+      out.config.identity.account_id.empty()) {
+    spdlog::error("config.identity.tenant_id/engine_id/account_id required");
     return std::nullopt;
   }
 
-  config.support_services.config_service = config_service.value();
-  config.support_services.account_service = account_service.value();
-  config.support_services.account_risk_service = account_risk_service.value();
-  config.support_services.log_service = log_service.value();
-  config.strategy_plugin_dir = config_node.value("strategy_plugin_dir", "");
-  if (config.strategy_plugin_dir.empty()) {
-    spdlog::error("strategy_plugin_dir required");
+  out.config.strategy.plugin_dir = strategy.value("plugin_dir", "");
+  if (out.config.strategy.plugin_dir.empty()) {
+    spdlog::error("config.strategy.plugin_dir required");
     return std::nullopt;
   }
 
-  if (config.support_services.account_risk_service.enabled &&
-      config.support_services.account_risk_service.timeout_ms <= 0) {
+  const auto config_service = ParseSupportServiceByName(support_services, "config_service");
+  const auto account_service = ParseSupportServiceByName(support_services, "account_service");
+  const auto account_risk_service = ParseSupportServiceByName(support_services, "account_risk_service");
+  if (!config_service.has_value() || !account_service.has_value() || !account_risk_service.has_value()) {
+    return std::nullopt;
+  }
+
+  out.support_services.config_service = config_service.value();
+  out.support_services.account_service = account_service.value();
+  out.support_services.account_risk_service = account_risk_service.value();
+
+  if (out.support_services.account_risk_service.enabled &&
+      out.support_services.account_risk_service.timeout_ms <= 0) {
     spdlog::error("account_risk_service.enabled but timeout_ms invalid");
     return std::nullopt;
   }
-  if (!config.support_services.log_service.Extension("topic").has_value()) {
-    spdlog::error("log_service.topic required");
-    return std::nullopt;
-  }
-  return config;
+  return out;
 }
 
 }  // namespace qtrade::common::config

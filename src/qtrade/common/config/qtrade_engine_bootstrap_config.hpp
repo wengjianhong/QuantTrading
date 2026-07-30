@@ -23,6 +23,24 @@ struct QtradeEngineIdentity {
   std::string account_id;
 };
 
+/// @brief 策略插件引导项（JSON：config.strategy）
+struct QtradeEngineStrategyBootstrap {
+  /// 策略插件 .so 目录
+  std::string plugin_dir;
+};
+
+/// @brief 引擎进程本地配置（JSON：config）
+struct QtradeEngineProcessConfig {
+  /// 日志目录
+  std::string log_dir = "logs";
+  /// 日志文件名
+  std::string log_filename = "qtrade_engine.log";
+  /// 策略插件
+  QtradeEngineStrategyBootstrap strategy;
+  /// 实例身份
+  QtradeEngineIdentity identity;
+};
+
 /// @brief 引擎依赖的支撑服务端点
 struct QtradeEngineSupportServices {
   /// config-service
@@ -31,23 +49,20 @@ struct QtradeEngineSupportServices {
   ServiceConfig account_service;
   /// account-risk-service；enabled=false 时不启用 E 段
   ServiceConfig account_risk_service;
-  /// log-service；extensions 可含 topic
-  ServiceConfig log_service;
 };
 
 /// @brief 对应 config/qtrade_engine.json
-/// @details 含实例身份、支撑服务端点与策略插件目录。业务/适配器/策略清单由 config-service 下发。
+/// @details config 含日志/策略插件/身份；support_services 为带 name 的端点数组。
+///          业务/适配器/策略清单由 config-service 下发。
 struct QtradeEngineBootstrapConfig {
-  /// 实例身份
-  QtradeEngineIdentity identity;
+  /// 进程本地配置
+  QtradeEngineProcessConfig config;
   /// 支撑服务连出配置
   QtradeEngineSupportServices support_services;
-  /// 策略插件 .so 目录（启动时扫描加载）
-  std::string strategy_plugin_dir;
 };
 
 /// @brief 从引擎进程配置 JSON 对象解析
-/// @param config_node 形如 { "identity", "support_services" } 的对象
+/// @param config_node 形如 { "config", "support_services" } 的对象
 /// @return 解析结果；非对象或必填段缺失时返回 nullopt
 [[nodiscard]] std::optional<QtradeEngineBootstrapConfig> ParseQtradeEngineBootstrapConfig(
   const nlohmann::json& config_node);

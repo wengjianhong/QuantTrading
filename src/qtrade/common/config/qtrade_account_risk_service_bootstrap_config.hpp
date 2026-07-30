@@ -13,8 +13,8 @@
 
 namespace qtrade::common::config {
 
-/// @brief 预占运行参数
-struct AccountRiskReservationConfig {
+/// @brief 账户硬风控服务本地运行参数（JSON：config）
+struct AccountRiskServiceProcessConfig {
   /// 默认预占 TTL（毫秒）
   int default_ttl_ms = 5000;
   /// 过期扫描间隔（毫秒）
@@ -23,16 +23,16 @@ struct AccountRiskReservationConfig {
 
 /// @brief 对应 config/qtrade_account_risk_service.json
 struct QtradeAccountRiskServiceBootstrapConfig {
-  /// gRPC 监听（JSON 键仍为 grpc）
+  /// 服务本地配置
+  AccountRiskServiceProcessConfig config;
+  /// gRPC 监听
   ServiceConfig grpc;
   /// 数据库
   DatabaseConfig database;
-  /// 预占参数
-  AccountRiskReservationConfig reservation;
 };
 
 /// @brief 从账户硬风控服务配置 JSON 对象解析
-/// @param config_node 形如 { "grpc", "database", "reservation" } 的对象
+/// @param config_node 形如 { "config", "grpc", "database" } 的对象
 /// @return 解析结果；非对象或缺必填段时返回 nullopt
 [[nodiscard]] std::optional<QtradeAccountRiskServiceBootstrapConfig> ParseQtradeAccountRiskServiceBootstrapConfig(
   const nlohmann::json& config_node);
