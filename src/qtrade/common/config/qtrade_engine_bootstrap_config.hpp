@@ -7,6 +7,7 @@
 #define QTRADE_COMMON_CONFIG_QTRADE_ENGINE_BOOTSTRAP_CONFIG_HPP_
 
 #include "qtrade/common/config/service_config.hpp"
+#include "qtrade/engine/trading_engine_define.hpp"
 
 #include <optional>
 #include <string>
@@ -32,9 +33,9 @@ struct QtradeEngineStrategyBootstrap {
 /// @brief 引擎进程本地配置（JSON：config）
 struct QtradeEngineProcessConfig {
   /// 日志目录
-  std::string log_dir = "logs";
+  std::string log_dir = qtrade::engine::kLogDir;
   /// 日志文件名
-  std::string log_filename = "qtrade_engine.log";
+  std::string log_filename = qtrade::engine::kLogFilename;
   /// 策略插件
   QtradeEngineStrategyBootstrap strategy;
   /// 实例身份

@@ -8,13 +8,19 @@
 
 #include "qtrade/common/config/database_config.hpp"
 #include "qtrade/common/config/service_config.hpp"
+#include "qtrade/service/account_risk_service/account_risk_service_define.hpp"
 
 #include <optional>
+#include <string>
 
 namespace qtrade::common::config {
 
 /// @brief 账户硬风控服务本地运行参数（JSON：config）
 struct AccountRiskServiceProcessConfig {
+  /// 日志目录
+  std::string log_dir = qtrade::service::account_risk_service::kDefaultLogDir;
+  /// 日志文件名
+  std::string log_filename = qtrade::service::account_risk_service::kDefaultLogFilename;
   /// 默认预占 TTL（毫秒）
   int default_ttl_ms = 5000;
   /// 过期扫描间隔（毫秒）

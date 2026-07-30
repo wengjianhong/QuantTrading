@@ -125,6 +125,7 @@ std::optional<qtrade::common::config::QtradeEngineBootstrapConfig> LoadBootstrap
     spdlog::error("[engine_boot] LoadBootstrapConfig: failed to parse config");
     return std::nullopt;
   }
+
   return config;
 }
 

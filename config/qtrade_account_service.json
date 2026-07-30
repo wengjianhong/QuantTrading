@@ -1,4 +1,8 @@
 {
+  "config": {
+    "log_dir": "logs",
+    "log_filename": "qtrade_account_service.log"
+  },
   "grpc": {
     "host": "0.0.0.0",
     "port": 50052

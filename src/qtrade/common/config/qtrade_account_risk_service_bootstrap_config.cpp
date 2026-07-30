@@ -26,11 +26,18 @@ std::optional<QtradeAccountRiskServiceBootstrapConfig> ParseQtradeAccountRiskSer
   QtradeAccountRiskServiceBootstrapConfig out;
   out.grpc = grpc.value();
 
-  if (config_node.contains("config") && config_node.at("config").is_object()) {
-    const auto& process = config_node.at("config");
-    out.config.default_ttl_ms = process.value("default_ttl_ms", out.config.default_ttl_ms);
-    out.config.expire_scan_interval_ms =
-      process.value("expire_scan_interval_ms", out.config.expire_scan_interval_ms);
+  if (!config_node.contains("config") || !config_node.at("config").is_object()) {
+    spdlog::error("config missing or not an object");
+    return std::nullopt;
+  }
+  const auto& process = config_node.at("config");
+  out.config.log_dir = process.value("log_dir", out.config.log_dir);
+  out.config.log_filename = process.value("log_filename", out.config.log_filename);
+  out.config.default_ttl_ms = process.value("default_ttl_ms", out.config.default_ttl_ms);
+  out.config.expire_scan_interval_ms = process.value("expire_scan_interval_ms", out.config.expire_scan_interval_ms);
+  if (out.config.log_dir.empty() || out.config.log_filename.empty()) {
+    spdlog::error("config.log_dir/log_filename required");
+    return std::nullopt;
   }
   if (out.config.default_ttl_ms <= 0 || out.config.expire_scan_interval_ms <= 0) {
     spdlog::error("config.default_ttl_ms/expire_scan_interval_ms invalid");

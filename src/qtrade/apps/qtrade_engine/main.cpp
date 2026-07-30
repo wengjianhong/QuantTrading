@@ -27,17 +27,17 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  // 3. 加载引导配置（日志路径来自 config.log_*）
-  const auto bootstrap = qtrade::engine::boot::LoadBootstrapConfig(options_result.data.value());
-  if (!bootstrap.has_value()) {
+  // 3. 加载引导配置
+  const auto bootstrap_config = qtrade::engine::boot::LoadBootstrapConfig(options_result.data.value());
+  if (!bootstrap_config.has_value()) {
     qtrade::common::system::NotifyError(0, "Failed to load engine bootstrap config");
     return EXIT_FAILURE;
   }
 
   // 4. 初始化程序全局环境（日志）
   if (!qtrade::common::process_boot::InitProgramEnvironment(qtrade::engine::kServiceName,
-                                                            bootstrap->config.log_dir,
-                                                            bootstrap->config.log_filename,
+                                                            bootstrap_config->config.log_dir,
+                                                            bootstrap_config->config.log_filename,
                                                             options_result.data.value())) {
     qtrade::common::system::NotifyError(0, "Failed to initialize program environment");
     return EXIT_FAILURE;
@@ -45,7 +45,7 @@ int main(int argc, char** argv) {
 
   qtrade::engine::TradingEngine engine;
   // 5. 初始化引擎（bootstrap → support clients → runtime_config → modules → adapters）
-  if (!qtrade::engine::boot::InitEngine(engine, bootstrap.value())) {
+  if (!qtrade::engine::boot::InitEngine(engine, bootstrap_config.value())) {
     qtrade::common::system::NotifyError(0, "Failed to initialize engine");
     return EXIT_FAILURE;
   }

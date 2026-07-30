@@ -1,5 +1,7 @@
 {
   "config": {
+    "log_dir": "logs",
+    "log_filename": "qtrade_account_risk_service.log",
     "default_ttl_ms": 5000,
     "expire_scan_interval_ms": 500
   },
