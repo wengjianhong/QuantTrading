@@ -34,7 +34,7 @@ struct StrategyRiskPolicyRecord {
   /// 策略资金预算
   std::optional<double> max_capital;
   /// 策略最大仓位（名义或数量口径由配置约定）
-  std::optional<double> max_position;
+  std::optional<double> max_position_volume;
   /// 策略单日损失上限
   std::optional<double> max_daily_loss;
   /// 策略订单频率上限（笔/秒）

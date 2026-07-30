@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS strategy_risk_policy (
   strategy_id TEXT NOT NULL COMMENT '策略 ID',
   version BIGINT NOT NULL COMMENT '限额配置版本',
   max_capital DOUBLE NOT NULL COMMENT '策略资金预算',
-  max_position DOUBLE NOT NULL COMMENT '策略最大仓位（名义或数量口径由配置约定）',
+  max_position_volume DOUBLE NOT NULL COMMENT '策略最大仓位（名义或数量口径由配置约定）',
   max_daily_loss DOUBLE NOT NULL COMMENT '策略单日损失上限',
   max_order_rate_per_sec BIGINT NOT NULL COMMENT '策略订单频率上限（笔/秒）',
   max_cancel_rate_per_sec BIGINT NOT NULL COMMENT '策略撤单频率上限（笔/秒）',

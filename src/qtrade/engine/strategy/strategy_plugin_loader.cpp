@@ -114,7 +114,7 @@ ErrorCode StrategyPluginLoader::LoadFileLocked(const std::string& so_path) {
     return ErrorCode::kDynamicLibrarySymbolRegisterError;
   }
 
-  PluginEntry entry;
+  StrategyPluginEntry entry;
   entry.dl_handle = dl_handle;
   entry.path = so_path;
   entry.plugin_name = plugin_name;
@@ -141,14 +141,14 @@ std::vector<std::string> StrategyPluginLoader::ListPlugins() const {
   return names;
 }
 
-const PluginEntry* StrategyPluginLoader::FindLocked(const std::string& plugin_name) const {
+const StrategyPluginEntry* StrategyPluginLoader::FindLocked(const std::string& plugin_name) const {
   const auto it = plugins_.find(plugin_name);
   return it == plugins_.end() ? nullptr : &it->second;
 }
 
-std::unique_ptr<IStrategy, StrategyDestroyFn> StrategyPluginLoader::Create(const std::string& plugin_name) const {
+StrategyPtr StrategyPluginLoader::Create(const std::string& plugin_name) const {
   std::lock_guard lock(mutex_);
-  const PluginEntry* entry = FindLocked(plugin_name);
+  const StrategyPluginEntry* entry = FindLocked(plugin_name);
   if (entry == nullptr || entry->create == nullptr || entry->destroy == nullptr) {
     return {nullptr, [](IStrategy*) {}};
   }
@@ -156,7 +156,7 @@ std::unique_ptr<IStrategy, StrategyDestroyFn> StrategyPluginLoader::Create(const
   if (raw == nullptr) {
     return {nullptr, [](IStrategy*) {}};
   }
-  return {raw, entry->destroy};
+  return StrategyPtr{raw, entry->destroy};
 }
 
 void StrategyPluginLoader::UnloadAll() {

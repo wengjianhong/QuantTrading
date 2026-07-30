@@ -23,7 +23,7 @@ namespace qtrade::strategy {
 /// @details 策略产生的报单批次
 struct OrderBatch {
   /// 报单批次ID
-  std::uint64_t batch_id = 0;
+  std::string batch_id;
   /// 报单批次强度（0.0~1.0）
   double strength = 0.0;
   /// 报单批次时间戳(纳秒)
@@ -47,7 +47,7 @@ struct StrategyConfig {
   /// 单笔下单量
   std::int64_t order_volume = 0;
   /// 最大持仓（绝对值）
-  std::int64_t max_position = 0;
+  std::int64_t max_position_volume = 0;
   /// 发单冷却（毫秒）
   std::int32_t order_cooldown_ms = 0;
 

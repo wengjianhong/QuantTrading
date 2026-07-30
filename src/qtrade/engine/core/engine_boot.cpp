@@ -26,7 +26,7 @@ namespace {
   out.enabled = config.enabled();
   out.instruments.assign(config.instruments().begin(), config.instruments().end());
   out.order_volume = config.order_volume();
-  out.max_position = config.max_position();
+  out.max_position_volume = config.max_position_volume();
   out.order_cooldown_ms = config.order_cooldown_ms();
   if (config.has_window_size()) {
     out.window_size = config.window_size();

@@ -229,7 +229,7 @@ qtrade/
     "enabled": true,
     "instruments": ["IF2506", "IH2506"],
     "order_volume": 1,
-    "max_position": 2,
+    "max_position_volume": 2,
     "order_cooldown_ms": 1000,
     "window_size": 20,
     "order_threshold": 0.02,

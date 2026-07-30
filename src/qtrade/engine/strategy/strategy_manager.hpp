@@ -8,11 +8,11 @@
 #ifndef QTRADE_TRADING_ENGINE_STRATEGY_MANAGER_HPP_
 #define QTRADE_TRADING_ENGINE_STRATEGY_MANAGER_HPP_
 #include "qtrade/engine/event_bus/event_lanes.hpp"
+#include "qtrade/engine/strategy/strategy_plugin_loader.hpp"
 
 #include <qtrade/error_code/error_codes.hpp>
 #include <qtrade/strategy/strategy.hpp>
 
-#include <memory>
 #include <mutex>
 #include <string>
 #include <unordered_map>
@@ -20,17 +20,6 @@
 
 namespace qtrade::engine::strategy {
 using qtrade::strategy::IStrategy;
-
-/// @brief 策略发单回调类型（与 IStrategy 一致）
-using OrderSender = qtrade::strategy::OrderSender;
-
-/// @brief 策略实例指针（插件路径用 so 内 destroy；单测可用 delete）
-using StrategyPtr = std::unique_ptr<IStrategy, void (*)(IStrategy*)>;
-
-/// @brief 以默认 delete 包装策略实例（单测 / 非插件路径）
-[[nodiscard]] inline StrategyPtr MakeStrategyPtr(std::unique_ptr<IStrategy> strategy) {
-  return StrategyPtr{strategy.release(), [](IStrategy* p) { delete p; }};
-}
 
 /// @brief 策略实例注册、行情/回报分发与发单回调桥接
 class StrategyManager {
@@ -42,13 +31,18 @@ class StrategyManager {
   /// @brief 析构策略管理器
   ~StrategyManager();
 
-  /// @brief 启动：订阅事件通道并 Start 全部已注册策略
-  void Start();
+  /// @brief 初始化策略管理器
+  ErrorCode Init();
 
-  /// @brief 停止：Stop 全部策略并清空注册表（须重新注册后才能再 Start）
+  /// @brief 启动：订阅事件通道并 Start 全部已注册策略
+  ErrorCode Start();
+
+  /// @brief 停止全部策略并清空注册表
+  /// @warning 须重新注册后才能再 Start
   void Stop();
 
-  /// @brief 按稳定策略 ID 注册已构造并 Init 完成的实例（仅允许在未 Start 时调用）
+  /// @brief 按稳定策略 ID 注册已构造并 Init 完成的实例
+  /// @warning 仅允许在未 Start 时调用
   /// @param strategy_id 策略实例 ID
   /// @param strategy 策略实例所有权
   /// @param instruments 行情路由；同一品种只能归属一个策略
@@ -81,14 +75,14 @@ class StrategyManager {
 
   /// 事件通道引用
   event_bus::EventLanes& event_lanes_;
-  /// strategy_id → 策略条目
-  std::unordered_map<std::string, StrategyEntry> strategies_;
-  /// 品种 → 策略路由表；为空时退化为广播
-  std::unordered_map<std::string, IStrategy*> instrument_routes_;
   /// Market / Return 双线程回调共用此锁，串行进入策略
   mutable std::mutex mutex_;
-  /// 是否已 Start
-  bool running_ = false;
+  /// 策略 ID → 策略条目
+  std::unordered_map<std::string, StrategyEntry> strategies_;
+  /// 合约品种 → 策略路由表；为空时退化为全局广播
+  std::unordered_map<std::string, IStrategy*> instrument_routes_;
+  /// 是否运行中
+  std::atomic_bool running_ = false;
 };
 
 }  // namespace qtrade::engine::strategy

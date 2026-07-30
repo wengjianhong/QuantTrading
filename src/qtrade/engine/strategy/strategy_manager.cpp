@@ -16,17 +16,26 @@ StrategyManager::~StrategyManager() {
   Stop();
 }
 
-void StrategyManager::Start() {
+ErrorCode StrategyManager::Init() {
   std::lock_guard lock(mutex_);
-  if (running_) {
-    return;
+  if (running_.load()) {
+    return ErrorCode::kAlreadyStarted;
   }
-  running_ = true;
 
   event_lanes_.Quote().SubscribeTick([this](const qtrade_sdk::quote::MarketTick& tick) { OnTickEvent(tick); });
   event_lanes_.Quote().SubscribeBar([this](const qtrade_sdk::quote::Bar& bar) { OnBarEvent(bar); });
   event_lanes_.Trader().SubscribeOrder([this](const qtrade_sdk::trader::Order& order) { OnOrderEvent(order); });
   event_lanes_.Trader().SubscribeTrade([this](const qtrade_sdk::trader::Trade& trade) { OnTradeEvent(trade); });
+
+  return ErrorCode::kSuccess;
+}
+
+ErrorCode StrategyManager::Start() {
+  std::lock_guard lock(mutex_);
+  if (running_.load()) {
+    return ErrorCode::kAlreadyStarted;
+  }
+  running_ = true;
 
   for (auto& [strategy_id, entry] : strategies_) {
     (void)strategy_id;
@@ -36,11 +45,12 @@ void StrategyManager::Start() {
   }
 
   spdlog::info("[StrategyManager] started with {} strategies", strategies_.size());
+  return ErrorCode::kSuccess;
 }
 
 void StrategyManager::Stop() {
   std::lock_guard lock(mutex_);
-  if (running_) {
+  if (running_.load()) {
     for (auto& [strategy_id, entry] : strategies_) {
       (void)strategy_id;
       entry.strategy->Stop();
@@ -60,7 +70,7 @@ ErrorCode StrategyManager::RegisterStrategy(const std::string& strategy_id,
     return ErrorCode::kInternalError;
   }
   std::lock_guard lock(mutex_);
-  if (running_) {
+  if (running_.load()) {
     return ErrorCode::kSystemError;
   }
   if (strategies_.contains(strategy_id)) {
@@ -81,9 +91,11 @@ ErrorCode StrategyManager::RegisterStrategy(const std::string& strategy_id,
 
 void StrategyManager::OnTickEvent(const qtrade_sdk::quote::MarketTick& tick) {
   std::lock_guard lock(mutex_);
-  if (!running_) {
+  if (!running_.load()) {
     return;
   }
+
+  // 路由到特定策略
   if (const auto route = instrument_routes_.find(tick.instrument); route != instrument_routes_.end()) {
     try {
       route->second->OnTick(tick);
@@ -92,6 +104,8 @@ void StrategyManager::OnTickEvent(const qtrade_sdk::quote::MarketTick& tick) {
     }
     return;
   }
+
+  // 全局广播
   for (auto& [strategy_id, entry] : strategies_) {
     (void)strategy_id;
     try {
@@ -104,9 +118,11 @@ void StrategyManager::OnTickEvent(const qtrade_sdk::quote::MarketTick& tick) {
 
 void StrategyManager::OnBarEvent(const qtrade_sdk::quote::Bar& bar) {
   std::lock_guard lock(mutex_);
-  if (!running_) {
+  if (!running_.load()) {
     return;
   }
+
+  // 路由到特定策略
   if (const auto route = instrument_routes_.find(bar.instrument); route != instrument_routes_.end()) {
     try {
       route->second->OnBar(bar);
@@ -115,6 +131,8 @@ void StrategyManager::OnBarEvent(const qtrade_sdk::quote::Bar& bar) {
     }
     return;
   }
+
+  // 全局广播
   for (auto& [strategy_id, entry] : strategies_) {
     (void)strategy_id;
     try {
@@ -127,9 +145,21 @@ void StrategyManager::OnBarEvent(const qtrade_sdk::quote::Bar& bar) {
 
 void StrategyManager::OnOrderEvent(const qtrade_sdk::trader::Order& order) {
   std::lock_guard lock(mutex_);
-  if (!running_) {
+  if (!running_.load()) {
     return;
   }
+
+  // 路由到特定策略
+  if (const auto route = instrument_routes_.find(order.instrument); route != instrument_routes_.end()) {
+    try {
+      route->second->OnOrder(order);
+    } catch (const std::exception& e) {
+      spdlog::error("[StrategyManager] routed strategy OnOrder exception: {}", e.what());
+    }
+    return;
+  }
+
+  // 全局广播
   for (auto& [strategy_id, entry] : strategies_) {
     (void)strategy_id;
     try {
@@ -142,9 +172,21 @@ void StrategyManager::OnOrderEvent(const qtrade_sdk::trader::Order& order) {
 
 void StrategyManager::OnTradeEvent(const qtrade_sdk::trader::Trade& trade) {
   std::lock_guard lock(mutex_);
-  if (!running_) {
+  if (!running_.load()) {
     return;
   }
+
+  // 路由到特定策略
+  if (const auto route = instrument_routes_.find(trade.instrument); route != instrument_routes_.end()) {
+    try {
+      route->second->OnTrade(trade);
+    } catch (const std::exception& e) {
+      spdlog::error("[StrategyManager] routed strategy OnTrade exception: {}", e.what());
+    }
+    return;
+  }
+
+  // 全局广播
   for (auto& [strategy_id, entry] : strategies_) {
     (void)strategy_id;
     try {

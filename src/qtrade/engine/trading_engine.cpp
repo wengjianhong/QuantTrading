@@ -67,7 +67,7 @@ constexpr bool kAllowUnreconciledOrders = false;
     const auto& b = rhs.Get(i);
     if (a.strategy_id() != b.strategy_id() || a.strategy_name() != b.strategy_name() || a.enabled() != b.enabled() ||
         a.instruments_size() != b.instruments_size() || a.order_volume() != b.order_volume() ||
-        a.max_position() != b.max_position() || a.order_cooldown_ms() != b.order_cooldown_ms() ||
+        a.max_position_volume() != b.max_position_volume() || a.order_cooldown_ms() != b.order_cooldown_ms() ||
         a.has_window_size() != b.has_window_size() || a.has_order_threshold() != b.has_order_threshold() ||
         a.has_stop_loss_percent() != b.has_stop_loss_percent() ||
         a.has_take_profit_percent() != b.has_take_profit_percent()) {

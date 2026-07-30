@@ -27,8 +27,11 @@ using StrategyDestroyFn = decltype(&::qtrade_strategy_destroy);
 using StrategyPluginNameFn = decltype(&::qtrade_strategy_plugin_name);
 using StrategyAbiVersionFn = decltype(&::qtrade_strategy_abi_version);
 
+/// @brief 策略实例指针
+using StrategyPtr = std::unique_ptr<IStrategy, StrategyDestroyFn>;
+
 /// @brief 策略插件条目
-struct PluginEntry {
+struct StrategyPluginEntry {
   /// 动态库句柄
   void* dl_handle = nullptr;
   /// 动态库路径
@@ -71,8 +74,8 @@ class StrategyPluginLoader {
 
   /// @brief 按 ABI 插件名创建策略实例
   /// @param plugin_name 策略插件名称，如: libmy_strategy.so 的 my_strategy
-  /// @return 持有策略插件 destroy 删除器的 unique_ptr；失败返回空 unique_ptr
-  [[nodiscard]] std::unique_ptr<IStrategy, StrategyDestroyFn> Create(const std::string& plugin_name) const;
+  /// @return 策略实例；失败返回空 StrategyPtr
+  [[nodiscard]] StrategyPtr Create(const std::string& plugin_name) const;
 
   /// @brief 关闭全部句柄
   /// @warning 调用前须确保策略实例已销毁
@@ -83,7 +86,7 @@ class StrategyPluginLoader {
   mutable std::mutex mutex_;
 
   /// 策略插件名称 → 插件条目
-  std::unordered_map<std::string, PluginEntry> plugins_;
+  std::unordered_map<std::string, StrategyPluginEntry> plugins_;
 
   /// @brief 加载策略插件（内部锁保护）
   /// @param so_path 策略插件路径
@@ -93,7 +96,7 @@ class StrategyPluginLoader {
   /// @brief 查找策略插件（内部锁保护）
   /// @param plugin_name 策略插件名称
   /// @return 策略插件条目；未找到返回 nullptr
-  [[nodiscard]] const PluginEntry* FindLocked(const std::string& plugin_name) const;
+  [[nodiscard]] const StrategyPluginEntry* FindLocked(const std::string& plugin_name) const;
 };
 
 }  // namespace qtrade::engine::strategy

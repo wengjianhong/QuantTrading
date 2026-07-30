@@ -47,13 +47,20 @@ class ConfigurableStrategy final : public qtrade::strategy::IStrategy {
   std::shared_ptr<StrategyState> state_;
 };
 
+/// 单测用：非插件路径，删除器用 delete
+[[nodiscard]] qtrade::engine::strategy::StrategyPtr MakeTestStrategyPtr(
+  std::unique_ptr<qtrade::strategy::IStrategy> strategy) {
+  return qtrade::engine::strategy::StrategyPtr{strategy.release(),
+                                               [](qtrade::strategy::IStrategy* p) { delete p; }};
+}
+
 }  // namespace
 
 TEST(StrategyConfig, RegistersAndStartsStrategy) {
   qtrade::engine::event_bus::EventLanes lanes;
   qtrade::engine::strategy::StrategyManager manager(lanes);
   const auto state = std::make_shared<StrategyState>();
-  auto strategy = qtrade::engine::strategy::MakeStrategyPtr(std::make_unique<ConfigurableStrategy>(state));
+  auto strategy = MakeTestStrategyPtr(std::make_unique<ConfigurableStrategy>(state));
 
   qtrade::strategy::StrategyConfig config;
   config.strategy_id = "strategy-1";
@@ -79,14 +86,12 @@ TEST(StrategyConfig, RejectsDuplicateInstrumentRoutes) {
   qtrade::engine::strategy::StrategyManager manager(lanes);
   ASSERT_EQ(manager.RegisterStrategy(
               "strategy-1",
-              qtrade::engine::strategy::MakeStrategyPtr(
-                std::make_unique<ConfigurableStrategy>(std::make_shared<StrategyState>())),
+              MakeTestStrategyPtr(std::make_unique<ConfigurableStrategy>(std::make_shared<StrategyState>())),
               {"IF2506"}),
             qtrade::ErrorCode::kSuccess);
   EXPECT_EQ(manager.RegisterStrategy(
               "strategy-2",
-              qtrade::engine::strategy::MakeStrategyPtr(
-                std::make_unique<ConfigurableStrategy>(std::make_shared<StrategyState>())),
+              MakeTestStrategyPtr(std::make_unique<ConfigurableStrategy>(std::make_shared<StrategyState>())),
               {"IF2506"}),
             qtrade::ErrorCode::kSystemError);
 }
@@ -96,15 +101,13 @@ TEST(StrategyConfig, RejectsRegisterWhileRunning) {
   qtrade::engine::strategy::StrategyManager manager(lanes);
   ASSERT_EQ(manager.RegisterStrategy(
               "strategy-1",
-              qtrade::engine::strategy::MakeStrategyPtr(
-                std::make_unique<ConfigurableStrategy>(std::make_shared<StrategyState>())),
+              MakeTestStrategyPtr(std::make_unique<ConfigurableStrategy>(std::make_shared<StrategyState>())),
               {"IF2506"}),
             qtrade::ErrorCode::kSuccess);
   manager.Start();
   EXPECT_EQ(manager.RegisterStrategy(
               "strategy-2",
-              qtrade::engine::strategy::MakeStrategyPtr(
-                std::make_unique<ConfigurableStrategy>(std::make_shared<StrategyState>())),
+              MakeTestStrategyPtr(std::make_unique<ConfigurableStrategy>(std::make_shared<StrategyState>())),
               {"IC2506"}),
             qtrade::ErrorCode::kSystemError);
   manager.Stop();

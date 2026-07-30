@@ -24,7 +24,6 @@
 #include "qtrade/engine/position/position_manager.hpp"
 #include "qtrade/engine/risk/risk_manager.hpp"
 #include "qtrade/engine/strategy/strategy_manager.hpp"
-#include "qtrade/engine/strategy/strategy_plugin_loader.hpp"
 
 #include <qtrade/error_code/error_codes.hpp>
 #include <qtrade/proto/account_risk/v1/account_risk.pb.h>

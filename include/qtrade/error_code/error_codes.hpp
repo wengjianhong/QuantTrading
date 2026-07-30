@@ -21,18 +21,20 @@ enum class ErrorCode : int32_t {
   kSuccess = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 0),
   /// 通用错误
   kError = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 1),
+  /// 已启动
+  kAlreadyStarted = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 2),
   //// 未初始化
-  kNotInitialized = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 2),
+  kNotInitialized = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 3),
   //// 内部错误
-  kInternalError = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 3),
+  kInternalError = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 4),
   //// 超时
-  kTimeout = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 4),
+  kTimeout = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 5),
   //// 资源耗尽
-  kResourceExhausted = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 5),
+  kResourceExhausted = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 6),
   //// 未找到
-  kNotFound = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 6),
+  kNotFound = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 7),
   /// 不支持
-  kNotSupported = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 7),
+  kNotSupported = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 8),
 
   /// ============================ 系统错误码模块 ============================
   /// 操作系统或运行时错误
