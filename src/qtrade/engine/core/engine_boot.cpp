@@ -53,8 +53,8 @@ bool LoadStrategies(TradingEngine& engine) {
 
   // 1. 扫描策略插件目录
   const auto& plugin_dir = engine.GetConfig().config.strategy.plugin_dir;
-  if (plugin_loader.LoadDirectory(plugin_dir) != ErrorCode::kSuccess) {
-    spdlog::error("[engine_boot] LoadStrategies: LoadDirectory failed dir={}", plugin_dir);
+  if (plugin_loader.LoadStrategyPlugin(plugin_dir) != ErrorCode::kSuccess) {
+    spdlog::error("[engine_boot] LoadStrategies: LoadStrategyPlugin failed dir={}", plugin_dir);
     return false;
   }
 

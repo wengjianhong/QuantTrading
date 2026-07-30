@@ -19,16 +19,17 @@
 #include <vector>
 
 namespace qtrade::engine::strategy {
+using qtrade::strategy::IStrategy;
 
 /// @brief 策略发单回调类型（与 IStrategy 一致）
 using OrderSender = qtrade::strategy::OrderSender;
 
-/// @brief 策略实例指针（支持插件自定义 destroy，亦可用 delete）
-using StrategyPtr = std::unique_ptr<qtrade::strategy::IStrategy, void (*)(qtrade::strategy::IStrategy*)>;
+/// @brief 策略实例指针（插件路径用 so 内 destroy；单测可用 delete）
+using StrategyPtr = std::unique_ptr<IStrategy, void (*)(IStrategy*)>;
 
 /// @brief 以默认 delete 包装策略实例（单测 / 非插件路径）
-[[nodiscard]] inline StrategyPtr MakeStrategyPtr(std::unique_ptr<qtrade::strategy::IStrategy> strategy) {
-  return StrategyPtr{strategy.release(), [](qtrade::strategy::IStrategy* p) { delete p; }};
+[[nodiscard]] inline StrategyPtr MakeStrategyPtr(std::unique_ptr<IStrategy> strategy) {
+  return StrategyPtr{strategy.release(), [](IStrategy* p) { delete p; }};
 }
 
 /// @brief 策略实例注册、行情/回报分发与发单回调桥接
@@ -73,7 +74,7 @@ class StrategyManager {
   /// @brief 已注册策略条目
   struct StrategyEntry {
     /// 策略实例（插件路径使用 so 内 destroy）
-    StrategyPtr strategy{nullptr, [](qtrade::strategy::IStrategy*) {}};
+    StrategyPtr strategy{nullptr, [](IStrategy*) {}};
     /// 当前行情路由
     std::vector<std::string> instruments;
   };
@@ -83,7 +84,7 @@ class StrategyManager {
   /// strategy_id → 策略条目
   std::unordered_map<std::string, StrategyEntry> strategies_;
   /// 品种 → 策略路由表；为空时退化为广播
-  std::unordered_map<std::string, qtrade::strategy::IStrategy*> instrument_routes_;
+  std::unordered_map<std::string, IStrategy*> instrument_routes_;
   /// Market / Return 双线程回调共用此锁，串行进入策略
   mutable std::mutex mutex_;
   /// 是否已 Start

@@ -45,6 +45,18 @@ enum class ErrorCode : int32_t {
   kPermissionDenied = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kSystemError), 3),
   /// 操作被取消
   kCancelled = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kSystemError), 4),
+  /// 文件不存在
+  kNotSuchFileOrDirectory = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kSystemError), 5),
+  /// 动态库加载失败
+  kDynamicLibraryLoadError = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kSystemError), 6),
+  /// 动态库符号查找失败
+  kDynamicLibrarySymbolNotFound = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kSystemError), 7),
+  /// 动态库符号类型不匹配
+  kDynamicLibrarySymbolTypeMismatch = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kSystemError), 8),
+  /// 动态库符号解析失败
+  kDynamicLibrarySymbolParseError = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kSystemError), 9),
+  /// 动态库符号注册失败
+  kDynamicLibrarySymbolRegisterError = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kSystemError), 10),
 
   /// ============================ 网络错误码模块 ============================
   /// 通用网络错误

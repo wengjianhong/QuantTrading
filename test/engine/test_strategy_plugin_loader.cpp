@@ -36,10 +36,10 @@ TEST(StrategyPluginLoader, LoadsExamplePluginAndCreatesInstance) {
   }
 
   qtrade::engine::strategy::StrategyPluginLoader loader;
-  ASSERT_EQ(loader.LoadDirectory(dir), qtrade::ErrorCode::kSuccess);
+  ASSERT_EQ(loader.LoadStrategyPlugin(dir), qtrade::ErrorCode::kSuccess);
   EXPECT_TRUE(loader.HasPlugin("example"));
-  EXPECT_TRUE(loader.HasPlugin("example_strategy"));
-  EXPECT_TRUE(loader.HasPlugin("libexample_strategy.so"));
+  EXPECT_FALSE(loader.HasPlugin("example_strategy"));
+  EXPECT_FALSE(loader.HasPlugin("libexample_strategy.so"));
 
   auto strategy = loader.Create("example");
   ASSERT_NE(strategy, nullptr);
