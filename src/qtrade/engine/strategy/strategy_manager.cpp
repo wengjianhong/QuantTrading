@@ -1,32 +1,88 @@
 /// @file      strategy_manager.cpp
 /// @brief     策略管理器实现
-/// @details   Init 阶段注册实例；Start/Stop 与引擎生命周期对齐；Stop 后清空须重新装配
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
 #include "strategy_manager.hpp"
 
+#include "qtrade/common/converter/strategy_config_converter.hpp"
+
 #include <spdlog/spdlog.h>
 
 namespace qtrade::engine::strategy {
 
-StrategyManager::StrategyManager(event_bus::EventLanes& event_lanes) : event_lanes_(event_lanes), running_(false) {}
+StrategyManager::StrategyManager(event_bus::EventLanes& event_lanes) : event_lanes_(event_lanes) {}
 
 StrategyManager::~StrategyManager() {
   Stop();
 }
 
-ErrorCode StrategyManager::Init() {
-  std::lock_guard lock(mutex_);
-  if (running_.load()) {
-    return ErrorCode::kAlreadyStarted;
+void StrategyManager::RebuildStrategyListLocked() {
+  strategy_list_.clear();
+  strategy_list_.reserve(strategies_.size());
+  for (auto& [strategy_id, entry] : strategies_) {
+    (void)strategy_id;
+    strategy_list_.push_back(entry.strategy.get());
+  }
+}
+
+ErrorCode StrategyManager::Init(
+  const std::string& plugin_dir,
+  const google::protobuf::RepeatedPtrField<qtrade::config::v1::StrategyConfig>& strategies,
+  OrderSender order_sender) {
+  {
+    std::lock_guard lock(mutex_);
+    if (running_.load()) {
+      return ErrorCode::kAlreadyStarted;
+    }
   }
 
-  event_lanes_.Quote().SubscribeTick([this](const qtrade_sdk::quote::MarketTick& tick) { OnTickEvent(tick); });
-  event_lanes_.Quote().SubscribeBar([this](const qtrade_sdk::quote::Bar& bar) { OnBarEvent(bar); });
-  event_lanes_.Trader().SubscribeOrder([this](const qtrade_sdk::trader::Order& order) { OnOrderEvent(order); });
-  event_lanes_.Trader().SubscribeTrade([this](const qtrade_sdk::trader::Trade& trade) { OnTradeEvent(trade); });
+  if (plugin_loader_.LoadStrategyPlugin(plugin_dir) != ErrorCode::kSuccess) {
+    spdlog::error("[StrategyManager] LoadStrategyPlugin failed dir={}", plugin_dir);
+    return ErrorCode::kDynamicLibraryLoadError;
+  }
 
+  if (strategies.empty()) {
+    spdlog::warn("[StrategyManager] strategies is empty");
+  }
+
+  for (const auto& config : strategies) {
+    if (!config.enabled()) {
+      spdlog::info("[StrategyManager] skip disabled strategy {}", config.strategy_id());
+      continue;
+    }
+
+    auto strategy = plugin_loader_.Create(config.strategy_name());
+    if (!strategy) {
+      spdlog::error(
+        "[StrategyManager] unknown strategy_name={} strategy_id={}", config.strategy_name(), config.strategy_id());
+      return ErrorCode::kDynamicLibrarySymbolNotFound;
+    }
+    strategy->SetOrderSender(order_sender);
+
+    const auto init_config = qtrade::common::converter::ParseStrategyConfigProto(config);
+    if (strategy->Init(init_config) != ErrorCode::kSuccess) {
+      spdlog::error("[StrategyManager] strategy Init failed strategy_id={}", config.strategy_id());
+      return ErrorCode::kInternalError;
+    }
+
+    if (RegisterStrategy(config.strategy_id(), std::move(strategy), init_config.instruments) != ErrorCode::kSuccess) {
+      spdlog::error("[StrategyManager] RegisterStrategy failed strategy_id={}", config.strategy_id());
+      return ErrorCode::kSystemError;
+    }
+  }
+
+  {
+    std::lock_guard lock(mutex_);
+    RebuildStrategyListLocked();
+    dispatcher_ =
+      std::make_unique<StrategyEventDispatcher>(event_lanes_, mutex_, running_, instrument_routes_, strategy_list_);
+    dispatcher_->Subscribe();
+  }
+
+  spdlog::info("[StrategyManager] Init registered {} strategy instance(s) from {} config(s)",
+               strategies_.size(),
+               strategies.size());
   return ErrorCode::kSuccess;
 }
 
@@ -35,7 +91,7 @@ ErrorCode StrategyManager::Start() {
   if (running_.load()) {
     return ErrorCode::kAlreadyStarted;
   }
-  running_ = true;
+  running_.store(true);
 
   for (auto& [strategy_id, entry] : strategies_) {
     (void)strategy_id;
@@ -49,29 +105,33 @@ ErrorCode StrategyManager::Start() {
 }
 
 void StrategyManager::Stop() {
-  std::lock_guard lock(mutex_);
-  if (running_.load()) {
-    for (auto& [strategy_id, entry] : strategies_) {
-      (void)strategy_id;
-      entry.strategy->Stop();
+  {
+    std::lock_guard lock(mutex_);
+    if (running_.load()) {
+      for (auto& [strategy_id, entry] : strategies_) {
+        (void)strategy_id;
+        entry.strategy->Stop();
+      }
+      running_.store(false);
     }
-    running_ = false;
+    strategies_.clear();
+    instrument_routes_.clear();
+    strategy_list_.clear();
+    dispatcher_.reset();
   }
-  // Stop 后清空，强制下次经 Init/LoadStrategies 重新装配
-  strategies_.clear();
-  instrument_routes_.clear();
+  plugin_loader_.UnloadAll();
   spdlog::info("[StrategyManager] stopped and cleared");
 }
 
 ErrorCode StrategyManager::RegisterStrategy(const std::string& strategy_id,
                                             StrategyPtr strategy,
                                             const std::vector<std::string>& instruments) {
-  if (strategy_id.empty() || !strategy) {
-    return ErrorCode::kInternalError;
+  if (strategy_id.empty() || strategy == nullptr) {
+    return ErrorCode::kInvalidArgument;
   }
   std::lock_guard lock(mutex_);
   if (running_.load()) {
-    return ErrorCode::kSystemError;
+    return ErrorCode::kAlreadyStarted;
   }
   if (strategies_.contains(strategy_id)) {
     return ErrorCode::kSystemError;
@@ -86,115 +146,8 @@ ErrorCode StrategyManager::RegisterStrategy(const std::string& strategy_id,
     instrument_routes_[instrument] = raw;
   }
   strategies_.emplace(strategy_id, StrategyEntry{std::move(strategy), instruments});
+  RebuildStrategyListLocked();
   return ErrorCode::kSuccess;
-}
-
-void StrategyManager::OnTickEvent(const qtrade_sdk::quote::MarketTick& tick) {
-  std::lock_guard lock(mutex_);
-  if (!running_.load()) {
-    return;
-  }
-
-  // 路由到特定策略
-  if (const auto route = instrument_routes_.find(tick.instrument); route != instrument_routes_.end()) {
-    try {
-      route->second->OnTick(tick);
-    } catch (const std::exception& e) {
-      spdlog::error("[StrategyManager] routed strategy OnTick exception: {}", e.what());
-    }
-    return;
-  }
-
-  // 全局广播
-  for (auto& [strategy_id, entry] : strategies_) {
-    (void)strategy_id;
-    try {
-      entry.strategy->OnTick(tick);
-    } catch (const std::exception& e) {
-      spdlog::error("[StrategyManager] strategy OnTick exception: {}", e.what());
-    }
-  }
-}
-
-void StrategyManager::OnBarEvent(const qtrade_sdk::quote::Bar& bar) {
-  std::lock_guard lock(mutex_);
-  if (!running_.load()) {
-    return;
-  }
-
-  // 路由到特定策略
-  if (const auto route = instrument_routes_.find(bar.instrument); route != instrument_routes_.end()) {
-    try {
-      route->second->OnBar(bar);
-    } catch (const std::exception& e) {
-      spdlog::error("[StrategyManager] routed strategy OnBar exception: {}", e.what());
-    }
-    return;
-  }
-
-  // 全局广播
-  for (auto& [strategy_id, entry] : strategies_) {
-    (void)strategy_id;
-    try {
-      entry.strategy->OnBar(bar);
-    } catch (const std::exception& e) {
-      spdlog::error("[StrategyManager] strategy OnBar exception: {}", e.what());
-    }
-  }
-}
-
-void StrategyManager::OnOrderEvent(const qtrade_sdk::trader::Order& order) {
-  std::lock_guard lock(mutex_);
-  if (!running_.load()) {
-    return;
-  }
-
-  // 路由到特定策略
-  if (const auto route = instrument_routes_.find(order.instrument); route != instrument_routes_.end()) {
-    try {
-      route->second->OnOrder(order);
-    } catch (const std::exception& e) {
-      spdlog::error("[StrategyManager] routed strategy OnOrder exception: {}", e.what());
-    }
-    return;
-  }
-
-  // 全局广播
-  for (auto& [strategy_id, entry] : strategies_) {
-    (void)strategy_id;
-    try {
-      entry.strategy->OnOrder(order);
-    } catch (const std::exception& e) {
-      spdlog::error("[StrategyManager] strategy OnOrder exception: {}", e.what());
-    }
-  }
-}
-
-void StrategyManager::OnTradeEvent(const qtrade_sdk::trader::Trade& trade) {
-  std::lock_guard lock(mutex_);
-  if (!running_.load()) {
-    return;
-  }
-
-  // 路由到特定策略
-  if (const auto route = instrument_routes_.find(trade.instrument); route != instrument_routes_.end()) {
-    try {
-      route->second->OnTrade(trade);
-    } catch (const std::exception& e) {
-      spdlog::error("[StrategyManager] routed strategy OnTrade exception: {}", e.what());
-    }
-    return;
-  }
-
-  // 全局广播
-  for (auto& [strategy_id, entry] : strategies_) {
-    (void)strategy_id;
-    try {
-      entry.strategy->OnTrade(trade);
-    } catch (const std::exception& e) {
-      spdlog::error("[StrategyManager] strategy OnTrade exception: {}", e.what());
-    }
-  }
 }
 
 }  // namespace qtrade::engine::strategy

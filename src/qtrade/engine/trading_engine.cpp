@@ -284,7 +284,6 @@ ErrorCode TradingEngine::Stop() {
 void TradingEngine::Release() {
   // 1. 释放引擎内模块（按依赖逆序释放）
   strategy_manager_.Stop();
-  strategy_plugin_loader_.UnloadAll();
   quote_health_monitor_.Stop();
   execution_manager_.Stop();
   DisconnectAdapters();
@@ -401,10 +400,6 @@ event_bus::EventLanes& TradingEngine::GetEventLanes() {
 
 strategy::StrategyManager& TradingEngine::GetStrategyManager() {
   return strategy_manager_;
-}
-
-strategy::StrategyPluginLoader& TradingEngine::GetStrategyPluginLoader() {
-  return strategy_plugin_loader_;
 }
 
 oms::OrderApi& TradingEngine::GetOrderApi() {

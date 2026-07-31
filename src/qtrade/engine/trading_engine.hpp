@@ -152,10 +152,6 @@ class TradingEngine {
   /// @return StrategyManager 引用
   strategy::StrategyManager& GetStrategyManager();
 
-  /// @brief 获取策略插件加载器引用
-  /// @return StrategyPluginLoader 引用
-  strategy::StrategyPluginLoader& GetStrategyPluginLoader();
-
   /// @brief 获取 OMS 模块间稳定接口
   /// @return OrderApi 引用
   oms::OrderApi& GetOrderApi();
@@ -284,10 +280,8 @@ class TradingEngine {
 
   /// Lane-Q / Lane-T 事件通道
   event_bus::EventLanes event_lanes_;
-  /// 策略管理器
+  /// 策略管理器（内部持有插件加载器）
   strategy::StrategyManager strategy_manager_;
-  /// 策略插件加载器（须在策略实例销毁后再 Unload）
-  strategy::StrategyPluginLoader strategy_plugin_loader_;
   /// 行情健康监控
   QuoteHealthMonitor quote_health_monitor_;
   /// 行情适配器

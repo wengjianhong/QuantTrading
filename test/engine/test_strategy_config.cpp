@@ -50,8 +50,7 @@ class ConfigurableStrategy final : public qtrade::strategy::IStrategy {
 /// 单测用：非插件路径，删除器用 delete
 [[nodiscard]] qtrade::engine::strategy::StrategyPtr MakeTestStrategyPtr(
   std::unique_ptr<qtrade::strategy::IStrategy> strategy) {
-  return qtrade::engine::strategy::StrategyPtr{strategy.release(),
-                                               [](qtrade::strategy::IStrategy* p) { delete p; }};
+  return qtrade::engine::strategy::StrategyPtr{strategy.release(), [](qtrade::strategy::IStrategy* p) { delete p; }};
 }
 
 }  // namespace
@@ -109,6 +108,6 @@ TEST(StrategyConfig, RejectsRegisterWhileRunning) {
               "strategy-2",
               MakeTestStrategyPtr(std::make_unique<ConfigurableStrategy>(std::make_shared<StrategyState>())),
               {"IC2506"}),
-            qtrade::ErrorCode::kSystemError);
+            qtrade::ErrorCode::kAlreadyStarted);
   manager.Stop();
 }
