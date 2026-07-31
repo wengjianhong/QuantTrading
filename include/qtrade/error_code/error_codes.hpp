@@ -21,18 +21,20 @@ enum class ErrorCode : int32_t {
   kSuccess = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 0),
   /// 通用错误
   kError = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 1),
+  /// 已启动
+  kAlreadyStarted = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 2),
   //// 未初始化
-  kNotInitialized = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 2),
+  kNotInitialized = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 3),
   //// 内部错误
-  kInternalError = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 3),
+  kInternalError = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 4),
   //// 超时
-  kTimeout = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 4),
+  kTimeout = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 5),
   //// 资源耗尽
-  kResourceExhausted = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 5),
+  kResourceExhausted = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 6),
   //// 未找到
-  kNotFound = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 6),
+  kNotFound = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 7),
   /// 不支持
-  kNotSupported = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 7),
+  kNotSupported = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kCommon), 8),
 
   /// ============================ 系统错误码模块 ============================
   /// 操作系统或运行时错误
@@ -45,6 +47,18 @@ enum class ErrorCode : int32_t {
   kPermissionDenied = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kSystemError), 3),
   /// 操作被取消
   kCancelled = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kSystemError), 4),
+  /// 文件不存在
+  kNotSuchFileOrDirectory = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kSystemError), 5),
+  /// 动态库加载失败
+  kDynamicLibraryLoadError = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kSystemError), 6),
+  /// 动态库符号查找失败
+  kDynamicLibrarySymbolNotFound = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kSystemError), 7),
+  /// 动态库符号类型不匹配
+  kDynamicLibrarySymbolTypeMismatch = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kSystemError), 8),
+  /// 动态库符号解析失败
+  kDynamicLibrarySymbolParseError = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kSystemError), 9),
+  /// 动态库符号注册失败
+  kDynamicLibrarySymbolRegisterError = MakeErrorCode(static_cast<uint64_t>(ModuleNumber::kSystemError), 10),
 
   /// ============================ 网络错误码模块 ============================
   /// 通用网络错误

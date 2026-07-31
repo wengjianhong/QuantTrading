@@ -36,13 +36,12 @@ TEST(OrderPipeline, MockOrderFlowsThroughOmsAndTraderLane) {
   const std::string suffix = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
   qtrade::engine::TradingEngine engine;
   qtrade::common::config::QtradeEngineBootstrapConfig config;
-  config.identity.tenant_id = "test";
-  config.identity.engine_id = "test-engine-" + suffix;
-  config.identity.account_id = "test-account";
+  config.config.identity.tenant_id = "test";
+  config.config.identity.engine_id = "test-engine-" + suffix;
+  config.config.identity.account_id = "test-account";
   config.support_services.config_service.enabled = false;
   config.support_services.account_service.enabled = false;
   config.support_services.account_risk_service.enabled = false;
-  config.support_services.log_service.extensions["topic"] = "test";
   ASSERT_EQ(engine.Init(config), qtrade::ErrorCode::kSuccess);
 
   InstallConnectedMockQuote(engine);
@@ -62,7 +61,7 @@ TEST(OrderPipeline, MockOrderFlowsThroughOmsAndTraderLane) {
   request.price = 10.5;
   request.volume = 2;
   request.side = qtrade_sdk::trader::SideType::kBuy;
-  ASSERT_EQ(engine.SubmitOrder(request), qtrade::ErrorCode::kSuccess);
+  ASSERT_EQ(engine.GetOrderPipeline().Submit(request), qtrade::ErrorCode::kSuccess);
 
   WaitUntil([&] {
     const auto order = engine.GetOrderApi().GetOrderByClientId(request.client_order_id);
@@ -79,7 +78,7 @@ TEST(OrderPipeline, MockOrderFlowsThroughOmsAndTraderLane) {
   qtrade_sdk::trader::OrderRequest invalid_request;
   invalid_request.client_order_id = 1002;
   invalid_request.volume = 1;
-  EXPECT_NE(engine.SubmitOrder(invalid_request), qtrade::ErrorCode::kSuccess);
+  EXPECT_NE(engine.GetOrderPipeline().Submit(invalid_request), qtrade::ErrorCode::kSuccess);
 
   EXPECT_EQ(engine.Stop(), qtrade::ErrorCode::kSuccess);
 }
@@ -88,13 +87,12 @@ TEST(OrderPipeline, CancelFlowsThroughEmsAndVenueReport) {
   const std::string suffix = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
   qtrade::engine::TradingEngine engine;
   qtrade::common::config::QtradeEngineBootstrapConfig config;
-  config.identity.tenant_id = "test";
-  config.identity.engine_id = "cancel-engine-" + suffix;
-  config.identity.account_id = "test-account";
+  config.config.identity.tenant_id = "test";
+  config.config.identity.engine_id = "cancel-engine-" + suffix;
+  config.config.identity.account_id = "test-account";
   config.support_services.config_service.enabled = false;
   config.support_services.account_service.enabled = false;
   config.support_services.account_risk_service.enabled = false;
-  config.support_services.log_service.extensions["topic"] = "test";
   ASSERT_EQ(engine.Init(config), qtrade::ErrorCode::kSuccess);
 
   InstallConnectedMockQuote(engine);
@@ -115,7 +113,7 @@ TEST(OrderPipeline, CancelFlowsThroughEmsAndVenueReport) {
   request.instrument = "IF2506";
   request.price = 10.5;
   request.volume = 2;
-  ASSERT_EQ(engine.SubmitOrder(request), qtrade::ErrorCode::kSuccess);
+  ASSERT_EQ(engine.GetOrderPipeline().Submit(request), qtrade::ErrorCode::kSuccess);
 
   WaitUntil([&] {
     const auto order = engine.GetOrderApi().GetOrderByClientId(request.client_order_id);
@@ -126,7 +124,7 @@ TEST(OrderPipeline, CancelFlowsThroughEmsAndVenueReport) {
   const auto order = engine.GetOrderApi().GetOrderByClientId(request.client_order_id);
   ASSERT_TRUE(order.has_value());
   ASSERT_NE(order->order_emt_id, 0U);
-  ASSERT_EQ(engine.CancelOrder(order->order_id), qtrade::ErrorCode::kSuccess);
+  ASSERT_EQ(engine.GetOrderPipeline().Cancel(order->order_id), qtrade::ErrorCode::kSuccess);
 
   WaitUntil([&] {
     return engine.GetOrderApi().GetLifecycleState(order->order_id) ==

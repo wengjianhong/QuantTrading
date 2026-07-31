@@ -1,32 +1,35 @@
 {
-  "identity": {
-    "tenant_id": "default",
-    "engine_id": "engine-1",
-    "account_id": "acc_001"
+  "config": {
+    "log_dir": "logs",
+    "log_filename": "qtrade_engine.log",
+    "strategy": {
+      "plugin_dir": "/usr/local/qtrade/lib/strategies"
+    },
+    "identity": {
+      "tenant_id": "default",
+      "engine_id": "engine-1",
+      "account_id": "acc_001"
+    }
   },
-  "support_services": {
-    "config_service": {
+  "support_services": [
+    {
+      "name": "config_service",
       "host": "127.0.0.1",
       "port": 50051,
       "timeout_ms": 1000
     },
-    "account_service": {
+    {
+      "name": "account_service",
       "host": "127.0.0.1",
       "port": 50052,
       "timeout_ms": 1000
     },
-    "account_risk_service": {
+    {
+      "name": "account_risk_service",
       "host": "127.0.0.1",
       "port": 50053,
       "enabled": true,
       "timeout_ms": 1000
-    },
-    "log_service": {
-      "host": "127.0.0.1",
-      "port": 50054,
-      "timeout_ms": 2000,
-      "topic": "qtrade_engine"
     }
-  },
-  "strategy_plugin_dir": "/usr/local/qtrade/lib/strategies"
+  ]
 }

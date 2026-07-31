@@ -23,23 +23,32 @@ std::optional<QtradeAccountRiskServiceBootstrapConfig> ParseQtradeAccountRiskSer
     return std::nullopt;
   }
 
-  QtradeAccountRiskServiceBootstrapConfig config;
-  config.grpc = grpc.value();
-  if (config_node.contains("database") && config_node.at("database").is_object()) {
-    config.database = ParseDatabaseConfigFromSection(config_node.at("database"));
-  }
+  QtradeAccountRiskServiceBootstrapConfig out;
+  out.grpc = grpc.value();
 
-  if (config_node.contains("reservation") && config_node.at("reservation").is_object()) {
-    const auto& reservation = config_node.at("reservation");
-    config.reservation.default_ttl_ms = reservation.value("default_ttl_ms", config.reservation.default_ttl_ms);
-    config.reservation.expire_scan_interval_ms =
-      reservation.value("expire_scan_interval_ms", config.reservation.expire_scan_interval_ms);
-  }
-  if (config.reservation.default_ttl_ms <= 0 || config.reservation.expire_scan_interval_ms <= 0) {
-    spdlog::error("reservation.default_ttl_ms/expire_scan_interval_ms invalid");
+  if (!config_node.contains("config") || !config_node.at("config").is_object()) {
+    spdlog::error("config missing or not an object");
     return std::nullopt;
   }
-  return config;
+
+  const auto& process = config_node.at("config");
+  out.config.log_dir = process.value("log_dir", out.config.log_dir);
+  out.config.log_filename = process.value("log_filename", out.config.log_filename);
+  out.config.default_ttl_ms = process.value("default_ttl_ms", out.config.default_ttl_ms);
+  out.config.expire_scan_interval_ms = process.value("expire_scan_interval_ms", out.config.expire_scan_interval_ms);
+  if (out.config.log_dir.empty() || out.config.log_filename.empty()) {
+    spdlog::error("config.log_dir/log_filename required");
+    return std::nullopt;
+  }
+  if (out.config.default_ttl_ms <= 0 || out.config.expire_scan_interval_ms <= 0) {
+    spdlog::error("config.default_ttl_ms/expire_scan_interval_ms invalid");
+    return std::nullopt;
+  }
+
+  if (config_node.contains("database") && config_node.at("database").is_object()) {
+    out.database = ParseDatabaseConfigFromSection(config_node.at("database"));
+  }
+  return out;
 }
 
 }  // namespace qtrade::common::config

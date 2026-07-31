@@ -7,7 +7,7 @@
 #   include/qtrade/...
 #   include/qtrade_sdk/...
 #   include/qtrade/proto/config/v1/*.pb.h (generated)
-#   
+#   config/qtrade_*.json                   # bootstrap 样例（--config 传入）
 #   lib/cmake/qtrade/qtrade-config.cmake
 #   lib/cmake/qtrade/qtrade-config-version.cmake
 #   lib/cmake/qtrade/qtradeTargets.cmake
@@ -48,6 +48,12 @@ install(TARGETS
   qtrade_engine
   ${QTRADE_SERVICE_TARGETS}
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+# Bootstrap config samples
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/config/
+  DESTINATION config
+  FILES_MATCHING PATTERN "*.json"
 )
 
 # Generate and install Targets file; NAMESPACE exposes qtrade::*

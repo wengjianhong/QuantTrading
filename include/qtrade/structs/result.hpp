@@ -19,7 +19,7 @@ struct Result {
   /// 错误码
   ErrorCode error_code = ErrorCode::kSuccess;
   /// 错误信息
-  std::string error_message;
+  std::string error_message = "";
   /// 返回数据
   std::optional<T> data = std::nullopt;
   /// 错误信息参数
@@ -31,7 +31,7 @@ struct Result<void> {
   /// 错误码
   ErrorCode error_code = ErrorCode::kSuccess;
   /// 错误信息
-  std::string error_message;
+  std::string error_message = "";
   /// 错误信息参数
   std::optional<std::vector<std::string>> error_message_args = std::nullopt;
 };

@@ -27,39 +27,46 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  // 3. 初始化程序全局环境（日志）
+  // 3. 加载引导配置
+  const auto bootstrap_config = qtrade::engine::boot::LoadBootstrapConfig(options_result.data.value());
+  if (!bootstrap_config.has_value()) {
+    qtrade::common::system::NotifyError(0, "Failed to load engine bootstrap config");
+    return EXIT_FAILURE;
+  }
+
+  // 4. 初始化程序全局环境（日志）
   if (!qtrade::common::process_boot::InitProgramEnvironment(qtrade::engine::kServiceName,
-                                                            qtrade::engine::kLogDir,
-                                                            qtrade::engine::kLogFilename,
+                                                            bootstrap_config->config.log_dir,
+                                                            bootstrap_config->config.log_filename,
                                                             options_result.data.value())) {
     qtrade::common::system::NotifyError(0, "Failed to initialize program environment");
     return EXIT_FAILURE;
   }
 
   qtrade::engine::TradingEngine engine;
-  // 4. 初始化引擎（bootstrap → support clients → runtime_config → modules → adapters）
-  if (!qtrade::engine::boot::InitEngine(engine, options_result.data.value())) {
+  // 5. 初始化引擎（bootstrap → support clients → runtime_config → modules → adapters）
+  if (engine.Init(bootstrap_config.value()) != qtrade::ErrorCode::kSuccess) {
     qtrade::common::system::NotifyError(0, "Failed to initialize engine");
     return EXIT_FAILURE;
   }
 
-  // 5. 扫描策略插件目录并按 runtime_config.strategies 注册实例
+  // 6. 扫描策略插件目录并按 runtime_config.strategies 注册实例
   if (!qtrade::engine::boot::LoadStrategies(engine)) {
     qtrade::common::system::NotifyError(0, "Failed to load strategies from runtime config");
     return EXIT_FAILURE;
   }
 
-  // 6. 启动运行时（柜台对账、事件通道、策略/EMS、按配置订阅行情）
+  // 7. 启动运行时（柜台对账、事件通道、策略/EMS、按配置订阅行情）
   if (!qtrade::engine::boot::StartEngine(engine)) {
     qtrade::common::system::NotifyError(0, "Failed to start engine");
     return EXIT_FAILURE;
   }
   (void)qtrade::common::system::NotifyReady("qtrade_engine ready");
 
-  // 7. 阻塞运行直至停机信号，并释放引擎资源
+  // 8. 阻塞运行直至停机信号，并释放引擎资源
   qtrade::engine::boot::RunUntilShutdown(engine);
 
-  // 8. 记录进程停止日志
+  // 9. 记录进程停止日志
   qtrade::common::process_boot::LogProcessStopped(qtrade::engine::kServiceName);
   return EXIT_SUCCESS;
 }

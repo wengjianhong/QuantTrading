@@ -82,7 +82,6 @@ qtrade/
 │   │   │   │   ├── grpc/           # 薄路由层：DatabaseReady → handler.Run()
 │   │   │   │   ├── handler/        # 每 RPC 一个 Handler（继承 GrpcHandlerInterface）
 │   │   │   │   └── logic/          # 可复用业务工具（converter、codec）
-│   │   │   ├── log_service/
 │   │   │   └── ...
 │   │   ├── dao/                    # 【表级 DAO 实现】按服务分子目录（命名空间 qtrade::framework::dao）
 │   │   │   ├── account_service/    # trading_account、account_credential
@@ -106,7 +105,6 @@ qtrade/
 │   ├── qtrade_engine.json          # 引擎引导：config/account 地址、engine_id、log/monitor
 │   ├── qtrade_config_service.json
 │   ├── qtrade_account_service.json # 【规划】account-service 进程配置
-│   ├── qtrade_log_service.json
 │   └── ...                         # 其余 qtrade_*_service.json
 ├── demo/                           # 【示例代码】仅用于演示，不参与生产部署
 │   └── strategy/                   # 可插拔策略插件开发示例：趋势跟踪、套利等简单策略实现
@@ -131,7 +129,6 @@ qtrade/
    ./build/bin/qtrade_config_service --config config/qtrade_config_service.json
    ./build/bin/qtrade_account_service --config config/qtrade_account_service.json  # 规划
    ./build/bin/qtrade_engine --config config/qtrade_engine.json
-   ./build/bin/qtrade_log_service --config config/qtrade_log_service.json
    ./build/bin/qtrade_monitor_service --config config/qtrade_monitor_service.json
    ```
    Ctrl+C 退出支撑服务。
@@ -228,10 +225,16 @@ qtrade/
   "quote_failover": "emt-backup",
   "strategies": [{
     "strategy_id": "mean_reversion_01",
-    "plugin": "libmean_reversion.so",
+    "strategy_name": "libmean_reversion.so",
     "enabled": true,
     "instruments": ["IF2506", "IH2506"],
-    "params": { "lookback": "20", "threshold": "0.02" }
+    "order_volume": 1,
+    "max_position_volume": 2,
+    "order_cooldown_ms": 1000,
+    "window_size": 20,
+    "order_threshold": 0.02,
+    "stop_loss_percent": 0.01,
+    "take_profit_percent": 0.02
   }]
 }
 ```

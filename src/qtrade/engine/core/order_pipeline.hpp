@@ -17,6 +17,7 @@
 
 #include <qtrade/error_code/error_codes.hpp>
 #include <qtrade/proto/account_risk/v1/account_risk.pb.h>
+#include <qtrade/strategy/strategy.hpp>
 #include <qtrade_sdk/trader/trader_struct.hpp>
 
 #include <string>
@@ -40,7 +41,14 @@ class OrderPipeline {
   void SetAccountRiskIdentity(std::string tenant_id, std::string account_id, std::string engine_id);
 
   /// @brief 提交策略订单请求并走完整准入链路
+  /// @param request 单笔下单请求
+  /// @return 准入成功返回 kSuccess
   ErrorCode Submit(const qtrade_sdk::trader::OrderRequest& request);
+
+  /// @brief 提交策略报单批次：按序逐笔 Submit，遇错即停
+  /// @param batch 策略产生的报单批次
+  /// @return 全部成功返回 kSuccess；否则返回首笔失败错误码
+  ErrorCode SubmitBatch(const qtrade::strategy::OrderBatch& batch);
 
   /// @brief 撤销指定订单（OMS 标记 + EMS 撤单入队）
   /// @param order_id 全局订单 ID
