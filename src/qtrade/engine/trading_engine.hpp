@@ -90,25 +90,6 @@ class TradingEngine {
   [[nodiscard]] qtrade::config::v1::EngineConfig GetRuntimeConfig() const;
 
   // ---------------------------------------------------------------------------
-  // 交易入口：发单 / 撤单（门禁后转交 OrderPipeline）
-  // ---------------------------------------------------------------------------
-
-  /// @brief 将策略请求送入 CMS → Risk → OMS → EMS 发单链
-  /// @param request 策略下单请求
-  /// @return 生命周期为 READY 且准入成功时返回 kSuccess；未 READY 返回 kNotInitialized
-  ErrorCode SubmitOrder(const qtrade_sdk::trader::OrderRequest& request);
-
-  /// @brief 撤销指定订单
-  /// @param order_id 全局订单 ID
-  /// @return 成功进入 EMS 撤单队列返回 kSuccess；订单不存在返回 kNotFound；
-  ///         OMS 拒绝或 EMS 入队失败返回对应错误码
-  ErrorCode CancelOrder(const std::string& order_id);
-
-  /// @brief 获取发单流水线（策略 boot 可直接绑定 Submit/Cancel）
-  /// @return OrderPipeline 引用
-  OrderPipeline& GetOrderPipeline();
-
-  // ---------------------------------------------------------------------------
   // 适配器与行情：注入 / 查询 / 订阅
   // ---------------------------------------------------------------------------
 
@@ -167,6 +148,10 @@ class TradingEngine {
   /// @brief 获取配置客户端引用
   /// @return ConfigClient 引用
   client::ConfigClient& GetConfigClient();
+
+  /// @brief 获取发单流水线
+  /// @return OrderPipeline 引用
+  OrderPipeline& GetOrderPipeline();
 
  private:
   // ---------------------------------------------------------------------------

@@ -7,6 +7,7 @@
 
 #include "qtrade/common/boot/process_boot.hpp"
 #include "qtrade/common/config/qtrade_engine_bootstrap_config.hpp"
+#include "qtrade/common/converter/strategy_config_converter.hpp"
 #include "qtrade/common/json/json_util.hpp"
 #include "qtrade/common/system/signal.hpp"
 #include "qtrade/engine/trading_engine.hpp"
@@ -14,26 +15,31 @@
 
 #include <spdlog/spdlog.h>
 
+#include <vector>
+
 namespace qtrade::engine::boot {
 
 bool LoadStrategies(TradingEngine& engine) {
   spdlog::info("[engine_boot] LoadStrategies");
 
   qtrade::strategy::OrderSender order_sender = [&engine](const qtrade::strategy::OrderBatch& batch) {
-    ErrorCode last = ErrorCode::kSuccess;
-    for (const auto& request : batch.order_requests) {
-      last = engine.SubmitOrder(request);
-      if (last != ErrorCode::kSuccess) {
-        return last;
-      }
+    if (!engine.IsReady()) {
+      return ErrorCode::kNotInitialized;
     }
-    return last;
+    return engine.GetOrderPipeline().SubmitBatch(batch);
   };
 
+  // 1. 将 runtime_config.strategies（proto）转为策略运行时配置
   const auto& plugin_dir = engine.GetConfig().config.strategy.plugin_dir;
   const auto runtime_config = engine.GetRuntimeConfig();
-  const ErrorCode code =
-    engine.GetStrategyManager().Init(plugin_dir, runtime_config.strategies(), std::move(order_sender));
+  std::vector<qtrade::strategy::StrategyConfig> strategies;
+  strategies.reserve(static_cast<std::size_t>(runtime_config.strategies_size()));
+  for (const auto& proto : runtime_config.strategies()) {
+    strategies.push_back(qtrade::common::converter::ParseStrategyConfigProto(proto));
+  }
+
+  // 2. 交给 StrategyManager 装载插件并注册实例
+  const ErrorCode code = engine.GetStrategyManager().Init(plugin_dir, strategies, std::move(order_sender));
   if (code != ErrorCode::kSuccess) {
     spdlog::error("[engine_boot] LoadStrategies: StrategyManager::Init failed, code={}", static_cast<int>(code));
     return false;

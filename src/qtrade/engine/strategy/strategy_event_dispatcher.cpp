@@ -7,19 +7,26 @@
 
 #include <spdlog/spdlog.h>
 
+#include <utility>
+
 namespace qtrade::engine::strategy {
 
-StrategyEventDispatcher::StrategyEventDispatcher(
-  event_bus::EventLanes& event_lanes,
-  std::mutex& mutex,
-  const std::atomic_bool& running,
-  const std::unordered_map<std::string, qtrade::strategy::IStrategy*>& instrument_routes,
-  const std::vector<qtrade::strategy::IStrategy*>& strategies)
-  : event_lanes_(event_lanes),
-    mutex_(mutex),
-    running_(running),
-    instrument_routes_(instrument_routes),
-    strategies_(strategies) {}
+StrategyEventDispatcher::StrategyEventDispatcher(event_bus::EventLanes& event_lanes) : event_lanes_(event_lanes) {}
+
+StrategyEventDispatcher::~StrategyEventDispatcher() {
+  active_.store(false);
+  std::lock_guard lock(mutex_);
+  instrument_routes_.clear();
+  strategies_.clear();
+}
+
+void StrategyEventDispatcher::SetRouting(
+  std::unordered_map<std::string, qtrade::strategy::IStrategy*> instrument_routes,
+  std::vector<qtrade::strategy::IStrategy*> strategies) {
+  std::lock_guard lock(mutex_);
+  instrument_routes_ = std::move(instrument_routes);
+  strategies_ = std::move(strategies);
+}
 
 void StrategyEventDispatcher::Subscribe() {
   if (subscribed_) {
@@ -32,11 +39,17 @@ void StrategyEventDispatcher::Subscribe() {
   subscribed_ = true;
 }
 
+void StrategyEventDispatcher::SetActive(bool active) {
+  active_.store(active);
+}
+
 void StrategyEventDispatcher::OnTick(const qtrade_sdk::quote::MarketTick& tick) {
   std::lock_guard lock(mutex_);
-  if (!running_.load()) {
+  if (!active_.load()) {
     return;
   }
+
+  // 1. 有品种路由则单播
   if (const auto route = instrument_routes_.find(tick.instrument); route != instrument_routes_.end()) {
     try {
       route->second->OnTick(tick);
@@ -45,6 +58,8 @@ void StrategyEventDispatcher::OnTick(const qtrade_sdk::quote::MarketTick& tick) 
     }
     return;
   }
+
+  // 2. 否则广播给全部策略
   for (auto* strategy : strategies_) {
     try {
       strategy->OnTick(tick);
@@ -56,9 +71,11 @@ void StrategyEventDispatcher::OnTick(const qtrade_sdk::quote::MarketTick& tick) 
 
 void StrategyEventDispatcher::OnBar(const qtrade_sdk::quote::Bar& bar) {
   std::lock_guard lock(mutex_);
-  if (!running_.load()) {
+  if (!active_.load()) {
     return;
   }
+
+  // 1. 有品种路由则单播
   if (const auto route = instrument_routes_.find(bar.instrument); route != instrument_routes_.end()) {
     try {
       route->second->OnBar(bar);
@@ -67,6 +84,8 @@ void StrategyEventDispatcher::OnBar(const qtrade_sdk::quote::Bar& bar) {
     }
     return;
   }
+
+  // 2. 否则广播给全部策略
   for (auto* strategy : strategies_) {
     try {
       strategy->OnBar(bar);
@@ -78,9 +97,11 @@ void StrategyEventDispatcher::OnBar(const qtrade_sdk::quote::Bar& bar) {
 
 void StrategyEventDispatcher::OnOrder(const qtrade_sdk::trader::Order& order) {
   std::lock_guard lock(mutex_);
-  if (!running_.load()) {
+  if (!active_.load()) {
     return;
   }
+
+  // 1. 有品种路由则单播
   if (const auto route = instrument_routes_.find(order.instrument); route != instrument_routes_.end()) {
     try {
       route->second->OnOrder(order);
@@ -89,6 +110,8 @@ void StrategyEventDispatcher::OnOrder(const qtrade_sdk::trader::Order& order) {
     }
     return;
   }
+
+  // 2. 否则广播给全部策略
   for (auto* strategy : strategies_) {
     try {
       strategy->OnOrder(order);
@@ -100,9 +123,11 @@ void StrategyEventDispatcher::OnOrder(const qtrade_sdk::trader::Order& order) {
 
 void StrategyEventDispatcher::OnTrade(const qtrade_sdk::trader::Trade& trade) {
   std::lock_guard lock(mutex_);
-  if (!running_.load()) {
+  if (!active_.load()) {
     return;
   }
+
+  // 1. 有品种路由则单播
   if (const auto route = instrument_routes_.find(trade.instrument); route != instrument_routes_.end()) {
     try {
       route->second->OnTrade(trade);
@@ -111,6 +136,8 @@ void StrategyEventDispatcher::OnTrade(const qtrade_sdk::trader::Trade& trade) {
     }
     return;
   }
+
+  // 2. 否则广播给全部策略
   for (auto* strategy : strategies_) {
     try {
       strategy->OnTrade(trade);

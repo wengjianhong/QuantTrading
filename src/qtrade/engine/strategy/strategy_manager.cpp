@@ -5,8 +5,6 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "strategy_manager.hpp"
 
-#include "qtrade/common/converter/strategy_config_converter.hpp"
-
 #include <spdlog/spdlog.h>
 
 namespace qtrade::engine::strategy {
@@ -17,19 +15,27 @@ StrategyManager::~StrategyManager() {
   Stop();
 }
 
-void StrategyManager::RebuildStrategyListLocked() {
-  strategy_list_.clear();
-  strategy_list_.reserve(strategies_.size());
-  for (auto& [strategy_id, entry] : strategies_) {
+std::vector<IStrategy*> StrategyManager::BuildStrategyListLocked() const {
+  std::vector<IStrategy*> list;
+  list.reserve(strategies_.size());
+  for (const auto& [strategy_id, entry] : strategies_) {
     (void)strategy_id;
-    strategy_list_.push_back(entry.strategy.get());
+    list.push_back(entry.strategy.get());
   }
+  return list;
 }
 
-ErrorCode StrategyManager::Init(
-  const std::string& plugin_dir,
-  const google::protobuf::RepeatedPtrField<qtrade::config::v1::StrategyConfig>& strategies,
-  OrderSender order_sender) {
+void StrategyManager::PushRoutingToDispatcherLocked() {
+  if (!dispatcher_) {
+    return;
+  }
+  dispatcher_->SetRouting(instrument_routes_, BuildStrategyListLocked());
+}
+
+ErrorCode StrategyManager::Init(const std::string& plugin_dir,
+                                const std::vector<StrategyConfig>& strategies,
+                                OrderSender order_sender) {
+  // 1. 拒绝在已运行态重复 Init
   {
     std::lock_guard lock(mutex_);
     if (running_.load()) {
@@ -37,6 +43,7 @@ ErrorCode StrategyManager::Init(
     }
   }
 
+  // 2. 扫描并加载策略插件目录
   if (plugin_loader_.LoadStrategyPlugin(plugin_dir) != ErrorCode::kSuccess) {
     spdlog::error("[StrategyManager] LoadStrategyPlugin failed dir={}", plugin_dir);
     return ErrorCode::kDynamicLibraryLoadError;
@@ -46,37 +53,37 @@ ErrorCode StrategyManager::Init(
     spdlog::warn("[StrategyManager] strategies is empty");
   }
 
+  // 3. 按配置创建、Init 并注册已启用策略
   for (const auto& config : strategies) {
-    if (!config.enabled()) {
-      spdlog::info("[StrategyManager] skip disabled strategy {}", config.strategy_id());
+    if (!config.enabled) {
+      spdlog::info("[StrategyManager] skip disabled strategy {}", config.strategy_id);
       continue;
     }
 
-    auto strategy = plugin_loader_.Create(config.strategy_name());
+    auto strategy = plugin_loader_.Create(config.strategy_name);
     if (!strategy) {
       spdlog::error(
-        "[StrategyManager] unknown strategy_name={} strategy_id={}", config.strategy_name(), config.strategy_id());
+        "[StrategyManager] unknown strategy_name={} strategy_id={}", config.strategy_name, config.strategy_id);
       return ErrorCode::kDynamicLibrarySymbolNotFound;
     }
     strategy->SetOrderSender(order_sender);
 
-    const auto init_config = qtrade::common::converter::ParseStrategyConfigProto(config);
-    if (strategy->Init(init_config) != ErrorCode::kSuccess) {
-      spdlog::error("[StrategyManager] strategy Init failed strategy_id={}", config.strategy_id());
+    if (strategy->Init(config) != ErrorCode::kSuccess) {
+      spdlog::error("[StrategyManager] strategy Init failed strategy_id={}", config.strategy_id);
       return ErrorCode::kInternalError;
     }
 
-    if (RegisterStrategy(config.strategy_id(), std::move(strategy), init_config.instruments) != ErrorCode::kSuccess) {
-      spdlog::error("[StrategyManager] RegisterStrategy failed strategy_id={}", config.strategy_id());
+    if (RegisterStrategy(config.strategy_id, std::move(strategy), config.instruments) != ErrorCode::kSuccess) {
+      spdlog::error("[StrategyManager] RegisterStrategy failed strategy_id={}", config.strategy_id);
       return ErrorCode::kSystemError;
     }
   }
 
+  // 4. 创建分发器：拷贝路由快照并订阅（尚未 SetActive，等 Start）
   {
     std::lock_guard lock(mutex_);
-    RebuildStrategyListLocked();
-    dispatcher_ =
-      std::make_unique<StrategyEventDispatcher>(event_lanes_, mutex_, running_, instrument_routes_, strategy_list_);
+    dispatcher_ = std::make_unique<StrategyEventDispatcher>(event_lanes_);
+    PushRoutingToDispatcherLocked();
     dispatcher_->Subscribe();
   }
 
@@ -91,8 +98,17 @@ ErrorCode StrategyManager::Start() {
   if (running_.load()) {
     return ErrorCode::kAlreadyStarted;
   }
-  running_.store(true);
 
+  // 1. 无 Init 的单测路径：按当前注册表补建分发器
+  if (!dispatcher_) {
+    dispatcher_ = std::make_unique<StrategyEventDispatcher>(event_lanes_);
+    PushRoutingToDispatcherLocked();
+    dispatcher_->Subscribe();
+  }
+
+  // 2. 激活投递并逐个 Start 策略
+  dispatcher_->SetActive(true);
+  running_.store(true);
   for (auto& [strategy_id, entry] : strategies_) {
     (void)strategy_id;
     if (entry.strategy->Start() != ErrorCode::kSuccess) {
@@ -105,8 +121,14 @@ ErrorCode StrategyManager::Start() {
 }
 
 void StrategyManager::Stop() {
+  // 1. 先停投递并销毁分发器，避免回调触达已析构策略
   {
     std::lock_guard lock(mutex_);
+    if (dispatcher_) {
+      dispatcher_->SetActive(false);
+      dispatcher_.reset();
+    }
+
     if (running_.load()) {
       for (auto& [strategy_id, entry] : strategies_) {
         (void)strategy_id;
@@ -116,9 +138,9 @@ void StrategyManager::Stop() {
     }
     strategies_.clear();
     instrument_routes_.clear();
-    strategy_list_.clear();
-    dispatcher_.reset();
   }
+
+  // 2. 卸载全部插件句柄
   plugin_loader_.UnloadAll();
   spdlog::info("[StrategyManager] stopped and cleared");
 }
@@ -126,6 +148,7 @@ void StrategyManager::Stop() {
 ErrorCode StrategyManager::RegisterStrategy(const std::string& strategy_id,
                                             StrategyPtr strategy,
                                             const std::vector<std::string>& instruments) {
+  // 1. 校验参数与运行态
   if (strategy_id.empty() || strategy == nullptr) {
     return ErrorCode::kInvalidArgument;
   }
@@ -136,6 +159,8 @@ ErrorCode StrategyManager::RegisterStrategy(const std::string& strategy_id,
   if (strategies_.contains(strategy_id)) {
     return ErrorCode::kSystemError;
   }
+
+  // 2. 校验合约路由无冲突后写入注册表
   for (const auto& instrument : instruments) {
     if (instrument.empty() || instrument_routes_.contains(instrument)) {
       return ErrorCode::kSystemError;
@@ -146,7 +171,9 @@ ErrorCode StrategyManager::RegisterStrategy(const std::string& strategy_id,
     instrument_routes_[instrument] = raw;
   }
   strategies_.emplace(strategy_id, StrategyEntry{std::move(strategy), instruments});
-  RebuildStrategyListLocked();
+
+  // 3. 若分发器已存在（Init 后、Start 前补注册），刷新快照
+  PushRoutingToDispatcherLocked();
   return ErrorCode::kSuccess;
 }
 

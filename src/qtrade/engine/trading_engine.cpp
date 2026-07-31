@@ -322,19 +322,11 @@ qtrade::config::v1::EngineConfig TradingEngine::GetRuntimeConfig() const {
 }
 
 // =============================================================================
-// 交易入口：发单 / 撤单
+// 发单流水线访问
 // =============================================================================
 
-ErrorCode TradingEngine::SubmitOrder(const qtrade_sdk::trader::OrderRequest& request) {
-  // 仅 READY 门禁通过后才接受新单；编排在 OrderPipeline
-  if (!lifecycle_.IsReady()) {
-    return ErrorCode::kNotInitialized;
-  }
-  return order_pipeline_.Submit(request);
-}
-
-ErrorCode TradingEngine::CancelOrder(const std::string& order_id) {
-  return order_pipeline_.Cancel(order_id);
+OrderPipeline& TradingEngine::GetOrderPipeline() {
+  return order_pipeline_;
 }
 
 // =============================================================================
@@ -416,10 +408,6 @@ position::PositionManager& TradingEngine::GetPositionManager() {
 
 client::ConfigClient& TradingEngine::GetConfigClient() {
   return config_client_;
-}
-
-OrderPipeline& TradingEngine::GetOrderPipeline() {
-  return order_pipeline_;
 }
 
 // =============================================================================

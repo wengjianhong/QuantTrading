@@ -13,7 +13,6 @@
 #include "qtrade/engine/strategy/strategy_plugin_loader.hpp"
 
 #include <qtrade/error_code/error_codes.hpp>
-#include <qtrade/proto/config/v1/config.pb.h>
 #include <qtrade/strategy/strategy.hpp>
 
 #include <atomic>
@@ -26,11 +25,13 @@
 namespace qtrade::engine::strategy {
 using qtrade::strategy::IStrategy;
 using qtrade::strategy::OrderSender;
+using qtrade::strategy::StrategyConfig;
 
 /// @brief 策略装载、启停与事件分发编排
 class StrategyManager {
  public:
   /// @brief 构造策略管理器并绑定事件通道
+  /// @param event_lanes Lane-Q / Lane-T 事件通道
   explicit StrategyManager(event_bus::EventLanes& event_lanes);
 
   /// @brief 析构：Stop 并卸载插件
@@ -41,14 +42,15 @@ class StrategyManager {
 
   /// @brief 加载插件目录、按配置创建并注册已启用策略，订阅事件分发
   /// @param plugin_dir 策略 .so 目录
-  /// @param strategies runtime_config.strategies
-  /// @param order_sender 发单回调（通常绑定引擎 SubmitOrder）
-  /// @return 成功返回 kSuccess
+  /// @param strategies 已转换的策略运行时配置列表
+  /// @param order_sender 发单回调（通常绑定 GetOrderPipeline().SubmitBatch，并做 READY 门禁）
+  /// @return 成功返回 kSuccess；已 Start / 插件加载或注册失败时返回对应错误码
   ErrorCode Init(const std::string& plugin_dir,
-                 const google::protobuf::RepeatedPtrField<qtrade::config::v1::StrategyConfig>& strategies,
+                 const std::vector<StrategyConfig>& strategies,
                  OrderSender order_sender);
 
   /// @brief Start 全部已注册策略
+  /// @return 成功返回 kSuccess；已处于运行态返回 kAlreadyStarted
   ErrorCode Start();
 
   /// @brief Stop 全部策略、清空注册表并卸载插件
@@ -56,27 +58,45 @@ class StrategyManager {
   void Stop();
 
   /// @brief 注册已 Init 完成的策略实例（单测注入；生产路径由 Init 内部调用）
+  /// @param strategy_id 策略实例标识，不可为空
+  /// @param strategy 策略实例所有权；不可为空
+  /// @param instruments 本策略独占路由的合约列表；空表示仅参与广播
+  /// @return 成功返回 kSuccess；参数非法 / 已 Start / ID 或合约冲突时返回错误码
   /// @warning 仅允许在未 Start 时调用
   ErrorCode RegisterStrategy(const std::string& strategy_id,
                              StrategyPtr strategy,
                              const std::vector<std::string>& instruments = {});
 
  private:
+  /// @brief 已注册策略条目
   struct StrategyEntry {
+    /// 策略实例（自定义删除器，与插件 ABI 对齐）
     StrategyPtr strategy{nullptr, [](IStrategy*) {}};
+    /// 本策略独占路由的合约列表
     std::vector<std::string> instruments;
   };
 
-  void RebuildStrategyListLocked();
+  /// @brief 根据 strategies_ 构建广播用裸指针列表
+  /// @return 当前全部策略裸指针
+  [[nodiscard]] std::vector<IStrategy*> BuildStrategyListLocked() const;
 
-  event_bus::EventLanes& event_lanes_;
-  StrategyPluginLoader plugin_loader_;
+  /// @brief 将当前路由快照推送给 dispatcher（若已创建）
+  void PushRoutingToDispatcherLocked();
+
+  /// 保护注册表与路由表
   mutable std::mutex mutex_;
-  std::unordered_map<std::string, StrategyEntry> strategies_;
-  std::unordered_map<std::string, IStrategy*> instrument_routes_;
-  std::vector<IStrategy*> strategy_list_;
-  std::atomic_bool running_{false};
+  /// 是否已 Start
+  std::atomic_bool running_ = false;
+  /// 事件通道（Lane-Q / Lane-T）
+  event_bus::EventLanes& event_lanes_;
+  /// 策略插件加载器
+  StrategyPluginLoader plugin_loader_;
+  /// 事件分发器；Init 后创建，Stop 时先于策略销毁
   std::unique_ptr<StrategyEventDispatcher> dispatcher_;
+  /// strategy_id → 策略条目
+  std::unordered_map<std::string, StrategyEntry> strategies_;
+  /// 合约 → 独占该合约的策略；无条目时事件广播
+  std::unordered_map<std::string, IStrategy*> instrument_routes_;
 };
 
 }  // namespace qtrade::engine::strategy

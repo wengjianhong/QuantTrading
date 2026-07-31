@@ -117,6 +117,17 @@ ErrorCode OrderPipeline::Submit(const qtrade_sdk::trader::OrderRequest& request)
   return rc;
 }
 
+ErrorCode OrderPipeline::SubmitBatch(const qtrade::strategy::OrderBatch& batch) {
+  ErrorCode last = ErrorCode::kSuccess;
+  for (const auto& request : batch.order_requests) {
+    last = Submit(request);
+    if (last != ErrorCode::kSuccess) {
+      return last;
+    }
+  }
+  return last;
+}
+
 ErrorCode OrderPipeline::Cancel(const std::string& order_id) {
   // 1. OMS 标记撤单意图
   const auto order = orders_.GetOrder(order_id);

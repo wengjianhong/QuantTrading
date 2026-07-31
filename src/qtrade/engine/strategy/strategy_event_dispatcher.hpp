@@ -1,5 +1,6 @@
 /// @file      strategy_event_dispatcher.hpp
 /// @brief     策略事件分发器：订阅 EventLanes 并按品种路由到策略实例
+/// @details   路由表与广播列表在 SetRouting 时拷贝自持；Init 后冻结，不依赖 Manager 内部状态。
 /// @author    wengjianhong
 /// @date      2026-07-31
 /// @copyright CC BY-NC-SA 4.0
@@ -20,33 +21,58 @@ namespace qtrade::engine::strategy {
 /// @brief 按 instrument 路由行情/回报到策略；无路由时广播
 class StrategyEventDispatcher {
  public:
-  /// @brief 绑定事件通道与路由表（表由 StrategyManager 持有）
+  /// @brief 仅绑定事件通道
   /// @param event_lanes Lane-Q / Lane-T
-  /// @param mutex 与 Manager 共用的调度锁
-  /// @param running 是否已 Start
-  /// @param instrument_routes 品种 → 策略
+  explicit StrategyEventDispatcher(event_bus::EventLanes& event_lanes);
+
+  /// @brief 停投递并排干进行中的 On*，再允许析构
+  ~StrategyEventDispatcher();
+
+  StrategyEventDispatcher(const StrategyEventDispatcher&) = delete;
+  StrategyEventDispatcher& operator=(const StrategyEventDispatcher&) = delete;
+
+  /// @brief 写入路由快照（按值接管；可在 Subscribe 前后调用以刷新）
+  /// @param instrument_routes 品种 → 独占策略
   /// @param strategies 全部策略实例（广播用）
-  StrategyEventDispatcher(event_bus::EventLanes& event_lanes,
-                          std::mutex& mutex,
-                          const std::atomic_bool& running,
-                          const std::unordered_map<std::string, qtrade::strategy::IStrategy*>& instrument_routes,
-                          const std::vector<qtrade::strategy::IStrategy*>& strategies);
+  void SetRouting(std::unordered_map<std::string, qtrade::strategy::IStrategy*> instrument_routes,
+                  std::vector<qtrade::strategy::IStrategy*> strategies);
 
   /// @brief 订阅 Tick/Bar/Order/Trade（可重复调用会叠加订阅，须只调一次）
   void Subscribe();
 
+  /// @brief 开关事件投递；未激活时 On* 直接丢弃
+  /// @param active true 开始投递，false 停止投递
+  void SetActive(bool active);
+
  private:
+  /// @brief 处理 Tick：有路由则单播，否则广播
+  /// @param tick 行情 tick
   void OnTick(const qtrade_sdk::quote::MarketTick& tick);
+
+  /// @brief 处理 Bar：有路由则单播，否则广播
+  /// @param bar K线周期柱
   void OnBar(const qtrade_sdk::quote::Bar& bar);
+
+  /// @brief 处理委托回报：有路由则单播，否则广播
+  /// @param order 委托
   void OnOrder(const qtrade_sdk::trader::Order& order);
+
+  /// @brief 处理成交回报：有路由则单播，否则广播
+  /// @param trade 成交
   void OnTrade(const qtrade_sdk::trader::Trade& trade);
 
-  event_bus::EventLanes& event_lanes_;
-  std::mutex& mutex_;
-  const std::atomic_bool& running_;
-  const std::unordered_map<std::string, qtrade::strategy::IStrategy*>& instrument_routes_;
-  const std::vector<qtrade::strategy::IStrategy*>& strategies_;
+  /// 保护路由快照读写
+  mutable std::mutex mutex_;
+  /// 是否已 Start；未激活时丢弃事件
+  std::atomic_bool active_ = false;
+  /// 是否已完成 Subscribe，防止重复叠加订阅
   bool subscribed_ = false;
+  /// 事件通道（Lane-Q / Lane-T）
+  event_bus::EventLanes& event_lanes_;
+  /// 品种 → 独占策略（自持快照）
+  std::unordered_map<std::string, qtrade::strategy::IStrategy*> instrument_routes_;
+  /// 全部策略实例列表（自持快照，广播用）
+  std::vector<qtrade::strategy::IStrategy*> strategies_;
 };
 
 }  // namespace qtrade::engine::strategy
