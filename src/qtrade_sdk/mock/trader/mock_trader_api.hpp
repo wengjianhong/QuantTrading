@@ -215,7 +215,7 @@ class MockTraderApi final : public qtrade_sdk::trader::TraderApi {
   /// @brief 下一个成交标识。
   std::uint64_t next_trade_id_ = 1;
   /// @brief 是否发单后立即成交。
-  std::atomic_bool auto_fill_ = true;
+  std::atomic<bool> auto_fill_ = true;
   /// @brief EMT 订单 ID 到最近订单快照的映射。
   std::unordered_map<std::uint64_t, qtrade_sdk::trader::Order> orders_;
   /// @brief 已生成的成交回报。

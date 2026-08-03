@@ -9,10 +9,8 @@
 #include "qtrade/engine/trading_engine.hpp"
 
 #include "qtrade/error_code/error_codes.hpp"
-#include "qtrade_sdk/emt/quote/emt_quote_api.hpp"
-#include "qtrade_sdk/emt/trader/emt_trader_api.hpp"
-#include "qtrade_sdk/mock/quote/mock_quote_api.hpp"
-#include "qtrade_sdk/mock/trader/mock_trader_api.hpp"
+#include "qtrade_sdk/emt/emt_adapter_factory.hpp"
+#include "qtrade_sdk/mock/mock_adapter_factory.hpp"
 
 #include <qtrade/proto/account_risk/v1/account_risk.pb.h>
 #include <qtrade/proto/config/v1/config.pb.h>
@@ -22,8 +20,8 @@
 #include <chrono>
 #include <cmath>
 #include <unordered_set>
+#include <utility>
 #include <vector>
-
 namespace qtrade::engine {
 namespace {
 
@@ -159,7 +157,7 @@ ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineBootstra
     return ErrorCode::kSuccess;
   }
 
-  // 1. 引导配置与行情健康阈值 → kBootstrap
+  // 1. 引导配置与行情健康阈值
   if (const ErrorCode code = ApplyBootstrapConfig(config); code != ErrorCode::kSuccess) {
     spdlog::error("ApplyBootstrapConfig failed, code={}", static_cast<int>(code));
     Release();
@@ -180,7 +178,7 @@ ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineBootstra
     return code;
   }
 
-  // 4. 引擎内模块（内存 OMS 等）→ kModulesReady
+  // 4. 引擎内模块（内存 OMS 等）
   if (const ErrorCode code = InitEngineModules(); code != ErrorCode::kSuccess) {
     spdlog::error("InitEngineModules failed, code={}", static_cast<int>(code));
     Release();
@@ -201,24 +199,33 @@ ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineBootstra
     return code;
   }
 
+  // 7. 全部初始化完成 → Initiated
+  if (lifecycle_.Transition(EngineLifecycleState::kInitiated) != ErrorCode::kSuccess) {
+    spdlog::error("EngineLifecycle Transition failed, reason={}", lifecycle_.Reason());
+    lifecycle_.Transition(EngineLifecycleState::kFailed, "INIT_STATE_TRANSITION_FAILED");
+    Release();
+    return ErrorCode::kSystemError;
+  }
+
   initialized_ = true;
   spdlog::info("Init pipeline completed, state={}", static_cast<int>(lifecycle_.State()));
   return ErrorCode::kSuccess;
 }
 
 ErrorCode TradingEngine::Start() {
-  // 前置校验：须 Init 完成且生命周期处于 kModulesReady
+  // 前置校验：须 Init 完成且生命周期处于 kInitiated
   if (!initialized_) {
     spdlog::error("Init TradingEngine must be called before Start TradingEngine.");
     return ErrorCode::kNotInitialized;
   }
   if (running_) {
     spdlog::error("TradingEngine is already running.");
-    return ErrorCode::kSystemError;
+    return ErrorCode::kAlreadyStarted;
   }
-  if (lifecycle_.State() != EngineLifecycleState::kModulesReady) {
-    lifecycle_.Fail("INVALID_START_STATE");
-    return ErrorCode::kSystemError;
+  if (lifecycle_.State() != EngineLifecycleState::kInitiated) {
+    spdlog::error("Invalid start state, current={}", lifecycle_.GetStateDescription(lifecycle_.State()));
+    lifecycle_.Transition(EngineLifecycleState::kFailed, "INVALID_START_STATE");
+    return ErrorCode::kInvalidState;
   }
 
   // 1. 适配器就绪
@@ -257,22 +264,21 @@ ErrorCode TradingEngine::Start() {
     return code;
   }
 
-  spdlog::info(
-    "Start pipeline completed, state={}, ready={}", static_cast<int>(lifecycle_.State()), lifecycle_.IsReady());
+  spdlog::info("Start pipeline completed, state={}", lifecycle_.GetStateDescription(lifecycle_.State()));
   return ErrorCode::kSuccess;
 }
 
 ErrorCode TradingEngine::Stop() {
   const bool was_running = running_.load(std::memory_order_acquire);
   if (was_running) {
-    lifecycle_.BeginDrain();
+    lifecycle_.Transition(EngineLifecycleState::kDraining);
     running_.store(false, std::memory_order_release);
     spdlog::info("stopping components...");
   }
 
   Release();
   initialized_.store(false, std::memory_order_release);
-  lifecycle_.MarkStopped();
+  lifecycle_.Transition(EngineLifecycleState::kStopped);
 
   if (!was_running) {
     return ErrorCode::kSystemError;
@@ -312,21 +318,13 @@ EngineLifecycleState TradingEngine::LifecycleState() const {
   return lifecycle_.State();
 }
 
-const qtrade::common::config::QtradeEngineBootstrapConfig& TradingEngine::GetConfig() const {
+const qtrade::common::config::QtradeEngineBootstrapConfig& TradingEngine::GetBootstrapConfig() const {
   return bootstrap_config_;
 }
 
 qtrade::config::v1::EngineConfig TradingEngine::GetRuntimeConfig() const {
   std::lock_guard lock(runtime_config_mutex_);
   return runtime_config_;
-}
-
-// =============================================================================
-// 发单流水线访问
-// =============================================================================
-
-OrderPipeline& TradingEngine::GetOrderPipeline() {
-  return order_pipeline_;
 }
 
 // =============================================================================
@@ -410,25 +408,25 @@ client::ConfigClient& TradingEngine::GetConfigClient() {
   return config_client_;
 }
 
+OrderPipeline& TradingEngine::GetOrderPipeline() {
+  return order_pipeline_;
+}
+
 // =============================================================================
 // Init 子阶段
 // =============================================================================
 
 ErrorCode TradingEngine::ApplyBootstrapConfig(const qtrade::common::config::QtradeEngineBootstrapConfig& config) {
   spdlog::info("ApplyBootstrapConfig");
-  // 1. 进入 Bootstrap；后续失败可据此定位到配置加载前
-  if (lifecycle_.Advance(EngineLifecycleState::kBootstrap) != ErrorCode::kSuccess) {
-    return ErrorCode::kSystemError;
-  }
 
-  // 2. 缓存进程引导配置，供身份校验与 client 地址解析
+  // 1. 缓存进程引导配置，供身份校验与 client 地址解析
   bootstrap_config_ = config;
 
-  // 3. 配置行情陈旧阈值，供 READY 门禁与 OnMarketHealthChanged 使用
+  // 2. 配置行情陈旧阈值，供 READY 门禁与 OnMarketHealthChanged 使用
   QuoteHealthOptions quote_health_options;
   quote_health_options.max_stale_age = kQuoteStaleThreshold;
   if (quote_health_monitor_.Configure(quote_health_options) != ErrorCode::kSuccess) {
-    lifecycle_.Fail("QUOTE_HEALTH_CONFIG_INVALID");
+    lifecycle_.Transition(EngineLifecycleState::kFailed, "QUOTE_HEALTH_CONFIG_INVALID");
     return ErrorCode::kSystemError;
   }
   return ErrorCode::kSuccess;
@@ -441,7 +439,7 @@ ErrorCode TradingEngine::InitSupportClients() {
   if (bootstrap_config_.support_services.config_service.enabled) {
     if (const auto rc = InitConfigClient(bootstrap_config_); rc != ErrorCode::kSuccess) {
       spdlog::error("config_client init failed, code={}", static_cast<int>(rc));
-      lifecycle_.Fail("CONFIG_CLIENT_INIT_FAILED");
+      lifecycle_.Transition(EngineLifecycleState::kFailed, "CONFIG_CLIENT_INIT_FAILED");
       return rc;
     }
   } else {
@@ -454,7 +452,7 @@ ErrorCode TradingEngine::InitSupportClients() {
     options.service_config = bootstrap_config_.support_services.account_service;
     if (const auto rc = account_client_.Init(options); rc != ErrorCode::kSuccess) {
       spdlog::error("account_client init failed, code={}", static_cast<int>(rc));
-      lifecycle_.Fail("ACCOUNT_CLIENT_INIT_FAILED");
+      lifecycle_.Transition(EngineLifecycleState::kFailed, "ACCOUNT_CLIENT_INIT_FAILED");
       return rc;
     }
   } else {
@@ -465,7 +463,7 @@ ErrorCode TradingEngine::InitSupportClients() {
   if (bootstrap_config_.support_services.account_risk_service.enabled) {
     if (const auto rc = InitAccountRiskClient(bootstrap_config_); rc != ErrorCode::kSuccess) {
       spdlog::error("account_risk_client init failed, code={}", static_cast<int>(rc));
-      lifecycle_.Fail("ACCOUNT_RISK_CLIENT_INIT_FAILED");
+      lifecycle_.Transition(EngineLifecycleState::kFailed, "ACCOUNT_RISK_CLIENT_INIT_FAILED");
       return rc;
     }
   } else {
@@ -485,7 +483,7 @@ ErrorCode TradingEngine::InitEngineModules() {
   order_options.engine_epoch = kEngineEpoch;
   if (const auto rc = order_manager_.Initialize(order_options); rc != ErrorCode::kSuccess) {
     spdlog::error("order_manager init failed, code={}", static_cast<int>(rc));
-    lifecycle_.Fail("ORDER_MANAGER_INIT_FAILED");
+    lifecycle_.Transition(EngineLifecycleState::kFailed, "ORDER_MANAGER_INIT_FAILED");
     return rc;
   }
 
@@ -501,11 +499,6 @@ ErrorCode TradingEngine::InitEngineModules() {
                                               bootstrap_config_.config.identity.account_id);
   }
 
-  // 3. 模块初始化完成 → 允许进入 Start（kModulesReady）
-  if (lifecycle_.Advance(EngineLifecycleState::kModulesReady) != ErrorCode::kSuccess) {
-    lifecycle_.Fail("ENGINE_MODULES_INIT_FAILED");
-    return ErrorCode::kSystemError;
-  }
   return ErrorCode::kSuccess;
 }
 
@@ -520,6 +513,7 @@ ErrorCode TradingEngine::InitAdapters() {
   if (quote_api_ != nullptr && trader_api_ != nullptr) {
     return ErrorCode::kSuccess;
   }
+  // config 未启用时跳过
   if (!bootstrap_config_.support_services.config_service.enabled) {
     spdlog::info("skip adapters (config_service disabled; tests may inject mock)");
     return ErrorCode::kSuccess;
@@ -531,7 +525,7 @@ ErrorCode TradingEngine::InitAdapters() {
     runtime_config = runtime_config_;
   }
   if (runtime_config.execution_adapter().empty() || runtime_config.quote_connection_string().empty()) {
-    lifecycle_.Fail("ADAPTER_INIT_FAILED");
+    lifecycle_.Transition(EngineLifecycleState::kFailed, "ADAPTER_INIT_FAILED");
     return ErrorCode::kNotInitialized;
   }
 
@@ -539,46 +533,30 @@ ErrorCode TradingEngine::InitAdapters() {
   qtrade_sdk::quote::ConnectRequest quote_request;
   qtrade_sdk::trader::ConnectRequest trader_request;
   if (runtime_config.execution_adapter() == "mock") {
-    quote_request.name = "mock";
-    quote_request.connection_string = runtime_config.quote_connection_string();
-    trader_request.broker_id = "mock";
-    trader_request.account_id = bootstrap_config_.config.identity.account_id;
-    trader_request.connection_string = runtime_config.quote_connection_string();
-    SetQuoteApi(qtrade::adapter::mock::quote::CreateMockQuoteApi());
-    SetTraderApi(qtrade::adapter::mock::trader::CreateMockTraderApi());
+    auto bundle = qtrade::adapter::mock::CreateMockAdapters(runtime_config.quote_connection_string(),
+                                                            bootstrap_config_.config.identity.account_id);
+    quote_request = std::move(bundle.quote_request);
+    trader_request = std::move(bundle.trader_request);
+    SetQuoteApi(std::move(bundle.quote_api));
+    SetTraderApi(std::move(bundle.trader_api));
   } else if (runtime_config.execution_adapter() == "emt") {
-    if (!account_client_.IsInitialized()) {
-      lifecycle_.Fail("ADAPTER_INIT_FAILED");
-      return ErrorCode::kNotInitialized;
+    ErrorCode create_error = ErrorCode::kInternalError;
+    auto bundle = qtrade::adapter::emt::CreateEmtAdapters(account_client_,
+                                                          bootstrap_config_.config.identity.tenant_id,
+                                                          bootstrap_config_.config.identity.engine_id,
+                                                          bootstrap_config_.config.identity.account_id,
+                                                          runtime_config.quote_connection_string(),
+                                                          &create_error);
+    if (!bundle.has_value()) {
+      lifecycle_.Transition(EngineLifecycleState::kFailed, "ADAPTER_INIT_FAILED");
+      return create_error;
     }
-    qtrade::account::v1::GetCredentialRequest credential_request;
-    credential_request.set_tenant_id(bootstrap_config_.config.identity.tenant_id);
-    credential_request.set_engine_id(bootstrap_config_.config.identity.engine_id);
-    credential_request.set_account_id(bootstrap_config_.config.identity.account_id);
-    qtrade::account::v1::GetCredentialResponse credential_response;
-    if (const auto result = account_client_.GetCredential(credential_request, credential_response);
-        result != ErrorCode::kSuccess) {
-      lifecycle_.Fail("ADAPTER_INIT_FAILED");
-      return result;
-    }
-    const auto& credential = credential_response.credential();
-    if (credential.account_id() != bootstrap_config_.config.identity.account_id ||
-        credential.connection_string().empty() || credential.password().empty()) {
-      lifecycle_.Fail("ADAPTER_INIT_FAILED");
-      return ErrorCode::kInternalError;
-    }
-    trader_request.broker_id = credential.broker_id();
-    trader_request.account_id = credential.account_id();
-    trader_request.connection_string = credential.connection_string();
-    trader_request.password = credential.password();
-    quote_request.name = "emt";
-    quote_request.connection_string = runtime_config.quote_connection_string();
-    quote_request.user = credential.account_id();
-    quote_request.password = credential.password();
-    SetQuoteApi(std::make_unique<qtrade::adapter::quote::EmtQuoteApi>());
-    SetTraderApi(std::make_unique<qtrade::adapter::trader::EmtTraderApi>());
+    quote_request = std::move(bundle->quote_request);
+    trader_request = std::move(bundle->trader_request);
+    SetQuoteApi(std::move(bundle->quote_api));
+    SetTraderApi(std::move(bundle->trader_api));
   } else {
-    lifecycle_.Fail("ADAPTER_INIT_FAILED");
+    lifecycle_.Transition(EngineLifecycleState::kFailed, "ADAPTER_INIT_FAILED");
     return ErrorCode::kNotSupported;
   }
 
@@ -586,18 +564,18 @@ ErrorCode TradingEngine::InitAdapters() {
   auto* quote_api = quote_api_.get();
   auto* trader_api = trader_api_.get();
   if (quote_api == nullptr || trader_api == nullptr) {
-    lifecycle_.Fail("ADAPTER_INIT_FAILED");
+    lifecycle_.Transition(EngineLifecycleState::kFailed, "ADAPTER_INIT_FAILED");
     return ErrorCode::kNotInitialized;
   }
   if (const auto result = quote_api->Connect(quote_request); result != ErrorCode::kSuccess) {
     quote_api->Disconnect();
-    lifecycle_.Fail("ADAPTER_INIT_FAILED");
+    lifecycle_.Transition(EngineLifecycleState::kFailed, "ADAPTER_INIT_FAILED");
     return result;
   }
   if (const auto result = trader_api->Connect(trader_request); result != ErrorCode::kSuccess) {
     quote_api->Disconnect();
     trader_api->Disconnect();
-    lifecycle_.Fail("ADAPTER_INIT_FAILED");
+    lifecycle_.Transition(EngineLifecycleState::kFailed, "ADAPTER_INIT_FAILED");
     return result;
   }
   return ErrorCode::kSuccess;
@@ -628,7 +606,7 @@ ErrorCode TradingEngine::FetchRuntimeConfig() {
   qtrade::config::v1::GetEngineConfigResponse get_response;
   ErrorCode code = config_client_.GetEngineConfig(get_request, get_response);
   if (code != ErrorCode::kSuccess) {
-    lifecycle_.Fail("GET_ENGINE_CONFIG_FAILED");
+    lifecycle_.Transition(EngineLifecycleState::kFailed, "GET_ENGINE_CONFIG_FAILED");
     return code;
   }
   OnEngineConfig(get_response.engine());
@@ -641,7 +619,7 @@ ErrorCode TradingEngine::FetchRuntimeConfig() {
     [this](const qtrade::config::v1::SubscribeEngineConfigResponse& response) { OnEngineConfig(response.engine()); };
   code = config_client_.SubscribeEngineConfig(subscribe_request, std::move(on_subscribe));
   if (code != ErrorCode::kSuccess) {
-    lifecycle_.Fail("SUBSCRIBE_ENGINE_CONFIG_FAILED");
+    lifecycle_.Transition(EngineLifecycleState::kFailed, "SUBSCRIBE_ENGINE_CONFIG_FAILED");
     return code;
   }
   return ErrorCode::kSuccess;
@@ -659,17 +637,23 @@ ErrorCode TradingEngine::InitAccountRiskClient(const qtrade::common::config::Qtr
 
 ErrorCode TradingEngine::StartAdapters() {
   spdlog::info("StartAdapters");
-  // 1. 幂等装配并连接行情/交易 API（Init 阶段可能已连接）
+  // 1. 幂等确保装配并连接（Init 阶段可能已完成）
   if (const auto result = InitAdapters(); result != ErrorCode::kSuccess) {
     if (lifecycle_.State() != EngineLifecycleState::kFailed) {
-      lifecycle_.Fail("ADAPTER_NOT_READY");
+      lifecycle_.Transition(EngineLifecycleState::kFailed, "ADAPTER_NOT_READY");
     }
     return result;
   }
-  // 2. 交易通道必须在线，否则无法对账与发单
-  auto* trader_api = trader_api_.get();
-  if (kRequireTraderConnection && (trader_api == nullptr || !trader_api->IsConnected())) {
-    lifecycle_.Fail("TRADER_NOT_CONNECTED");
+
+  // 2. 行情通道必须在线（有效行情仍由后续健康门禁决定是否 READY）
+  if (kRequireMarketData && (quote_api_ == nullptr || !quote_api_->IsConnected())) {
+    lifecycle_.Transition(EngineLifecycleState::kFailed, "QUOTE_NOT_CONNECTED");
+    return ErrorCode::kConnectionError;
+  }
+
+  // 3. 交易通道必须在线，否则无法对账与发单
+  if (kRequireTraderConnection && (trader_api_ == nullptr || !trader_api_->IsConnected())) {
+    lifecycle_.Transition(EngineLifecycleState::kFailed, "TRADER_NOT_CONNECTED");
     return ErrorCode::kConnectionError;
   }
   return ErrorCode::kSuccess;
@@ -679,18 +663,22 @@ ErrorCode TradingEngine::SyncBrokerSnapshot() {
   spdlog::info("SyncBrokerSnapshot");
   auto* trader_api = trader_api_.get();
   const bool has_unreconciled_orders = !order_manager_.GetOrdersRequiringReconciliation().empty();
+
   // 1. 有待对账订单或策略要求快照时，查询柜台并 Adopt 到 OMS/Account/Position
   if (trader_api != nullptr && (kRequireBrokerSnapshot || has_unreconciled_orders)) {
     const auto sync_result = SynchronizeBrokerState(trader_api);
     if (sync_result != ErrorCode::kSuccess && (kRequireBrokerSnapshot || !kAllowUnreconciledOrders)) {
-      lifecycle_.Fail("BROKER_RECONCILIATION_FAILED");
+      lifecycle_.Transition(EngineLifecycleState::kFailed, "BROKER_RECONCILIATION_FAILED");
       return sync_result;
     }
-  } else if (has_unreconciled_orders && !kAllowUnreconciledOrders) {
-    // 2. 无 trader 连接但本地仍有待对账订单，拒绝启动
-    lifecycle_.Fail("BROKER_RECONCILIATION_REQUIRED");
+  }
+
+  // 2. 无 trader 连接但本地仍有待对账订单，拒绝启动
+  else if (has_unreconciled_orders && !kAllowUnreconciledOrders) {
+    lifecycle_.Transition(EngineLifecycleState::kFailed, "BROKER_RECONCILIATION_REQUIRED");
     return ErrorCode::kNotInitialized;
   }
+
   return ErrorCode::kSuccess;
 }
 
@@ -726,15 +714,8 @@ ErrorCode TradingEngine::StartMarketData() {
 
 ErrorCode TradingEngine::AdvanceReadyGates() {
   spdlog::info("AdvanceReadyGates");
-  // BrokerSynced: 柜台快照已应用；RiskSynced: MVP 暂无独立 RPC 对账，保留阶段位供后续扩展
-  if (lifecycle_.Advance(EngineLifecycleState::kBrokerSynced) != ErrorCode::kSuccess ||
-      lifecycle_.Advance(EngineLifecycleState::kRiskSynced) != ErrorCode::kSuccess) {
-    lifecycle_.Fail("STARTUP_STATE_TRANSITION_FAILED");
-    return ErrorCode::kSystemError;
-  }
-  if (!kRequireMarketData) {
-    OnMarketHealthChanged(true);
-  } else if (quote_health_monitor_.IsHealthy()) {
+  // 行情已健康（或不强制要求行情）则 Initiated → Ready；否则等 OnMarketHealthChanged
+  if (!kRequireMarketData || quote_health_monitor_.IsHealthy()) {
     OnMarketHealthChanged(true);
   }
   return ErrorCode::kSuccess;
@@ -851,7 +832,7 @@ void TradingEngine::OnEngineConfig(const qtrade::config::v1::EngineConfig& confi
   // 1. 校验版本、身份与有效期；拒绝陈旧或运行中改适配器的快照
   if (config.version() == 0) {
     spdlog::warn("invalid engine config version={}", config.version());
-    lifecycle_.Freeze("CONFIG_SNAPSHOT_INVALID");
+    lifecycle_.Transition(EngineLifecycleState::kFrozen, "CONFIG_SNAPSHOT_INVALID");
     return;
   }
 
@@ -860,14 +841,14 @@ void TradingEngine::OnEngineConfig(const qtrade::config::v1::EngineConfig& confi
       engine.tenant_id() != bootstrap_config_.config.identity.tenant_id ||
       engine.account_id() != bootstrap_config_.config.identity.account_id) {
     spdlog::error("config identity mismatch");
-    lifecycle_.Freeze("CONFIG_IDENTITY_MISMATCH");
+    lifecycle_.Transition(EngineLifecycleState::kFrozen, "CONFIG_IDENTITY_MISMATCH");
     return;
   }
   const auto now_ms =
     std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
   if (engine.valid_until_unix_ms() > 0 && now_ms >= engine.valid_until_unix_ms()) {
     spdlog::error("rejected expired engine config version={}", config.version());
-    lifecycle_.Freeze("CONFIG_EXPIRED");
+    lifecycle_.Transition(EngineLifecycleState::kFrozen, "CONFIG_EXPIRED");
     return;
   }
 
@@ -880,7 +861,7 @@ void TradingEngine::OnEngineConfig(const qtrade::config::v1::EngineConfig& confi
     if (running_.load(std::memory_order_acquire) && runtime_config_version_ != 0 &&
         (runtime_config_.execution_adapter() != engine.execution_adapter() ||
          runtime_config_.quote_connection_string() != engine.quote_connection_string())) {
-      lifecycle_.Freeze("ADAPTER_RESTART_REQUIRED");
+      lifecycle_.Transition(EngineLifecycleState::kFrozen, "ADAPTER_RESTART_REQUIRED");
       spdlog::error("adapter configuration changed while running; restart required");
       return;
     }
@@ -899,7 +880,7 @@ void TradingEngine::OnEngineConfig(const qtrade::config::v1::EngineConfig& confi
     limits.version = config.version();
   }
   if (risk_manager_.Configure(limits) != ErrorCode::kSuccess) {
-    lifecycle_.Freeze("RISK_CONFIG_INVALID");
+    lifecycle_.Transition(EngineLifecycleState::kFrozen, "RISK_CONFIG_INVALID");
     return;
   }
 
@@ -911,7 +892,7 @@ void TradingEngine::OnEngineConfig(const qtrade::config::v1::EngineConfig& confi
       strategies_changed = !StrategiesEqual(runtime_config_.strategies(), engine.strategies());
     }
     if (strategies_changed) {
-      lifecycle_.Freeze("STRATEGY_RESTART_REQUIRED");
+      lifecycle_.Transition(EngineLifecycleState::kFrozen, "STRATEGY_RESTART_REQUIRED");
       spdlog::error("strategy configuration changed while running; stop and re-init required");
       return;
     }
@@ -937,7 +918,7 @@ void TradingEngine::OnEngineConfig(const qtrade::config::v1::EngineConfig& confi
     compliance_rules.max_notional = engine.risk_budget().max_notional();
   }
   if (compliance_.Configure(compliance_rules) != ErrorCode::kSuccess) {
-    lifecycle_.Freeze("COMPLIANCE_CONFIG_INVALID");
+    lifecycle_.Transition(EngineLifecycleState::kFrozen, "COMPLIANCE_CONFIG_INVALID");
     return;
   }
 
@@ -982,24 +963,24 @@ void TradingEngine::OnEngineConfig(const qtrade::config::v1::EngineConfig& confi
 }
 
 void TradingEngine::OnMarketHealthChanged(bool healthy) {
-  // 1. 行情不健康：READY/MarketHealthy → Frozen
   const auto state = lifecycle_.State();
+
+  // 1. 行情不健康：Ready → Frozen（拒新单，仍处理回报）
   if (!healthy) {
-    if (state == EngineLifecycleState::kReady || state == EngineLifecycleState::kMarketHealthy) {
-      lifecycle_.Freeze("MARKET_UNHEALTHY");
+    if (state == EngineLifecycleState::kReady) {
+      lifecycle_.Transition(EngineLifecycleState::kFrozen, "MARKET_UNHEALTHY");
       spdlog::warn("engine frozen: market unhealthy");
     }
     return;
   }
 
-  // 2. 行情恢复：推进 READY，或从 MARKET_UNHEALTHY 冻结恢复
-  if (state == EngineLifecycleState::kRiskSynced) {
-    if (lifecycle_.Advance(EngineLifecycleState::kMarketHealthy) == ErrorCode::kSuccess &&
-        lifecycle_.Advance(EngineLifecycleState::kReady) == ErrorCode::kSuccess) {
+  // 2. 行情恢复：Initiated → Ready，或从 MARKET_UNHEALTHY 冻结恢复
+  if (state == EngineLifecycleState::kInitiated) {
+    if (lifecycle_.Transition(EngineLifecycleState::kReady) == ErrorCode::kSuccess) {
       spdlog::info("trading engine READY");
     }
   } else if (state == EngineLifecycleState::kFrozen && lifecycle_.Reason() == "MARKET_UNHEALTHY") {
-    if (lifecycle_.ResumeReady() == ErrorCode::kSuccess) {
+    if (lifecycle_.Transition(EngineLifecycleState::kReady) == ErrorCode::kSuccess) {
       spdlog::info("trading engine resumed after market recovery");
     }
   }

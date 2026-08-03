@@ -83,7 +83,7 @@ class TradingEngine {
 
   /// @brief 返回当前进程引导配置快照
   /// @return 配置只读引用
-  [[nodiscard]] const qtrade::common::config::QtradeEngineBootstrapConfig& GetConfig() const;
+  [[nodiscard]] const qtrade::common::config::QtradeEngineBootstrapConfig& GetBootstrapConfig() const;
 
   /// @brief 返回 config-service 下发的引擎运行配置快照
   /// @return 配置副本
@@ -158,50 +158,67 @@ class TradingEngine {
   // Init 子阶段（由 Init() 按序调用；失败时 Release）
   // ---------------------------------------------------------------------------
 
-  /// @brief 缓存引导配置、配置行情健康阈值 → kBootstrap
+  /// @brief 缓存引导配置、配置行情健康阈值
+  /// @param config 进程引导配置
+  /// @return ErrorCode::kSuccess 表示成功
   ErrorCode ApplyBootstrapConfig(const qtrade::common::config::QtradeEngineBootstrapConfig& config);
 
   /// @brief 初始化支撑服务客户端（config / account / account_risk）
+  /// @return ErrorCode::kSuccess 表示成功
   ErrorCode InitSupportClients();
 
-  /// @brief 初始化引擎内模块（内存 OMS、account-risk 接线等）→ kModulesReady
+  /// @brief 初始化引擎内模块（内存 OMS、account-risk 接线等）
+  /// @return ErrorCode::kSuccess 表示成功
   ErrorCode InitEngineModules();
 
   /// @brief 初始化事件通道（本阶段仅确认就绪；Start 时再启动 reactor）
+  /// @return ErrorCode::kSuccess 表示成功
   ErrorCode InitEventLanes();
 
-  /// @brief 按 EngineConfig 装配并连接行情/交易适配器（config 未启用时可跳过）
+  /// @brief 按 EngineConfig 装配并连接行情/交易适配器（幂等；config 未启用时可跳过）
+  /// @return ErrorCode::kSuccess 表示成功
   ErrorCode InitAdapters();
 
   /// @brief 初始化并连接 config_client（仅建连；拉配置见 FetchRuntimeConfig）
+  /// @param config 进程引导配置
+  /// @return ErrorCode::kSuccess 表示成功
   ErrorCode InitConfigClient(const qtrade::common::config::QtradeEngineBootstrapConfig& config);
 
   /// @brief 拉取并应用引擎运行配置（GetEngineConfig + SubscribeEngineConfig）
+  /// @return ErrorCode::kSuccess 表示成功
   ErrorCode FetchRuntimeConfig();
 
   /// @brief 按配置初始化账户硬风控客户端
+  /// @param config 进程引导配置
+  /// @return ErrorCode::kSuccess 表示成功
   ErrorCode InitAccountRiskClient(const qtrade::common::config::QtradeEngineBootstrapConfig& config);
 
   // ---------------------------------------------------------------------------
   // Start 子阶段（由 Start() 按序调用）
   // ---------------------------------------------------------------------------
 
-  /// @brief 幂等确认行情/交易适配器已连接
+  /// @brief 确保行情/交易适配器已装配并连接（内部幂等调用 InitAdapters）
+  /// @return ErrorCode::kSuccess 表示成功
   ErrorCode StartAdapters();
 
   /// @brief 拉取柜台快照并 Adopt 进 OMS/Account/Position
+  /// @return ErrorCode::kSuccess 表示成功
   ErrorCode SyncBrokerSnapshot();
 
   /// @brief 启动 Lane-Q/Lane-T 与行情健康监控
+  /// @return ErrorCode::kSuccess 表示成功
   ErrorCode StartEventLanes();
 
   /// @brief 启动策略管理器与 EMS
+  /// @return ErrorCode::kSuccess 表示成功
   ErrorCode StartEngineModules();
 
   /// @brief 按已缓存合约列表订阅行情
+  /// @return ErrorCode::kSuccess 表示成功
   ErrorCode StartMarketData();
 
-  /// @brief 推进 BrokerSynced/RiskSynced，并按行情门禁尝试 READY
+  /// @brief 按行情门禁尝试进入 READY（Initiated → Ready）
+  /// @return ErrorCode::kSuccess 表示成功
   ErrorCode AdvanceReadyGates();
 
   // ---------------------------------------------------------------------------
@@ -222,6 +239,8 @@ class TradingEngine {
   // ---------------------------------------------------------------------------
 
   /// @brief 查询柜台快照并完成启动对账
+  /// @param trader_api 交易适配器指针
+  /// @return ErrorCode::kSuccess 表示成功
   ErrorCode SynchronizeBrokerState(qtrade_sdk::trader::TraderApi* trader_api);
 
   // ---------------------------------------------------------------------------
@@ -229,12 +248,16 @@ class TradingEngine {
   // ---------------------------------------------------------------------------
 
   /// @brief 完整引擎配置回调：应用 EngineConfig
+  /// @param config 引擎配置
   void OnEngineConfig(const qtrade::config::v1::EngineConfig& config);
 
   /// @brief 处理行情健康变化并更新 READY 门禁
+  /// @param healthy 行情是否健康
   void OnMarketHealthChanged(bool healthy);
 
   /// @brief 尽力调用 account-risk ReleaseOrder（无本地 outbox）
+  /// @param order_id 委托 ID
+  /// @param reason 释放原因
   void ReleaseAccountRiskReservation(const std::string& order_id,
                                      qtrade::account_risk::v1::ReleaseOrderRequest::Reason reason);
 
@@ -243,9 +266,9 @@ class TradingEngine {
   // ---------------------------------------------------------------------------
 
   /// 是否已完成 Init
-  std::atomic_bool initialized_ = false;
+  std::atomic<bool> initialized_ = false;
   /// 是否已 Start
-  std::atomic_bool running_ = false;
+  std::atomic<bool> running_ = false;
   /// 引擎生命周期状态机（仅本类读写）
   EngineLifecycle lifecycle_;
   /// 进程引导配置（qtrade_engine.json）
