@@ -117,13 +117,13 @@ TEST(OrderPipeline, CancelFlowsThroughEmsAndVenueReport) {
 
   WaitUntil([&] {
     const auto order = engine.GetOrderApi().GetOrderByClientId(request.client_order_id);
-    return order.has_value() && order->order_emt_id != 0 &&
+    return order.has_value() && order->broker_order_id != 0 &&
            engine.GetOrderApi().GetLifecycleState(order->order_id) ==
              qtrade::engine::oms::OrderLifecycleState::kWorking;
   });
   const auto order = engine.GetOrderApi().GetOrderByClientId(request.client_order_id);
   ASSERT_TRUE(order.has_value());
-  ASSERT_NE(order->order_emt_id, 0U);
+  ASSERT_NE(order->broker_order_id, 0U);
   ASSERT_EQ(engine.GetOrderPipeline().Cancel(order->order_id), qtrade::ErrorCode::kSuccess);
 
   WaitUntil([&] {

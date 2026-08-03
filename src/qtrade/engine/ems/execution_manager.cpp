@@ -168,7 +168,7 @@ void ExecutionManager::Run() {
     // 4. 组装 OrderRequest 并调用 SendOrder，回写 OMS；失败时释放预占
     qtrade_sdk::trader::OrderRequest request;
     request.client_order_id = order.client_order_id;
-    request.order_emt_id = order.order_emt_id;
+    request.broker_order_id = order.broker_order_id;
     request.instrument = order.instrument;
     request.market = order.market;
     request.price = order.price;

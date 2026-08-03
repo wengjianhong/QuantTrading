@@ -50,7 +50,7 @@ constexpr bool kAllowUnreconciledOrders = false;
 }
 
 [[nodiscard]] bool IsValidOrder(const qtrade_sdk::trader::Order& order) {
-  return !(order.order_id.empty() && order.order_emt_id == 0 && order.client_order_id == 0) && order.volume >= 0 &&
+  return !(order.order_id.empty() && order.broker_order_id == 0 && order.client_order_id == 0) && order.volume >= 0 &&
          order.traded_volume >= 0 && order.left_volume >= 0 &&
          !(order.volume > 0 && order.traded_volume > order.volume);
 }
@@ -94,7 +94,7 @@ constexpr bool kAllowUnreconciledOrders = false;
 
 [[nodiscard]] bool IsValidTrade(const qtrade_sdk::trader::Trade& trade) {
   return !trade.instrument.empty() && trade.volume > 0 && std::isfinite(trade.price) && trade.price >= 0.0 &&
-         !(trade.order_id.empty() && trade.order_emt_id == 0 && trade.client_order_id == 0);
+         !(trade.order_id.empty() && trade.broker_order_id == 0 && trade.client_order_id == 0);
 }
 
 }  // namespace

@@ -62,8 +62,8 @@ struct ConnectRequest {
 struct OrderRequest {
   /// 用户自定义报单引用。
   std::uint32_t client_order_id = 0;
-  /// EMT 系统订单 ID，发单前无需填写。
-  std::uint64_t order_emt_id = 0;
+  /// 券商/通道委托号；发单前通常为 0，由适配器在回报中回填（EMT 对应 order_emt_id）。
+  std::uint64_t broker_order_id = 0;
   /// 合约代码。
   std::string instrument;
   /// 交易市场。
@@ -88,18 +88,18 @@ struct OrderRequest {
 struct CancelOrderRequest {
   /// SDK 内部订单 ID。
   std::string order_id;
-  /// 待撤订单在 EMT 系统中的 ID。
-  std::uint64_t order_emt_id = 0;
+  /// 待撤订单的券商/通道委托号。
+  std::uint64_t broker_order_id = 0;
   /// 登录后取得的会话 ID。
   std::uint64_t session_id = 0;
 };
 
 /// @brief 撤单错误信息，对应 EMTOrderCancelInfo。
 struct OrderCancelInfo {
-  /// 撤单请求在 EMT 系统中的 ID。
-  std::uint64_t order_cancel_emt_id = 0;
-  /// 原委托在 EMT 系统中的 ID。
-  std::uint64_t order_emt_id = 0;
+  /// 撤单请求在券商/通道侧的 ID。
+  std::uint64_t broker_cancel_id = 0;
+  /// 原委托的券商/通道委托号。
+  std::uint64_t broker_order_id = 0;
   /// SDK 内部订单 ID。
   std::string order_id;
 };
@@ -108,8 +108,8 @@ struct OrderCancelInfo {
 struct Order {
   /// SDK 内部订单 ID。
   std::string order_id;
-  /// EMT 系统订单 ID。
-  std::uint64_t order_emt_id = 0;
+  /// 券商/通道委托号。
+  std::uint64_t broker_order_id = 0;
   /// 用户自定义报单引用。
   std::uint32_t client_order_id = 0;
   /// 交易所报单编号。
@@ -161,8 +161,8 @@ struct Trade {
   std::string trade_id;
   /// SDK 内部订单 ID。
   std::string order_id;
-  /// EMT 系统订单 ID。
-  std::uint64_t order_emt_id = 0;
+  /// 券商/通道委托号。
+  std::uint64_t broker_order_id = 0;
   /// 用户自定义报单引用。
   std::uint32_t client_order_id = 0;
   /// 交易所报单编号。
@@ -278,8 +278,8 @@ struct QueryOrdersRequest {
   std::string instrument;
   /// 状态过滤。
   OrderStatusType status = OrderStatusType::kUnknown;
-  /// 指定 EMT 订单 ID，0 表示不限定。
-  std::uint64_t order_emt_id = 0;
+  /// 指定券商/通道委托号，0 表示不限定。
+  std::uint64_t broker_order_id = 0;
 };
 
 /// @brief 按页查询委托请求。
@@ -298,8 +298,8 @@ struct QueryTradesRequest {
   std::string instrument;
   /// SDK 订单 ID 过滤，空表示全部。
   std::string order_id;
-  /// EMT 订单 ID 过滤，0 表示全部。
-  std::uint64_t order_emt_id = 0;
+  /// 券商/通道委托号过滤，0 表示全部。
+  std::uint64_t broker_order_id = 0;
 };
 
 /// @brief 查询持仓请求。

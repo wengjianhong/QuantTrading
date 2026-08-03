@@ -29,8 +29,8 @@ ErrorCode RiskManager::Configure(const RiskLimits& limits) {
 void RiskManager::SetStateProviders(std::function<std::uint64_t()> open_orders_provider,
                                     std::function<double()> notional_provider) {
   std::lock_guard lock(mutex_);
-  open_orders_provider_ = std::move(open_orders_provider);
   notional_provider_ = std::move(notional_provider);
+  open_orders_provider_ = std::move(open_orders_provider);
 }
 
 std::uint64_t RiskManager::Version() const {

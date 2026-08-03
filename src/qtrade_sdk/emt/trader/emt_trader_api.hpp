@@ -50,11 +50,11 @@ class EmtTraderApi final : public qtrade_sdk::trader::TraderApi {
   /// @copydoc qtrade_sdk::trader::TraderApi::GetApiVersion
   std::string GetApiVersion() const override;
 
-  /// @copydoc qtrade_sdk::trader::TraderApi::GetClientIDByEMTID
-  std::uint8_t GetClientIDByEMTID(std::uint64_t order_emt_id) override;
+  /// @copydoc qtrade_sdk::trader::TraderApi::GetClientIDByBrokerOrderId
+  std::uint8_t GetClientIDByBrokerOrderId(std::uint64_t broker_order_id) override;
 
-  /// @copydoc qtrade_sdk::trader::TraderApi::GetAccountByEMTID
-  std::string GetAccountByEMTID(std::uint64_t order_emt_id) override;
+  /// @copydoc qtrade_sdk::trader::TraderApi::GetAccountByBrokerOrderId
+  std::string GetAccountByBrokerOrderId(std::uint64_t broker_order_id) override;
 
   /// @copydoc qtrade_sdk::trader::TraderApi::SubscribePublicTopic
   void SubscribePublicTopic(qtrade_sdk::trader::ResumeType resume_type) override;
@@ -96,13 +96,13 @@ class EmtTraderApi final : public qtrade_sdk::trader::TraderApi {
   qtrade::ErrorCode SendOrder(const qtrade_sdk::trader::OrderRequest& request) override;
 
   /// @copydoc qtrade_sdk::trader::TraderApi::CancelOrder
-  std::uint64_t CancelOrder(std::uint64_t order_emt_id, std::uint64_t session_id) override;
+  std::uint64_t CancelOrder(std::uint64_t broker_order_id, std::uint64_t session_id) override;
 
   /// @copydoc qtrade_sdk::trader::TraderApi::CancelOrder
   qtrade::ErrorCode CancelOrder(const qtrade_sdk::trader::CancelOrderRequest& request) override;
 
-  /// @copydoc qtrade_sdk::trader::TraderApi::QueryOrderByEMTID
-  int QueryOrderByEMTID(std::uint64_t order_emt_id, std::uint64_t session_id, int request_id) override;
+  /// @copydoc qtrade_sdk::trader::TraderApi::QueryOrderByBrokerOrderId
+  int QueryOrderByBrokerOrderId(std::uint64_t broker_order_id, std::uint64_t session_id, int request_id) override;
 
   /// @copydoc qtrade_sdk::trader::TraderApi::QueryOrders
   int QueryOrders(const qtrade_sdk::trader::QueryOrdersRequest& query_param,
@@ -121,8 +121,8 @@ class EmtTraderApi final : public qtrade_sdk::trader::TraderApi {
                         std::uint64_t session_id,
                         int request_id) override;
 
-  /// @copydoc qtrade_sdk::trader::TraderApi::QueryTradesByEMTID
-  int QueryTradesByEMTID(std::uint64_t order_emt_id, std::uint64_t session_id, int request_id) override;
+  /// @copydoc qtrade_sdk::trader::TraderApi::QueryTradesByBrokerOrderId
+  int QueryTradesByBrokerOrderId(std::uint64_t broker_order_id, std::uint64_t session_id, int request_id) override;
 
   /// @copydoc qtrade_sdk::trader::TraderApi::QueryTrades
   int QueryTrades(const qtrade_sdk::trader::QueryTradesRequest& query_param,

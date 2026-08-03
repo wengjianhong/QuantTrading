@@ -382,7 +382,7 @@ ErrorCode OrderManager::ApplyTransition(OrderEntry& entry, OrderLifecycleState t
 
 void OrderManager::MergeOrderSnapshot(OrderEntry& entry, const trader::Order& report) {
   auto& local = entry.order;
-  local.order_emt_id = report.order_emt_id != 0 ? report.order_emt_id : local.order_emt_id;
+  local.broker_order_id = report.broker_order_id != 0 ? report.broker_order_id : local.broker_order_id;
   local.exchange_order_id = report.exchange_order_id.empty() ? local.exchange_order_id : report.exchange_order_id;
   local.instrument = report.instrument.empty() ? local.instrument : report.instrument;
   if (report.market != trader::MarketType::kUnknown && report.market != trader::MarketType::kInit) {
