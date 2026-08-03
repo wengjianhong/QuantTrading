@@ -14,19 +14,19 @@
 
 namespace qtrade::engine::risk {
 
-/// @brief 实例风控模块间稳定接口（进程内；非 gRPC）
+/// @brief 实例风控模块间稳定接口
 class RiskApi {
  public:
   virtual ~RiskApi() = default;
+
+  /// @brief 查询当前风险配置版本
+  /// @return 风险配置版本
+  [[nodiscard]] virtual std::uint64_t Version() const = 0;
 
   /// @brief 检查订单参数、单笔和累计预算
   /// @param request 下单请求
   /// @return 通过返回 kSuccess
   [[nodiscard]] virtual ErrorCode CheckOrder(const qtrade_sdk::trader::OrderRequest& request) const = 0;
-
-  /// @brief 查询当前风险配置版本
-  /// @return 风险配置版本
-  [[nodiscard]] virtual std::uint64_t Version() const = 0;
 };
 
 }  // namespace qtrade::engine::risk

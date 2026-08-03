@@ -66,6 +66,42 @@ void ExecutionManager::SetAccountRiskIdentity(std::string tenant_id, std::string
   account_id_ = std::move(account_id);
 }
 
+ErrorCode ExecutionManager::Enqueue(const qtrade_sdk::trader::Order& order) {
+  {
+    std::lock_guard lock(mutex_);
+    if (!running_ || !trader_api_) {
+      return ErrorCode::kNotInitialized;
+    }
+    if (pending_items_.size() >= kQueueCapacity) {
+      return ErrorCode::kResourceExhausted;
+    }
+    WorkItem item;
+    item.type = WorkItem::Type::kSend;
+    item.order = order;
+    pending_items_.push_back(std::move(item));
+  }
+  cv_.notify_one();
+  return ErrorCode::kSuccess;
+}
+
+ErrorCode ExecutionManager::EnqueueCancel(const qtrade_sdk::trader::CancelOrderRequest& request) {
+  {
+    std::lock_guard lock(mutex_);
+    if (!running_ || !trader_api_) {
+      return ErrorCode::kNotInitialized;
+    }
+    if (pending_items_.size() >= kQueueCapacity) {
+      return ErrorCode::kResourceExhausted;
+    }
+    WorkItem item;
+    item.type = WorkItem::Type::kCancel;
+    item.cancel = request;
+    pending_items_.push_front(std::move(item));
+  }
+  cv_.notify_one();
+  return ErrorCode::kSuccess;
+}
+
 void ExecutionManager::ReleaseReservationOnSendFailure(qtrade::client::AccountRiskClient* account_risk_client,
                                                        const std::string& tenant_id,
                                                        const std::string& account_id,

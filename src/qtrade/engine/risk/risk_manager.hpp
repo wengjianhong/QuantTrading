@@ -1,5 +1,5 @@
 /// @file      risk_manager.hpp
-/// @brief     风险管理器（实现 RiskApi）
+/// @brief     风险管理器
 /// @details   校验单笔参数、活动订单数与累计名义敞口是否超出实例风险预算
 /// @author    wengjianhong
 /// @date      2026-05-19
