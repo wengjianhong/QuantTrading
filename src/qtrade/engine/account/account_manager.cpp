@@ -6,10 +6,13 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/engine/account/account_manager.hpp"
 
+#include "qtrade/engine/common/util/trade_dedup.hpp"
+
 #include <algorithm>
 #include <cmath>
 
 namespace qtrade::engine::account {
+using qtrade::engine::common::util::GenerateTradeDedupKey;
 
 void AccountManager::ApplyAssetSnapshot(const qtrade_sdk::trader::AccountAsset& asset) {
   std::lock_guard lock(mutex_);
@@ -52,12 +55,7 @@ void AccountManager::ApplyTrade(const Trade& trade) {
   }
 
   // 1. 构造幂等键与成交金额
-  const std::string dedup_key = !trade.trade_id.empty()
-                                  ? trade.trade_id
-                                  : trade.order_id + ":" + std::to_string(trade.report_index) + ":" +
-                                      std::to_string(trade.client_order_id) + ":" + trade.instrument + ":" +
-                                      std::to_string(trade.trade_time) + ":" + std::to_string(trade.price) + ":" +
-                                      std::to_string(trade.volume);
+  const std::string dedup_key = GenerateTradeDedupKey(trade);
   const double amount = trade.trade_amount > 0.0 ? trade.trade_amount : trade.price * static_cast<double>(trade.volume);
 
   // 2. 幂等写入后按方向更新净现金流

@@ -89,10 +89,14 @@ TEST(PositionManager, TracksLongShortAndTodayYesterday) {
   open_short.position_effect = qtrade_sdk::trader::PositionEffectType::kOpen;
   manager.ApplyTrade(open_short);
 
-  const auto position = manager.GetPosition(initial.instrument);
-  EXPECT_EQ(position.long_yesterday, 2);
-  EXPECT_EQ(position.long_today, 1);
-  EXPECT_EQ(position.short_today, 4);
+  const auto long_pos = manager.GetPosition(initial.instrument, qtrade_sdk::trader::PositionDirectionType::kLong);
+  const auto short_pos = manager.GetPosition(initial.instrument, qtrade_sdk::trader::PositionDirectionType::kShort);
+  ASSERT_TRUE(long_pos.has_value());
+  ASSERT_TRUE(short_pos.has_value());
+  EXPECT_EQ(long_pos->yesterday_volume, 2);
+  EXPECT_EQ(long_pos->total_volume - long_pos->yesterday_volume, 1);
+  EXPECT_EQ(short_pos->total_volume, 4);
+  EXPECT_EQ(short_pos->total_volume - short_pos->yesterday_volume, 4);
   EXPECT_EQ(manager.GetNetPosition(initial.instrument), -1);
   EXPECT_EQ(manager.GetGrossPosition(initial.instrument), 7);
 }
