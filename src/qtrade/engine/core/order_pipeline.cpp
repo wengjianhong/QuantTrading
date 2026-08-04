@@ -141,7 +141,7 @@ ErrorCode OrderPipeline::Cancel(const std::string& order_id) {
   // 2. 入队 EMS 撤单；失败回写撤单结果
   qtrade_sdk::trader::CancelOrderRequest request;
   request.order_id = order_id;
-  request.order_emt_id = order->order_emt_id;
+  request.broker_order_id = order->broker_order_id;
   const auto result = execution_.EnqueueCancel(request);
   if (result != ErrorCode::kSuccess) {
     (void)orders_.RecordCancelResult(order_id, result);

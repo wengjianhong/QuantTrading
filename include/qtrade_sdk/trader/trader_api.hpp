@@ -60,15 +60,15 @@ class TraderApi {
   /// @return API 版本字符串。
   virtual std::string GetApiVersion() const = 0;
 
-  /// @brief 通过 EMT 订单 ID 获取 client_id。
-  /// @param order_emt_id EMT 系统订单 ID。
+  /// @brief 通过券商/通道委托号获取 client_id。
+  /// @param broker_order_id 券商/通道委托号。
   /// @return 客户端 ID。
-  virtual std::uint8_t GetClientIDByEMTID(std::uint64_t order_emt_id) = 0;
+  virtual std::uint8_t GetClientIDByBrokerOrderId(std::uint64_t broker_order_id) = 0;
 
-  /// @brief 通过 EMT 订单 ID 获取资金账号。
-  /// @param order_emt_id EMT 系统订单 ID。
+  /// @brief 通过券商/通道委托号获取资金账号。
+  /// @param broker_order_id 券商/通道委托号。
   /// @return 资金账号字符串。
-  virtual std::string GetAccountByEMTID(std::uint64_t order_emt_id) = 0;
+  virtual std::string GetAccountByBrokerOrderId(std::uint64_t broker_order_id) = 0;
 
   /// @brief 订阅公共流重传方式。
   /// @param resume_type 公共流重传方式。
@@ -124,7 +124,7 @@ class TraderApi {
   /// @brief 报单录入请求。
   /// @param order 报单录入信息。
   /// @param session_id 登录后取得的会话 ID。
-  /// @return EMT 订单 ID；0 表示发送失败。
+  /// @return 券商/通道委托号；0 表示发送失败。
   virtual std::uint64_t InsertOrder(const OrderRequest& order, std::uint64_t session_id) = 0;
 
   /// @brief 项目内部统一发单入口。
@@ -133,22 +133,22 @@ class TraderApi {
   virtual qtrade::ErrorCode SendOrder(const OrderRequest& request) = 0;
 
   /// @brief 撤单请求。
-  /// @param order_emt_id 待撤订单在 EMT 系统中的 ID。
+  /// @param broker_order_id 待撤订单的券商/通道委托号。
   /// @param session_id 登录后取得的会话 ID。
-  /// @return EMT 撤单 ID；0 表示发送失败。
-  virtual std::uint64_t CancelOrder(std::uint64_t order_emt_id, std::uint64_t session_id) = 0;
+  /// @return 券商/通道撤单号；0 表示发送失败。
+  virtual std::uint64_t CancelOrder(std::uint64_t broker_order_id, std::uint64_t session_id) = 0;
 
   /// @brief 项目内部统一撤单入口。
   /// @param request 撤单请求。
   /// @return 撤单结果错误码。
   virtual qtrade::ErrorCode CancelOrder(const CancelOrderRequest& request) = 0;
 
-  /// @brief 根据 EMT 订单 ID 查询委托。
-  /// @param order_emt_id 待查询订单在 EMT 系统中的 ID。
+  /// @brief 根据券商/通道委托号查询委托。
+  /// @param broker_order_id 待查询订单的券商/通道委托号。
   /// @param session_id 登录后取得的会话 ID。
   /// @param request_id 用户自定义请求编号。
   /// @return 0 表示查询请求发送成功，非 0 表示失败。
-  virtual int QueryOrderByEMTID(std::uint64_t order_emt_id, std::uint64_t session_id, int request_id) = 0;
+  virtual int QueryOrderByBrokerOrderId(std::uint64_t broker_order_id, std::uint64_t session_id, int request_id) = 0;
 
   /// @brief 查询委托。
   /// @param query_param 查询过滤条件。
@@ -178,12 +178,12 @@ class TraderApi {
                                 std::uint64_t session_id,
                                 int request_id) = 0;
 
-  /// @brief 根据 EMT 订单 ID 查询成交。
-  /// @param order_emt_id 待查询订单在 EMT 系统中的 ID。
+  /// @brief 根据券商/通道委托号查询成交。
+  /// @param broker_order_id 待查询订单的券商/通道委托号。
   /// @param session_id 登录后取得的会话 ID。
   /// @param request_id 用户自定义请求编号。
   /// @return 0 表示查询请求发送成功，非 0 表示失败。
-  virtual int QueryTradesByEMTID(std::uint64_t order_emt_id, std::uint64_t session_id, int request_id) = 0;
+  virtual int QueryTradesByBrokerOrderId(std::uint64_t broker_order_id, std::uint64_t session_id, int request_id) = 0;
 
   /// @brief 查询成交。
   /// @param query_param 查询过滤条件。

@@ -30,7 +30,7 @@ bool LoadStrategies(TradingEngine& engine) {
   };
 
   // 1. 将 runtime_config.strategies（proto）转为策略运行时配置
-  const auto& plugin_dir = engine.GetConfig().config.strategy.plugin_dir;
+  const auto& plugin_dir = engine.GetBootstrapConfig().config.strategy.plugin_dir;
   const auto runtime_config = engine.GetRuntimeConfig();
   std::vector<qtrade::strategy::StrategyConfig> strategies;
   strategies.reserve(static_cast<std::size_t>(runtime_config.strategies_size()));

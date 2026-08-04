@@ -193,14 +193,14 @@ enum class OrderSubmitStatusType : std::uint8_t {
 
 /// @brief 持仓方向。
 enum class PositionDirectionType : std::uint8_t {
+  /// 未知方向。
+  kUnknown = 0,
   /// 多头持仓。
   kLong = 1,
   /// 空头持仓。
   kShort = 2,
   /// 净持仓。
   kNet = 3,
-  /// 未知方向。
-  kUnknown = 0,
 };
 
 /// @brief 账户类型。

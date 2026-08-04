@@ -66,6 +66,42 @@ void ExecutionManager::SetAccountRiskIdentity(std::string tenant_id, std::string
   account_id_ = std::move(account_id);
 }
 
+ErrorCode ExecutionManager::Enqueue(const qtrade_sdk::trader::Order& order) {
+  {
+    std::lock_guard lock(mutex_);
+    if (!running_ || !trader_api_) {
+      return ErrorCode::kNotInitialized;
+    }
+    if (pending_items_.size() >= kQueueCapacity) {
+      return ErrorCode::kResourceExhausted;
+    }
+    WorkItem item;
+    item.type = WorkItem::Type::kSend;
+    item.order = order;
+    pending_items_.push_back(std::move(item));
+  }
+  cv_.notify_one();
+  return ErrorCode::kSuccess;
+}
+
+ErrorCode ExecutionManager::EnqueueCancel(const qtrade_sdk::trader::CancelOrderRequest& request) {
+  {
+    std::lock_guard lock(mutex_);
+    if (!running_ || !trader_api_) {
+      return ErrorCode::kNotInitialized;
+    }
+    if (pending_items_.size() >= kQueueCapacity) {
+      return ErrorCode::kResourceExhausted;
+    }
+    WorkItem item;
+    item.type = WorkItem::Type::kCancel;
+    item.cancel = request;
+    pending_items_.push_front(std::move(item));
+  }
+  cv_.notify_one();
+  return ErrorCode::kSuccess;
+}
+
 void ExecutionManager::ReleaseReservationOnSendFailure(qtrade::client::AccountRiskClient* account_risk_client,
                                                        const std::string& tenant_id,
                                                        const std::string& account_id,
@@ -132,7 +168,7 @@ void ExecutionManager::Run() {
     // 4. 组装 OrderRequest 并调用 SendOrder，回写 OMS；失败时释放预占
     qtrade_sdk::trader::OrderRequest request;
     request.client_order_id = order.client_order_id;
-    request.order_emt_id = order.order_emt_id;
+    request.broker_order_id = order.broker_order_id;
     request.instrument = order.instrument;
     request.market = order.market;
     request.price = order.price;

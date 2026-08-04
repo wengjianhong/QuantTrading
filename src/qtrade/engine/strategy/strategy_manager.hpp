@@ -86,7 +86,7 @@ class StrategyManager {
   /// 保护注册表与路由表
   mutable std::mutex mutex_;
   /// 是否已 Start
-  std::atomic_bool running_ = false;
+  std::atomic<bool> running_ = false;
   /// 事件通道（Lane-Q / Lane-T）
   event_bus::EventLanes& event_lanes_;
   /// 策略插件加载器

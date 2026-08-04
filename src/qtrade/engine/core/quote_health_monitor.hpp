@@ -69,8 +69,8 @@ class QuoteHealthMonitor {
   [[nodiscard]] static std::int64_t SteadyNowMs();
 
   std::mutex mutex_;
-  std::atomic_bool running_ = false;
-  std::atomic_bool healthy_ = false;
+  std::atomic<bool> running_ = false;
+  std::atomic<bool> healthy_ = false;
   std::atomic<std::int64_t> last_valid_tick_ms_ = 0;
   HealthChangedHandler health_changed_handler_;
   QuoteHealthOptions options_;

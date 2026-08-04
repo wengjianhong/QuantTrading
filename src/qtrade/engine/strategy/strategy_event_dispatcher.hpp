@@ -64,7 +64,7 @@ class StrategyEventDispatcher {
   /// 保护路由快照读写
   mutable std::mutex mutex_;
   /// 是否已 Start；未激活时丢弃事件
-  std::atomic_bool active_ = false;
+  std::atomic<bool> active_ = false;
   /// 是否已完成 Subscribe，防止重复叠加订阅
   bool subscribed_ = false;
   /// 事件通道（Lane-Q / Lane-T）

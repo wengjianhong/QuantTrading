@@ -61,7 +61,7 @@ class OrderApi {
   /// @param client_order_id 策略侧客户端订单 ID
   /// @return 存在则返回订单快照
   [[nodiscard]] virtual std::optional<qtrade_sdk::trader::Order> GetOrderByClientId(
-      std::uint32_t client_order_id) const = 0;
+    std::uint32_t client_order_id) const = 0;
 
   /// @brief 按全局订单 ID 查询
   /// @param order_id 全局订单 ID

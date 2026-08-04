@@ -59,13 +59,13 @@ std::string EmtTraderApi::GetApiVersion() const {
   return api_version_;
 }
 
-std::uint8_t EmtTraderApi::GetClientIDByEMTID(std::uint64_t order_emt_id) {
-  (void)order_emt_id;
+std::uint8_t EmtTraderApi::GetClientIDByBrokerOrderId(std::uint64_t broker_order_id) {
+  (void)broker_order_id;
   return 0;
 }
 
-std::string EmtTraderApi::GetAccountByEMTID(std::uint64_t order_emt_id) {
-  (void)order_emt_id;
+std::string EmtTraderApi::GetAccountByBrokerOrderId(std::uint64_t broker_order_id) {
+  (void)broker_order_id;
   return account_id_;
 }
 
@@ -121,7 +121,7 @@ bool EmtTraderApi::IsServerRestart(std::uint64_t session_id) {
 
 std::uint64_t EmtTraderApi::InsertOrder(const sdk::OrderRequest& order, std::uint64_t session_id) {
   (void)session_id;
-  return order.order_emt_id;
+  return order.broker_order_id;
 }
 
 qtrade::ErrorCode EmtTraderApi::SendOrder(const sdk::OrderRequest& request) {
@@ -129,8 +129,8 @@ qtrade::ErrorCode EmtTraderApi::SendOrder(const sdk::OrderRequest& request) {
   return qtrade::ErrorCode::kNotSupported;
 }
 
-std::uint64_t EmtTraderApi::CancelOrder(std::uint64_t order_emt_id, std::uint64_t session_id) {
-  (void)order_emt_id;
+std::uint64_t EmtTraderApi::CancelOrder(std::uint64_t broker_order_id, std::uint64_t session_id) {
+  (void)broker_order_id;
   (void)session_id;
   return 0;
 }
@@ -140,8 +140,8 @@ qtrade::ErrorCode EmtTraderApi::CancelOrder(const sdk::CancelOrderRequest& reque
   return qtrade::ErrorCode::kNotSupported;
 }
 
-int EmtTraderApi::QueryOrderByEMTID(std::uint64_t order_emt_id, std::uint64_t session_id, int request_id) {
-  (void)order_emt_id;
+int EmtTraderApi::QueryOrderByBrokerOrderId(std::uint64_t broker_order_id, std::uint64_t session_id, int request_id) {
+  (void)broker_order_id;
   (void)session_id;
   (void)request_id;
   return -1;
@@ -176,8 +176,8 @@ int EmtTraderApi::QueryOrdersByPage(const sdk::QueryOrdersByPageRequest& query_p
   return -1;
 }
 
-int EmtTraderApi::QueryTradesByEMTID(std::uint64_t order_emt_id, std::uint64_t session_id, int request_id) {
-  (void)order_emt_id;
+int EmtTraderApi::QueryTradesByBrokerOrderId(std::uint64_t broker_order_id, std::uint64_t session_id, int request_id) {
+  (void)broker_order_id;
   (void)session_id;
   (void)request_id;
   return -1;
