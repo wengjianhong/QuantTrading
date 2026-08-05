@@ -25,19 +25,6 @@
 namespace qtrade::engine {
 namespace {
 
-/// @brief 进程世代（写入 order_id；本地文件锁已移除，暂用固定值）
-constexpr std::uint64_t kEngineEpoch = 1;
-/// @brief 行情陈旧判定阈值
-constexpr std::chrono::milliseconds kQuoteStaleThreshold = std::chrono::milliseconds(3000);
-/// @brief 启动 READY 必须依赖已连接的交易通道
-constexpr bool kRequireTraderConnection = true;
-/// @brief 启动 READY 必须完成柜台快照同步
-constexpr bool kRequireBrokerSnapshot = true;
-/// @brief 默认必须等待有效行情后开放下单
-constexpr bool kRequireMarketData = true;
-/// @brief 未完成订单必须完成柜台对账
-constexpr bool kAllowUnreconciledOrders = false;
-
 [[nodiscard]] bool IsValidTick(const qtrade_sdk::quote::MarketTick& tick) {
   return !tick.instrument.empty() && tick.data_time > 0 && std::isfinite(tick.last_price) && tick.last_price > 0.0 &&
          tick.volume >= 0;
@@ -208,6 +195,7 @@ ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineBootstra
   }
 
   initialized_ = true;
+  engine_epoch_ = time(nullptr);
   spdlog::info("Init pipeline completed, state={}", static_cast<int>(lifecycle_.State()));
   return ErrorCode::kSuccess;
 }
@@ -424,7 +412,6 @@ ErrorCode TradingEngine::ApplyBootstrapConfig(const qtrade::common::config::Qtra
 
   // 2. 配置行情陈旧阈值，供 READY 门禁与 OnMarketHealthChanged 使用
   QuoteHealthOptions quote_health_options;
-  quote_health_options.max_stale_age = kQuoteStaleThreshold;
   if (quote_health_monitor_.Configure(quote_health_options) != ErrorCode::kSuccess) {
     lifecycle_.Transition(EngineLifecycleState::kFailed, "QUOTE_HEALTH_CONFIG_INVALID");
     return ErrorCode::kSystemError;
@@ -478,9 +465,9 @@ ErrorCode TradingEngine::InitEngineModules() {
 
   // 1. OMS：仅内存状态机；冷启动不回放本地订单，Working 态由柜台快照对账重建
   oms::OrderManagerOptions order_options;
+  order_options.engine_epoch = engine_epoch_;
   order_options.tenant_id = bootstrap_config_.config.identity.tenant_id;
   order_options.engine_id = bootstrap_config_.config.identity.engine_id;
-  order_options.engine_epoch = kEngineEpoch;
   if (const auto rc = order_manager_.Initialize(order_options); rc != ErrorCode::kSuccess) {
     spdlog::error("order_manager init failed, code={}", static_cast<int>(rc));
     lifecycle_.Transition(EngineLifecycleState::kFailed, "ORDER_MANAGER_INIT_FAILED");
@@ -646,13 +633,13 @@ ErrorCode TradingEngine::StartAdapters() {
   }
 
   // 2. 行情通道必须在线（有效行情仍由后续健康门禁决定是否 READY）
-  if (kRequireMarketData && (quote_api_ == nullptr || !quote_api_->IsConnected())) {
+  if (quote_api_ == nullptr || !quote_api_->IsConnected()) {
     lifecycle_.Transition(EngineLifecycleState::kFailed, "QUOTE_NOT_CONNECTED");
     return ErrorCode::kConnectionError;
   }
 
   // 3. 交易通道必须在线，否则无法对账与发单
-  if (kRequireTraderConnection && (trader_api_ == nullptr || !trader_api_->IsConnected())) {
+  if (trader_api_ == nullptr || !trader_api_->IsConnected()) {
     lifecycle_.Transition(EngineLifecycleState::kFailed, "TRADER_NOT_CONNECTED");
     return ErrorCode::kConnectionError;
   }
@@ -661,24 +648,12 @@ ErrorCode TradingEngine::StartAdapters() {
 
 ErrorCode TradingEngine::SyncBrokerSnapshot() {
   spdlog::info("SyncBrokerSnapshot");
-  auto* trader_api = trader_api_.get();
-  const bool has_unreconciled_orders = !order_manager_.GetOrdersRequiringReconciliation().empty();
-
-  // 1. 有待对账订单或策略要求快照时，查询柜台并 Adopt 到 OMS/Account/Position
-  if (trader_api != nullptr && (kRequireBrokerSnapshot || has_unreconciled_orders)) {
-    const auto sync_result = SynchronizeBrokerState(trader_api);
-    if (sync_result != ErrorCode::kSuccess && (kRequireBrokerSnapshot || !kAllowUnreconciledOrders)) {
-      lifecycle_.Transition(EngineLifecycleState::kFailed, "BROKER_RECONCILIATION_FAILED");
-      return sync_result;
-    }
+  // StartAdapters 已保证交易通道在线；拉柜台快照并对账，失败则拒绝 Start
+  const auto sync_result = SynchronizeBrokerState(trader_api_.get());
+  if (sync_result != ErrorCode::kSuccess) {
+    lifecycle_.Transition(EngineLifecycleState::kFailed, "BROKER_RECONCILIATION_FAILED");
+    return sync_result;
   }
-
-  // 2. 无 trader 连接但本地仍有待对账订单，拒绝启动
-  else if (has_unreconciled_orders && !kAllowUnreconciledOrders) {
-    lifecycle_.Transition(EngineLifecycleState::kFailed, "BROKER_RECONCILIATION_REQUIRED");
-    return ErrorCode::kNotInitialized;
-  }
-
   return ErrorCode::kSuccess;
 }
 
@@ -714,8 +689,8 @@ ErrorCode TradingEngine::StartMarketData() {
 
 ErrorCode TradingEngine::AdvanceReadyGates() {
   spdlog::info("AdvanceReadyGates");
-  // 行情已健康（或不强制要求行情）则 Initiated → Ready；否则等 OnMarketHealthChanged
-  if (!kRequireMarketData || quote_health_monitor_.IsHealthy()) {
+  // 行情已健康则 Initiated → Ready；否则等 OnMarketHealthChanged
+  if (quote_health_monitor_.IsHealthy()) {
     OnMarketHealthChanged(true);
   }
   return ErrorCode::kSuccess;

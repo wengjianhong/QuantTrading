@@ -30,8 +30,8 @@ struct OrderManagerOptions {
   std::string tenant_id;
   /// 引擎 ID
   std::string engine_id;
-  /// 引擎 epoch（写入全局 order_id）
-  std::uint64_t engine_epoch = 1;
+  /// 引擎 epoch（Init 时取 Unix 秒，写入全局 order_id）
+  std::uint64_t engine_epoch = 0;
 };
 
 /// @brief 引擎内订单状态与索引管理（仅内存）

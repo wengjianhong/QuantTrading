@@ -269,6 +269,10 @@ class TradingEngine {
   std::atomic<bool> initialized_ = false;
   /// 是否已 Start
   std::atomic<bool> running_ = false;
+  /// 本进程启动世代（Init 时取 Unix 秒，写入 order_id）
+  std::uint64_t engine_epoch_ = 0;
+  /// 已应用的配置快照版本
+  std::uint64_t runtime_config_version_ = 0;
   /// 引擎生命周期状态机（仅本类读写）
   EngineLifecycle lifecycle_;
   /// 进程引导配置（qtrade_engine.json）
@@ -277,8 +281,6 @@ class TradingEngine {
   qtrade::config::v1::EngineConfig runtime_config_;
   /// 保护业务配置快照
   mutable std::mutex runtime_config_mutex_;
-  /// 已应用的配置快照版本
-  std::uint64_t runtime_config_version_ = 0;
   /// 当前已订阅行情合约集合
   std::unordered_set<std::string> subscribed_instruments_;
 
