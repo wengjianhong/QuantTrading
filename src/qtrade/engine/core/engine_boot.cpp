@@ -7,7 +7,7 @@
 
 #include "qtrade/common/boot/process_boot.hpp"
 #include "qtrade/common/config/qtrade_engine_bootstrap_config.hpp"
-#include "qtrade/common/converter/strategy_config_converter.hpp"
+#include "qtrade/common/proto/strategy_config_utils.hpp"
 #include "qtrade/common/json/json_util.hpp"
 #include "qtrade/common/system/signal.hpp"
 #include "qtrade/engine/trading_engine.hpp"
@@ -35,7 +35,7 @@ bool LoadStrategies(TradingEngine& engine) {
   std::vector<qtrade::strategy::StrategyConfig> strategies;
   strategies.reserve(static_cast<std::size_t>(runtime_config.strategies_size()));
   for (const auto& proto : runtime_config.strategies()) {
-    strategies.push_back(qtrade::common::converter::ParseStrategyConfigProto(proto));
+    strategies.push_back(qtrade::common::proto::ParseStrategyConfigProto(proto));
   }
 
   // 2. 交给 StrategyManager 装载插件并注册实例

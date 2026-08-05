@@ -231,6 +231,9 @@ class TradingEngine {
   /// @brief 注册交易 SDK 回调并接入 Lane-T
   void WireTraderCallbacks();
 
+  /// @brief 注册 Lane-T 引擎级回报处理（OMS/账户/持仓/account-risk；Start 前调用）
+  void WireTraderEventHandlers();
+
   /// @brief 断开并释放行情/交易适配器
   void DisconnectAdapters();
 
@@ -254,6 +257,14 @@ class TradingEngine {
   /// @brief 处理行情健康变化并更新 READY 门禁
   /// @param healthy 行情是否健康
   void OnMarketHealthChanged(bool healthy);
+
+  /// @brief 处理 Lane-T 订单回报：更新 OMS/账户并在终态释放 account-risk 预占
+  /// @param order 柜台订单回报
+  void OnTraderOrderReport(const qtrade_sdk::trader::Order& order);
+
+  /// @brief 处理 Lane-T 成交回报：更新 OMS/账户/持仓并在全成后释放 account-risk 预占
+  /// @param trade 柜台成交回报
+  void OnTraderTradeReport(const qtrade_sdk::trader::Trade& trade);
 
   /// @brief 尽力调用 account-risk ReleaseOrder（无本地 outbox）
   /// @param order_id 委托 ID

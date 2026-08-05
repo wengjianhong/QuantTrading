@@ -28,6 +28,11 @@ namespace qtrade::engine {
 class OrderPipeline {
  public:
   /// @brief 构造发单流水线
+  /// @param compliance 合规模块接口
+  /// @param risk 实例风控接口
+  /// @param orders OMS 接口
+  /// @param execution EMS 接口
+  /// @param account_risk_client 账户硬风控客户端；未启用时为 nullptr
   OrderPipeline(cms::ComplianceApi& compliance,
                 risk::RiskApi& risk,
                 oms::OrderApi& orders,
@@ -35,14 +40,18 @@ class OrderPipeline {
                 qtrade::client::AccountRiskClient* account_risk_client = nullptr);
 
   /// @brief 设置或替换账户硬风控客户端
+  /// @param account_risk_client 客户端指针；未启用时为 nullptr
   void SetAccountRiskClient(qtrade::client::AccountRiskClient* account_risk_client);
 
   /// @brief 设置 E 段 RPC 所需的账户身份（组装 Reserve/Release 请求）
+  /// @param tenant_id 租户 ID
+  /// @param account_id 账户 ID
+  /// @param engine_id 引擎实例 ID
   void SetAccountRiskIdentity(std::string tenant_id, std::string account_id, std::string engine_id);
 
   /// @brief 提交策略订单请求并走完整准入链路
   /// @param request 单笔下单请求
-  /// @return 准入成功返回 kSuccess
+  /// @return 准入成功返回 kSuccess；合规/风控/预占/落单/入队任一步失败返回对应错误码
   ErrorCode Submit(const qtrade_sdk::trader::OrderRequest& request);
 
   /// @brief 提交策略报单批次：按序逐笔 Submit，遇错即停
@@ -56,17 +65,28 @@ class OrderPipeline {
   ErrorCode Cancel(const std::string& order_id);
 
  private:
-  /// @brief 尽力调用 ReleaseOrder（失败仅影响预占回收，不改变本函数主路径返回值）
+  /// @brief 尽力调用 ReleaseOrder 释放账户预占
+  /// @param order_id 全局订单 ID
+  /// @param reason 释放原因
+  /// @details 失败仅记录 warn，不改变调用方主路径返回值
   void ReleaseReservation(const std::string& order_id,
                           qtrade::account_risk::v1::ReleaseOrderRequest::Reason reason);
 
+  /// 合规模块接口
   cms::ComplianceApi& compliance_;
+  /// 实例风控接口
   risk::RiskApi& risk_;
+  /// OMS 接口
   oms::OrderApi& orders_;
+  /// EMS 接口
   ems::ExecutionApi& execution_;
+  /// 账户硬风控客户端；未启用时为 nullptr
   qtrade::client::AccountRiskClient* account_risk_client_ = nullptr;
+  /// 租户 ID（Reserve/Release 请求）
   std::string tenant_id_;
+  /// 账户 ID（Reserve/Release 请求）
   std::string account_id_;
+  /// 引擎实例 ID（Reserve 请求 intent）
   std::string engine_id_;
 };
 

@@ -1,5 +1,6 @@
 /// @file      order_pipeline.cpp
 /// @brief     OrderPipeline 发单准入编排实现
+/// @details   实现 CMS → Risk → account-risk 预占 → OMS → EMS 顺序编排与失败回滚。
 /// @author    wengjianhong
 /// @date      2026-07-15
 /// @copyright CC BY-NC-SA 4.0
@@ -47,6 +48,7 @@ void OrderPipeline::ReleaseReservation(const std::string& order_id,
 }
 
 ErrorCode OrderPipeline::Submit(const qtrade_sdk::trader::OrderRequest& request) {
+  // 1. 合规与实例风控准入
   if (const auto rc = compliance_.CheckOrder(request); rc != ErrorCode::kSuccess) {
     return rc;
   }
@@ -57,6 +59,7 @@ ErrorCode OrderPipeline::Submit(const qtrade_sdk::trader::OrderRequest& request)
     return ErrorCode::kSuccess;
   }
 
+  // 2. 分配 order_id 并尝试 account-risk 预占
   const std::string order_id = orders_.AllocateOrderId();
   if (account_risk_client_ != nullptr) {
     qtrade::account_risk::v1::ReserveOrderRequest reserve_request;
@@ -93,6 +96,7 @@ ErrorCode OrderPipeline::Submit(const qtrade_sdk::trader::OrderRequest& request)
     }
   }
 
+  // 3. OMS 落单并标记 EMS 入队
   const auto order = orders_.CreateOrder(request, order_id);
   if (!order.has_value()) {
     ReleaseReservation(order_id, qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
@@ -109,6 +113,7 @@ ErrorCode OrderPipeline::Submit(const qtrade_sdk::trader::OrderRequest& request)
     return rc;
   }
 
+  // 4. EMS 入队；失败时回写发送结果并释放预占
   const auto rc = execution_.Enqueue(*order);
   if (rc != ErrorCode::kSuccess) {
     (void)orders_.RecordSendResult(created_order_id, rc);

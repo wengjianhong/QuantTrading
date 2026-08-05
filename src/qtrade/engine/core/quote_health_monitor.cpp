@@ -1,10 +1,13 @@
 /// @file      quote_health_monitor.cpp
 /// @brief     行情健康监控实现
+/// @details   有效/无效 Tick 更新健康态；WatchHealth 线程检测 max_stale_age 静默超时。
 /// @author    wengjianhong
 /// @date      2026-07-27
 /// @copyright CC BY-NC-SA 4.0
 
 #include "qtrade/engine/core/quote_health_monitor.hpp"
+
+#include "qtrade/common/system/time.hpp"
 
 namespace qtrade::engine {
 
@@ -26,6 +29,7 @@ void QuoteHealthMonitor::Start() {
 }
 
 void QuoteHealthMonitor::Stop() {
+  // 1. 置停止标志并唤醒后台线程
   {
     std::lock_guard lock(mutex_);
     if (!running_) {
@@ -35,6 +39,8 @@ void QuoteHealthMonitor::Stop() {
     healthy_.store(false, std::memory_order_release);
   }
   health_cv_.notify_all();
+
+  // 2. 等待工作线程退出
   if (health_worker_.joinable()) {
     health_worker_.join();
   }
@@ -56,7 +62,7 @@ void QuoteHealthMonitor::SetHealthChangedHandler(HealthChangedHandler handler) {
 }
 
 void QuoteHealthMonitor::OnValidTick() {
-  last_valid_tick_ms_.store(SteadyNowMs(), std::memory_order_release);
+  last_valid_tick_ms_.store(qtrade::common::system::SteadyMillisNow(), std::memory_order_release);
   const bool previous = healthy_.exchange(true, std::memory_order_acq_rel);
   if (!previous) {
     NotifyHealthChanged(true);
@@ -90,28 +96,28 @@ void QuoteHealthMonitor::WatchHealth() {
     HealthChangedHandler handler;
     {
       std::unique_lock lock(mutex_);
+      // 1. 周期性等待；Stop/Configure 时提前唤醒
       const auto interval = std::min(options_.max_stale_age, std::chrono::milliseconds(100));
       health_cv_.wait_for(lock, interval, [this] { return !running_.load(std::memory_order_acquire); });
       if (!running_.load(std::memory_order_acquire)) {
         return;
       }
+
+      // 2. 检测静默超时
       const auto last_tick = last_valid_tick_ms_.load(std::memory_order_acquire);
       if (!healthy_.load(std::memory_order_acquire) || last_tick == 0 ||
-          SteadyNowMs() - last_tick <= options_.max_stale_age.count()) {
+          qtrade::common::system::SteadyMillisNow() - last_tick <= options_.max_stale_age.count()) {
         continue;
       }
       healthy_.store(false, std::memory_order_release);
       handler = health_changed_handler_;
     }
+
+    // 3. 锁外通知引擎（不健康）
     if (handler) {
       handler(false);
     }
   }
-}
-
-std::int64_t QuoteHealthMonitor::SteadyNowMs() {
-  return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch())
-    .count();
 }
 
 }  // namespace qtrade::engine

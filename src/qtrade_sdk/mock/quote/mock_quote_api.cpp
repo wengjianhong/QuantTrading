@@ -6,9 +6,10 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade_sdk/mock/quote/mock_quote_api.hpp"
 
+#include "qtrade/common/system/time.hpp"
+
 #include <spdlog/spdlog.h>
 
-#include <chrono>
 #include <random>
 
 namespace qtrade::adapter::mock::quote {
@@ -208,9 +209,7 @@ void MockQuoteApi::GenerateMockTicks() {
       for (const auto& instrument : instruments_) {
         sdk::MarketTick tick;
         tick.instrument = instrument;
-        tick.data_time =
-          std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
-            .count();
+        tick.data_time = qtrade::common::system::UnixMillisNow();
         base_price += std::uniform_real_distribution<>(-0.5, 0.5)(gen);
         tick.last_price = base_price;
 
