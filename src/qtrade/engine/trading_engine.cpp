@@ -8,7 +8,6 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/engine/trading_engine.hpp"
 
-#include "qtrade/common/proto/strategy_config_utils.hpp"
 #include "qtrade/common/system/time.hpp"
 #include "qtrade/engine/utils/adapter_payload_validation.hpp"
 #include "qtrade/error_code/error_codes.hpp"
@@ -39,7 +38,6 @@ using qtrade::engine::utils::IsValidTrade;
 TradingEngine::TradingEngine() : strategy_manager_(event_lanes_) {}
 
 TradingEngine::~TradingEngine() {
-  // 1. 析构时确保运行态与 Init 侧资源均已释放
   Stop();
 }
 
@@ -206,7 +204,7 @@ void TradingEngine::Release() {
 }
 
 bool TradingEngine::IsRunning() const {
-  return running_;
+  return running_.load(std::memory_order_acquire);
 }
 
 bool TradingEngine::IsReady() const {
