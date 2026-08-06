@@ -6,7 +6,7 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/engine/oms/order_manager.hpp"
 
-#include "qtrade/engine/common/util/trade_dedup.hpp"
+#include "qtrade/engine/utils/trade_dedup.hpp"
 
 #include <spdlog/spdlog.h>
 
@@ -14,7 +14,7 @@
 
 namespace qtrade::engine::oms {
 namespace trader = qtrade_sdk::trader;
-using qtrade::engine::common::util::GenerateTradeDedupKey;
+using qtrade::engine::utils::GenerateTradeDedupKey;
 
 namespace {
 

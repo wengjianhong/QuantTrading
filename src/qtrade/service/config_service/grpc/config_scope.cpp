@@ -5,15 +5,13 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/service/config_service/grpc/config_scope.hpp"
 
-#include "qtrade/common/proto/proto_json_converter.hpp"
+#include "qtrade/common/converter/proto_json_converter.hpp"
 #include "qtrade/dao/config_service/engine/engine_config.hpp"
 
 #include <spdlog/spdlog.h>
 
-#include <utility>
-
 namespace qtrade::service {
-
+using qtrade::common::converter::ConvertJsonToProto;
 namespace {
 
 std::string NormalizeScopeField(const std::string& value) {
@@ -59,8 +57,7 @@ qtrade::config::v1::EngineConfig QueryEngineConfig(const ConfigScope& scope,
 
   const auto& record = result.data->front();
   qtrade::config::v1::EngineConfig engine;
-  if (!record.payload.has_value() ||
-      !qtrade::common::ConvertJsonToProto(record.payload.value(), engine, {}, "ConfigScope")) {
+  if (!record.payload.has_value() || !ConvertJsonToProto(record.payload.value(), engine, {}, "ConfigScope")) {
     spdlog::error("[ConfigScope] invalid payload JSON for tenant={} engine={}", scope.tenant_id, scope.engine_id);
     return config;
   }

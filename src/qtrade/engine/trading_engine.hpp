@@ -231,6 +231,9 @@ class TradingEngine {
   /// @brief 注册交易 SDK 回调并接入 Lane-T
   void WireTraderCallbacks();
 
+  /// @brief 注册 Lane-T 引擎级回报处理（OMS/账户/持仓/account-risk；Start 前调用）
+  void WireTraderEventHandlers();
+
   /// @brief 断开并释放行情/交易适配器
   void DisconnectAdapters();
 
@@ -255,6 +258,14 @@ class TradingEngine {
   /// @param healthy 行情是否健康
   void OnMarketHealthChanged(bool healthy);
 
+  /// @brief 处理 Lane-T 订单回报：更新 OMS/账户并在终态释放 account-risk 预占
+  /// @param order 柜台订单回报
+  void OnTraderOrderReport(const qtrade_sdk::trader::Order& order);
+
+  /// @brief 处理 Lane-T 成交回报：更新 OMS/账户/持仓并在全成后释放 account-risk 预占
+  /// @param trade 柜台成交回报
+  void OnTraderTradeReport(const qtrade_sdk::trader::Trade& trade);
+
   /// @brief 尽力调用 account-risk ReleaseOrder（无本地 outbox）
   /// @param order_id 委托 ID
   /// @param reason 释放原因
@@ -269,6 +280,10 @@ class TradingEngine {
   std::atomic<bool> initialized_ = false;
   /// 是否已 Start
   std::atomic<bool> running_ = false;
+  /// 本进程启动世代（Init 时取 Unix 秒，写入 order_id）
+  std::uint64_t engine_epoch_ = 0;
+  /// 已应用的配置快照版本
+  std::uint64_t runtime_config_version_ = 0;
   /// 引擎生命周期状态机（仅本类读写）
   EngineLifecycle lifecycle_;
   /// 进程引导配置（qtrade_engine.json）
@@ -277,8 +292,6 @@ class TradingEngine {
   qtrade::config::v1::EngineConfig runtime_config_;
   /// 保护业务配置快照
   mutable std::mutex runtime_config_mutex_;
-  /// 已应用的配置快照版本
-  std::uint64_t runtime_config_version_ = 0;
   /// 当前已订阅行情合约集合
   std::unordered_set<std::string> subscribed_instruments_;
 

@@ -5,10 +5,11 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/service/account_risk_service/grpc/account_risk_grpc_service.hpp"
 
+#include "qtrade/common/system/time.hpp"
+
 #include <grpcpp/grpcpp.h>
 
 #include <algorithm>
-#include <chrono>
 #include <cstdint>
 #include <mutex>
 #include <string>
@@ -61,13 +62,6 @@ std::string AccountKey(const std::string& tenant_id, const std::string& account_
   return tenant_id + "\n" + account_id;
 }
 
-/// @brief 当前 Unix 毫秒时间戳
-/// @return 毫秒时间戳
-std::int64_t NowUnixMs() {
-  return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
-    .count();
-}
-
 /// @brief 将已过期预占从账簿占用中扣除
 /// @param ledger 账户账簿
 /// @param now 当前 Unix 毫秒
@@ -107,7 +101,7 @@ grpc::Status AccountRiskGrpcService::ReserveOrder(grpc::ServerContext*,
     return InvalidArgument("tenant_id, account_id and intent.order_id are required");
   }
 
-  const std::int64_t now = NowUnixMs();
+  const std::int64_t now = qtrade::common::system::UnixMillisNow();
   std::lock_guard lock(g_ledger_mutex);
   auto ledger_it = g_ledgers.find(AccountKey(request->tenant_id(), request->account_id()));
   if (ledger_it == g_ledgers.end()) {
@@ -191,7 +185,7 @@ grpc::Status AccountRiskGrpcService::GetReservation(grpc::ServerContext*,
   if (ledger_it == g_ledgers.end()) {
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "account risk ledger not found");
   }
-  ExpireReservations(ledger_it->second, NowUnixMs());
+  ExpireReservations(ledger_it->second, qtrade::common::system::UnixMillisNow());
   const auto reservation_it = ledger_it->second.reservations.find(request->order_id());
   if (reservation_it == ledger_it->second.reservations.end()) {
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "reservation not found");
@@ -247,7 +241,7 @@ grpc::Status AccountRiskGrpcService::ListActiveReservations(
   if (ledger_it == g_ledgers.end()) {
     return grpc::Status::OK;
   }
-  ExpireReservations(ledger_it->second, NowUnixMs());
+  ExpireReservations(ledger_it->second, qtrade::common::system::UnixMillisNow());
   for (const auto& [order_id, state] : ledger_it->second.reservations) {
     if (state.status != "reserved") {
       continue;

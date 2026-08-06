@@ -5,14 +5,14 @@
 /// @author    wengjianhong
 /// @date      2026-08-04
 /// @copyright CC BY-NC-SA 4.0
-#ifndef QTRADE_ENGINE_COMMON_UTIL_TRADE_DEDUP_HPP_
-#define QTRADE_ENGINE_COMMON_UTIL_TRADE_DEDUP_HPP_
+#ifndef QTRADE_ENGINE_UTILS_TRADE_DEDUP_HPP_
+#define QTRADE_ENGINE_UTILS_TRADE_DEDUP_HPP_
 
 #include <qtrade_sdk/trader/trader_struct.hpp>
 
 #include <string>
 
-namespace qtrade::engine::common::util {
+namespace qtrade::engine::utils {
 
 /// @brief 生成成交回报幂等键
 /// @details 优先 trade_id（交易所/柜台成交编号）；若无，则拼接订单侧稳定标识与回报序号：
@@ -27,6 +27,6 @@ inline std::string GenerateTradeDedupKey(const qtrade_sdk::trader::Trade& trade)
          ":" + trade.exchange_order_id + ":" + std::to_string(trade.report_index) + ":" + trade.instrument;
 }
 
-}  // namespace qtrade::engine::common::util
+}  // namespace qtrade::engine::utils
 
-#endif  // QTRADE_ENGINE_COMMON_UTIL_TRADE_DEDUP_HPP_
+#endif  // QTRADE_ENGINE_UTILS_TRADE_DEDUP_HPP_

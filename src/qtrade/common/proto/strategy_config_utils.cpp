@@ -1,21 +1,21 @@
-/// @file      strategy_config_converter.cpp
-/// @brief     config.v1.StrategyConfig ↔ qtrade::strategy::StrategyConfig
+/// @file      strategy_config_utils.cpp
+/// @brief     config.v1.StrategyConfig 解析工具
 /// @author    wengjianhong
 /// @date      2026-07-31
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade/common/converter/strategy_config_converter.hpp"
+#include "qtrade/common/proto/strategy_config_utils.hpp"
 
-namespace qtrade::common::converter {
+namespace qtrade::common::proto {
 
 qtrade::strategy::StrategyConfig ParseStrategyConfigProto(const StrategyConfigProto& config) {
   qtrade::strategy::StrategyConfig out;
-  out.strategy_id = config.strategy_id();
-  out.strategy_name = config.strategy_name();
   out.enabled = config.enabled();
-  out.instruments.assign(config.instruments().begin(), config.instruments().end());
+  out.strategy_id = config.strategy_id();
   out.order_volume = config.order_volume();
-  out.max_position_volume = config.max_position_volume();
+  out.strategy_name = config.strategy_name();
   out.order_cooldown_ms = config.order_cooldown_ms();
+  out.max_position_volume = config.max_position_volume();
+  out.instruments.assign(config.instruments().begin(), config.instruments().end());
   if (config.has_window_size()) {
     out.window_size = config.window_size();
   }
@@ -31,4 +31,4 @@ qtrade::strategy::StrategyConfig ParseStrategyConfigProto(const StrategyConfigPr
   return out;
 }
 
-}  // namespace qtrade::common::converter
+}  // namespace qtrade::common::proto
