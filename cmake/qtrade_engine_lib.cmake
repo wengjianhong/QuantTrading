@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# qtrade_engine: single static library (common + engine modules)
+# qtrade_engine: shared library (common + engine modules)
 # ---------------------------------------------------------------------------
 
 file(GLOB_RECURSE QTRADE_ENGINE_ALL_SRC CONFIGURE_DEPENDS
@@ -11,9 +11,15 @@ list(FILTER QTRADE_ENGINE_COMMON_SRC INCLUDE REGEX "/common/")
 set(QTRADE_ENGINE_ENGINE_SRC ${QTRADE_ENGINE_ALL_SRC})
 list(FILTER QTRADE_ENGINE_ENGINE_SRC EXCLUDE REGEX "/common/")
 
-add_library(qtrade_engine STATIC
+add_library(qtrade_engine SHARED
   ${QTRADE_ENGINE_COMMON_SRC}
   ${QTRADE_ENGINE_ENGINE_SRC}
+)
+
+set_target_properties(qtrade_engine PROPERTIES
+  VERSION ${PROJECT_VERSION}
+  SOVERSION ${PROJECT_VERSION_MAJOR}
+  OUTPUT_NAME qtrade_engine
 )
 
 target_include_directories(qtrade_engine PUBLIC

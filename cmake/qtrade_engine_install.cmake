@@ -3,7 +3,7 @@
 #
 # Default prefix: /usr/local (override with -DCMAKE_INSTALL_PREFIX=).
 # Installed layout:
-#   lib/libqtrade_engine.a
+#   lib/libqtrade_engine.so
 #   include/qtrade/...（公开契约 + 实现头，路径仍为 qtrade/engine、qtrade/common）
 #   config/qtrade_engine.json
 #   lib/cmake/qtrade_engine/...
@@ -23,7 +23,9 @@ write_basic_package_version_file(
 
 install(TARGETS qtrade_engine
   EXPORT qtrade_engineTargets
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/qtrade/

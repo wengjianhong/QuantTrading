@@ -39,7 +39,7 @@ sudo cmake --install build
 
 ```
 /usr/local/qtrade/
-├── lib/libqtrade_engine.a
+├── lib/libqtrade_engine.so
 ├── lib/cmake/qtrade_engine/
 ├── include/qtrade/          # 含 sdk/（QuoteApi/TraderApi 等接口）
 └── config/qtrade_engine.json   # 引导配置样例
