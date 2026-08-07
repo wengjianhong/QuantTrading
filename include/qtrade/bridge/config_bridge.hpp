@@ -57,16 +57,10 @@ struct EngineConfig {
 };
 
 /// @brief 配置桥接器
+/// @details 注入引擎前须已可用；连接/订阅等生命周期由实现方 / 持有方管理，本接口不包含 Start/Stop。
 class IConfigBridge {
  public:
   virtual ~IConfigBridge() = default;
-
-  /// @brief 启动桥接（建连、首次拉取、启动订阅等）；无网络实现可保持默认成功
-  /// @return ErrorCode::kSuccess 表示就绪
-  virtual ErrorCode Start() { return ErrorCode::kSuccess; }
-
-  /// @brief 停止桥接并释放外部连接；可重复调用
-  virtual void Stop() {}
 
   /// @brief 读取当前引擎运行配置
   /// @return Result<EngineConfig> 当前配置

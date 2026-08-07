@@ -5,15 +5,16 @@
 ///
 ///            推荐调用顺序：
 ///              CreateEngine()
-///                → Set*Bridge / Set*Api（按需，须在 Init 前）
+///                → 就绪桥接实例（由持有方 Init）→ Set*Bridge / Set*Api（按需，须在 Init 前）
 ///                → Init(bootstrap)
 ///                → AddStrategy(...) 和/或 LoadStrategiesFromPlugins(plugin_dir)
 ///                → Start()
 ///                → … 运行 …
 ///                → Stop()
+///                → 持有方再 Shutdown / 销毁桥接
 ///
 ///            桥接指针由调用方持有，须保证活到 Stop 完成之后。
-///            I*Bridge::Start() 由 Init 统一调用，入口无需再手动 Start 桥接。
+///            注入的 I*Bridge 须已可用；引擎只调用业务接口，不管理其连接生命周期。
 ///
 /// @author    wengjianhong
 /// @date      2026-08-06
@@ -65,16 +66,16 @@ class IEngine {
   // 依赖注入（须在 Init 之前调用）
   // ---------------------------------------------------------------------------
 
-  /// @brief 注入配置桥接；可为空表示不使用远端配置（须同时关闭 bootstrap 中对应 enabled）
-  /// @param bridge 非拥有指针；生命周期由调用方管理
+  /// @brief 注入配置桥接；须已可用。可为空表示不使用远端配置（须同时关闭 bootstrap 中对应 enabled）
+  /// @param bridge 非拥有指针；生命周期与就绪状态由调用方管理
   virtual void SetConfigBridge(qtrade::config::IConfigBridge* bridge) = 0;
 
-  /// @brief 注入账户桥接
-  /// @param bridge 非拥有指针；生命周期由调用方管理
+  /// @brief 注入账户桥接；须已可用
+  /// @param bridge 非拥有指针；生命周期与就绪状态由调用方管理
   virtual void SetAccountBridge(qtrade::account::IAccountBridge* bridge) = 0;
 
-  /// @brief 注入账户硬风控桥接
-  /// @param bridge 非拥有指针；生命周期由调用方管理
+  /// @brief 注入账户硬风控桥接；须已可用
+  /// @param bridge 非拥有指针；生命周期与就绪状态由调用方管理
   virtual void SetAccountRiskBridge(qtrade::account_risk::IAccountRiskBridge* bridge) = 0;
 
   /// @brief 注入行情适配器；未设置时由引擎按运行配置装配默认实现

@@ -113,16 +113,10 @@ struct Reservation {
 };
 
 /// @brief 账户硬风控桥接器
+/// @details 注入引擎前须已可用；连接等生命周期由实现方 / 持有方管理，本接口不包含 Start/Stop。
 class IAccountRiskBridge {
  public:
   virtual ~IAccountRiskBridge() = default;
-
-  /// @brief 启动桥接（建连等）；无网络实现可保持默认成功
-  /// @return ErrorCode::kSuccess 表示就绪
-  virtual ErrorCode Start() { return ErrorCode::kSuccess; }
-
-  /// @brief 停止桥接并释放外部连接；可重复调用
-  virtual void Stop() {}
 
   /// @brief 读取账户硬风控策略
   /// @param tenant_id 租户标识

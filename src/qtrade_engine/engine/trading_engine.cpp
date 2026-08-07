@@ -141,9 +141,9 @@ ErrorCode TradingEngine::Init(const qtrade::common::config::QtradeEngineBootstra
     return code;
   }
 
-  // 3. 校验并启动已注入的支撑桥接（I*Bridge::Start 由引擎统一调用）
-  if (const ErrorCode code = InitSupportBridges(); code != ErrorCode::kSuccess) {
-    spdlog::error("InitSupportBridges failed, code={}", static_cast<int>(code));
+  // 3. 校验已注入的支撑桥接（须在注入前由持有方就绪；引擎不 Start/Stop 桥接）
+  if (const ErrorCode code = ValidateSupportBridges(); code != ErrorCode::kSuccess) {
+    spdlog::error("ValidateSupportBridges failed, code={}", static_cast<int>(code));
     Release();
     return code;
   }
@@ -398,8 +398,8 @@ ErrorCode TradingEngine::ApplyBootstrapConfig(const qtrade::common::config::Qtra
   return ErrorCode::kSuccess;
 }
 
-ErrorCode TradingEngine::InitSupportBridges() {
-  spdlog::info("InitSupportBridges");
+ErrorCode TradingEngine::ValidateSupportBridges() {
+  spdlog::info("ValidateSupportBridges");
 
   if (bootstrap_config_.support_services.config_service.enabled && config_bridge_ == nullptr) {
     spdlog::error("config_service.enabled but config_bridge not set");
@@ -418,29 +418,6 @@ ErrorCode TradingEngine::InitSupportBridges() {
   }
   if (!bootstrap_config_.support_services.config_service.enabled) {
     spdlog::warn("config_service.enabled=false; runtime config via bridge optional");
-  }
-
-  // 统一启动桥接：入口只需 Set*Bridge，无需再手动 Start
-  if (config_bridge_ != nullptr) {
-    if (const ErrorCode code = config_bridge_->Start(); code != ErrorCode::kSuccess) {
-      spdlog::error("config_bridge Start failed, code={}", static_cast<int>(code));
-      lifecycle_.Transition(EngineState::kFailed, "CONFIG_BRIDGE_START_FAILED");
-      return code;
-    }
-  }
-  if (account_bridge_ != nullptr) {
-    if (const ErrorCode code = account_bridge_->Start(); code != ErrorCode::kSuccess) {
-      spdlog::error("account_bridge Start failed, code={}", static_cast<int>(code));
-      lifecycle_.Transition(EngineState::kFailed, "ACCOUNT_BRIDGE_START_FAILED");
-      return code;
-    }
-  }
-  if (account_risk_bridge_ != nullptr) {
-    if (const ErrorCode code = account_risk_bridge_->Start(); code != ErrorCode::kSuccess) {
-      spdlog::error("account_risk_bridge Start failed, code={}", static_cast<int>(code));
-      lifecycle_.Transition(EngineState::kFailed, "ACCOUNT_RISK_BRIDGE_START_FAILED");
-      return code;
-    }
   }
   return ErrorCode::kSuccess;
 }

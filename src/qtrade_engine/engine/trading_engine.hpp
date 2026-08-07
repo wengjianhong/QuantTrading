@@ -147,7 +147,7 @@ class TradingEngine final : public IEngine {
 
   /// @brief 校验已注入的支撑桥接（config / account / account_risk）
   /// @return ErrorCode::kSuccess 表示成功
-  ErrorCode InitSupportBridges();
+  ErrorCode ValidateSupportBridges();
 
   /// @brief 初始化引擎内模块（内存 OMS、account-risk 接线等）
   /// @return ErrorCode::kSuccess 表示成功
