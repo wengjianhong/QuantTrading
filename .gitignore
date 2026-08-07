@@ -40,13 +40,9 @@
 # debug information files
 *.dwo
 
-*/build/
-release/lib/*
-release/bin/*
-
+# local directories
 .vscode
 .cache/
 logs/
 build/
 release/
-
