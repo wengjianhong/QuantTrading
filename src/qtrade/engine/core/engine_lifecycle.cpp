@@ -17,49 +17,49 @@ namespace {
 /// @param from 当前状态
 /// @param to 目标状态
 /// @return 合法返回 true
-bool IsAllowedTransition(EngineLifecycleState from, EngineLifecycleState to) {
+bool IsAllowedTransition(EngineState from, EngineState to) {
   switch (from) {
-    case EngineLifecycleState::kNew:
-      return to == EngineLifecycleState::kInitiated || to == EngineLifecycleState::kFailed ||
-             to == EngineLifecycleState::kStopped;
-    case EngineLifecycleState::kStopped:
-      return to == EngineLifecycleState::kInitiated;
-    case EngineLifecycleState::kInitiated:
-      return to == EngineLifecycleState::kReady || to == EngineLifecycleState::kFrozen ||
-             to == EngineLifecycleState::kDraining || to == EngineLifecycleState::kFailed ||
-             to == EngineLifecycleState::kStopped;
-    case EngineLifecycleState::kReady:
-      return to == EngineLifecycleState::kFrozen || to == EngineLifecycleState::kDraining ||
-             to == EngineLifecycleState::kFailed || to == EngineLifecycleState::kStopped;
-    case EngineLifecycleState::kFrozen:
-      return to == EngineLifecycleState::kReady || to == EngineLifecycleState::kDraining ||
-             to == EngineLifecycleState::kFailed || to == EngineLifecycleState::kStopped;
-    case EngineLifecycleState::kDraining:
-      return to == EngineLifecycleState::kStopped || to == EngineLifecycleState::kFailed;
-    case EngineLifecycleState::kFailed:
-      return to == EngineLifecycleState::kStopped;
+    case EngineState::kNew:
+      return to == EngineState::kInitiated || to == EngineState::kFailed ||
+             to == EngineState::kStopped;
+    case EngineState::kStopped:
+      return to == EngineState::kInitiated;
+    case EngineState::kInitiated:
+      return to == EngineState::kReady || to == EngineState::kFrozen ||
+             to == EngineState::kDraining || to == EngineState::kFailed ||
+             to == EngineState::kStopped;
+    case EngineState::kReady:
+      return to == EngineState::kFrozen || to == EngineState::kDraining ||
+             to == EngineState::kFailed || to == EngineState::kStopped;
+    case EngineState::kFrozen:
+      return to == EngineState::kReady || to == EngineState::kDraining ||
+             to == EngineState::kFailed || to == EngineState::kStopped;
+    case EngineState::kDraining:
+      return to == EngineState::kStopped || to == EngineState::kFailed;
+    case EngineState::kFailed:
+      return to == EngineState::kStopped;
   }
   return false;
 }
 
 }  // namespace
 
-EngineLifecycleState EngineLifecycle::State() const {
+EngineState EngineLifecycle::State() const {
   return state_.load(std::memory_order_acquire);
 }
 
-const std::string& EngineLifecycle::GetStateDescription(EngineLifecycleState state) const {
-  static const std::array<std::string, static_cast<size_t>(EngineLifecycleState::kFailed) + 1> kStateDescriptions = {
+const std::string& EngineLifecycle::GetStateDescription(EngineState state) const {
+  static const std::array<std::string, static_cast<size_t>(EngineState::kFailed) + 1> kStateDescriptions = {
     "New", "Initiated", "Ready", "Frozen", "Draining", "Stopped", "Failed"};
   return kStateDescriptions[static_cast<size_t>(state)];
 }
 
 bool EngineLifecycle::IsReady() const {
-  return State() == EngineLifecycleState::kReady;
+  return State() == EngineState::kReady;
 }
 
-ErrorCode EngineLifecycle::Transition(EngineLifecycleState target, std::string reason) {
-  EngineLifecycleState current = state_.load(std::memory_order_acquire);
+ErrorCode EngineLifecycle::Transition(EngineState target, std::string reason) {
+  EngineState current = state_.load(std::memory_order_acquire);
   if (current != target) {
     if (!IsAllowedTransition(current, target)) {
       spdlog::error("EngineLifecycle Transition failed, current={}, target={}",

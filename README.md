@@ -1,14 +1,16 @@
 # 量化交易系统(QTrade)
 
-License: CC BY-NC-SA 4.0 (禁止商用，仅供学习研究) 
+License: CC BY-NC-SA 4.0 (禁止商用，仅供学习研究)
 
-高性能 C++ 量化交易系统，支持多数据源、多策略和多交易所接入，采用模块化设计与可插拔架构。
+高性能 C++ 量化交易**核心库**：对外提供 `IEngine` / 桥接接口与引擎实现。本仓**不**产出交易进程二进制或策略 `.so`。
 
+- 交易客户端（`qtrade_engine`）：见独立仓库 **qtrade_client**
+- 支撑微服务与 gRPC 桥接：见 **qtrade_service**
+- 策略插件：见 **qtrade_strategy**
 
 ## 整体设计
 
 - 详见 [Architecture.md](docs/Architecture.md)
-
 
 ## 快速开始
 
@@ -16,69 +18,30 @@ License: CC BY-NC-SA 4.0 (禁止商用，仅供学习研究)
 
 - C++20 及以上
 - CMake 3.22+
-- 依赖：[cpputils](https://github.com/wengjianhong/cpputils)、spdlog、nlohmann_json、gRPC、Protobuf
+- 依赖：[cpputils](https://github.com/wengjianhong/cpputils)、spdlog、nlohmann_json
 - 操作系统：Linux（推荐 Ubuntu 24.04+）
 
 **前置步骤**：先按 [cpputils README](https://github.com/wengjianhong/cpputils#编译安装) 安装 cpputils。
 
-安装前缀由用户在 configure / install 时通过 `-DCMAKE_INSTALL_PREFIX` 指定，本仓库 CMakeLists 无需修改。
-
-### 方式一：默认位置安装（/usr/local）
-
-cpputils 已安装到 `/usr/local` 时，qtrade 同样安装到默认前缀。
+### 目录隔离安装（/usr/local/qtrade）
 
 ```shell
-git clone git@github.com:wengjianhong/qtrade.git
-cd qtrade
-
-# 编译安装
-cmake -B build
-cmake --build build -j $(($(nproc)/4))
-sudo cmake --install build
-sudo ldconfig
-
-# 运行
-qtrade_config_service --config config/qtrade_config_service.json
-```
-
-安装布局：
-
-```
-/usr/local/
-├── bin/qtrade_*
-├── lib/libqtrade_*.a
-└── include/qtrade/
-```
-
-### 方式二：目录隔离安装（/usr/local/qtrade）
-
-cpputils 已安装到 `/usr/local/cpputils`（见 [cpputils README](https://github.com/wengjianhong/cpputils#方式二目录隔离usrlocalcpputils)）时使用。显式指定 `cpputils_DIR` 会覆盖已有 `build/` 目录中缓存的旧依赖路径，因此首次配置和重复配置均可使用。
-
-```shell
-# 编译安装
 cmake -B build \
   -DCMAKE_INSTALL_PREFIX=/usr/local/qtrade \
   -DCMAKE_PREFIX_PATH=/usr/local/cpputils
-cmake --build build -j $(($(nproc)/4))
+cmake --build build -j1
 sudo cmake --install build
-
-# 配置PATH，注册运行期库可执行文件路径
-export PATH=/usr/local/qtrade/bin:$PATH
-
-# 运行
-qtrade_config_service --config config/qtrade_config_service.json
 ```
 
 安装布局：
 
 ```
 /usr/local/qtrade/
-├── bin/qtrade_*
-├── lib/libqtrade_*.a
-└── include/qtrade/
+├── lib/libqtrade_{common,core}.a
+├── include/qtrade/
+├── include/qtrade_sdk/
+└── config/qtrade_engine.json   # 引导配置样例
 ```
-
-> cpputils 的运行时库路径（`ldconfig`）见 [cpputils README](https://github.com/wengjianhong/cpputils#编译安装)。
 
 ### 下游项目依赖 qtrade
 
@@ -87,20 +50,9 @@ find_package(qtrade CONFIG REQUIRED)
 target_link_libraries(my_app PRIVATE qtrade::qtrade_core)
 ```
 
-| qtrade 安装方式 | configure 额外参数 |
-|----------------|-------------------|
-| 方式一（/usr/local） | 无 |
-| 方式二（/usr/local/qtrade） | `-DCMAKE_PREFIX_PATH=/usr/local/qtrade` |
+若同时依赖 cpputils：`-DCMAKE_PREFIX_PATH="/usr/local/cpputils;/usr/local/qtrade"`。
 
-若同时依赖 cpputils，cpputils 侧配置见 [cpputils README](https://github.com/wengjianhong/cpputils#下游项目使用)。方式二示例：
-
-```shell
-cmake -B build -DCMAKE_PREFIX_PATH="/usr/local/cpputils;/usr/local/qtrade"
-```
-
-
-## 模块说明
-
+一键顺序构建（含 service / strategy / client）见 `GitSpace/scripts/cmake-build.sh`。
 
 ## 开发指南
 

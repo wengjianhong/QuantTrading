@@ -1,6 +1,7 @@
 /// @file      engine_boot.hpp
 /// @brief     交易引擎进程启动阶段（业务相关）
-/// @details   共用阶段见 common/app/process_boot；本文件仅引擎特有步骤。
+/// @details   共用阶段见 common/boot/process_boot；本文件仅引擎特有步骤。
+///            编排对象为 IEngine，避免进程入口依赖 TradingEngine 实现细节。
 /// @author    wengjianhong
 /// @date      2026-07-19
 /// @copyright CC BY-NC-SA 4.0
@@ -10,11 +11,11 @@
 #include "qtrade/common/boot/process_boot.hpp"
 #include "qtrade/common/config/qtrade_engine_bootstrap_config.hpp"
 
+#include <qtrade/engine/engine.hpp>
+
 #include <optional>
 
 namespace qtrade::engine {
-
-class TradingEngine;
 
 /// @brief 引擎业务启动阶段（供 main 编排调用）
 namespace boot {
@@ -26,19 +27,20 @@ using qtrade::common::config::QtradeEngineBootstrapConfig;
 [[nodiscard]] std::optional<QtradeEngineBootstrapConfig> LoadBootstrapConfig(
   const qtrade::common::process_boot::ProgramOptions& options);
 
-/// @brief 按 runtime_config_.strategies 从插件目录加载并注册已启用策略实例
-/// @param engine 交易引擎（须已 Init 且持有 runtime_config_ / strategy.plugin_dir）
+/// @brief 从指定插件目录加载策略（委托 IEngine::LoadStrategiesFromPlugins）
+/// @param engine 已 Init 的引擎
+/// @param plugin_dir 策略 .so 目录
 /// @return 是否成功
-[[nodiscard]] bool LoadStrategies(TradingEngine& engine);
+[[nodiscard]] bool LoadStrategies(IEngine& engine, const std::string& plugin_dir);
 
-/// @brief 调用 TradingEngine::Start（对账、通道、策略/EMS、按配置订阅行情）
+/// @brief 调用 IEngine::Start
 /// @param engine 交易引擎
 /// @return 是否成功
-[[nodiscard]] bool StartEngine(TradingEngine& engine);
+[[nodiscard]] bool StartEngine(IEngine& engine);
 
-/// @brief 阻塞至停机信号后调用 TradingEngine::Stop
+/// @brief 阻塞至停机信号后调用 IEngine::Stop
 /// @param engine 交易引擎
-void RunUntilShutdown(TradingEngine& engine);
+void RunUntilShutdown(IEngine& engine);
 
 }  // namespace boot
 }  // namespace qtrade::engine
