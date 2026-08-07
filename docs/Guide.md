@@ -9,11 +9,11 @@
 |《[Architecture.md](Architecture.md)》层次|代码侧落到何处|
 |---|---|
 |适配层|`src/qtrade_sdk/`（可插拔动态库：行情源、交易通道协议转换；按厂商分子目录 mock/、emt/）|
-|交易引擎层|`src/qtrade/engine/`（单进程封闭运行：事件总线、行情/交易标准化、策略引擎、OMS、EMS、账户、持仓、实时风控、合规）|
-|支撑服务客户端|`src/qtrade/client/`（轻量级异步客户端：日志、配置、**账户凭证**、监控、服务发现）|
-|支撑服务层|`src/qtrade/service/<名称>/`（独立进程 / 镜像部署；与引擎经 gRPC 控制面与 `client/` 旁路接口交互）|
-|内部框架基建|`src/qtrade/framework/`（gRPC、数据库 bootstrap、支撑服务生命周期等共享实现；**不 install**）|
-|表级 DAO|`src/qtrade/dao/<service>/`（按服务分子目录：`account_service/`、`config_service/`、`account_risk_service/`；接口见 `include/qtrade/dao/`）|
+|交易引擎层|`src/qtrade_engine/engine/`（单进程封闭运行：事件总线、行情/交易标准化、策略引擎、OMS、EMS、账户、持仓、实时风控、合规）|
+|支撑服务客户端|见 **qtrade_service** 仓库 `src/qtrade_service/client/`|
+|支撑服务层|见 **qtrade_service** 仓库 `src/qtrade_service/service/<名称>/`|
+|内部框架基建|见 **qtrade_service** 仓库 `src/qtrade_service/framework/`|
+|表级 DAO|见 **qtrade_service** 仓库 `src/qtrade_service/dao/<service>/`|
 |接入层（外部独立项目）|不在本仓库；北向 HTTP REST，南向调 QTrade 支撑服务 gRPC|见《架构》§五|
 |外部企业基础服务|由机构平台提供；QTrade 仅集成身份、数据安全、运维和合规能力，不负责其实现或部署|
 
@@ -45,7 +45,7 @@ qtrade/
 │   │   ├── grpc/               # gRPC Handler 与状态映射工具
 │   │   ├── strategy/           # 策略基类接口：IStrategy
 │   │   ├── support/            # 支撑服务生命周期接口（ISupportService）
-│   │   └── dao/                # DAO 接口声明（ddl.hpp / dml.hpp）；表实现头在 src/qtrade/dao/
+│   │   └── dao/                # DAO 接口声明（实现见 qtrade_service）
 │   ├── qtrade_sdk/             # 插件 Target 接口：quote/、trader/（Api + Spi）
 ├── src/
 │   ├── qtrade/                     # 【交易平台产品实现】

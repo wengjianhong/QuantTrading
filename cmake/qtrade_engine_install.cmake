@@ -30,8 +30,8 @@ install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/qtrade_sdk/
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/qtrade_sdk
 )
 
-# Engine / common 实现头（#include "qtrade/engine/..."、"qtrade/common/..."）
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/qtrade/
+# 实现头安装到 include/qtrade（公开 #include 路径）；物理源在 src/qtrade_engine/
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/qtrade_engine/
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/qtrade
   FILES_MATCHING
     PATTERN "*.hpp"
