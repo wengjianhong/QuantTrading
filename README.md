@@ -4,7 +4,7 @@ License: CC BY-NC-SA 4.0 (禁止商用，仅供学习研究)
 
 高性能 C++ 量化交易**核心库**：对外提供 `IEngine` / 桥接接口与引擎实现。本仓**不**产出交易进程二进制或策略 `.so`。
 
-- 交易客户端（进程 `qtrade_engine`）：见独立仓库 **qtrade_client**
+- 交易客户端（进程 `qtrade_client`）：见独立仓库 **qtrade_client**
 - 支撑微服务与 gRPC 桥接：见 **qtrade_service**
 - 策略插件：见 **qtrade_strategy**
 
