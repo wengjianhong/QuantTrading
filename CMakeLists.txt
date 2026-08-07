@@ -32,22 +32,15 @@ find_package(nlohmann_json 3.11.0 REQUIRED)
 find_package(cpputils 0.1.0 REQUIRED CONFIG)
 
 # -----------------------------------------------------------------------------
-# Libraries and applications
+# Libraries
 # -----------------------------------------------------------------------------
 include(${CMAKE_SOURCE_DIR}/cmake/qtrade_paths.cmake)
-include(${CMAKE_SOURCE_DIR}/cmake/lib/qtrade_proto.cmake)
 include(${CMAKE_SOURCE_DIR}/cmake/lib/qtrade_common.cmake)
 include(${CMAKE_SOURCE_DIR}/cmake/lib/qtrade_core.cmake)
-include(${CMAKE_SOURCE_DIR}/cmake/app/qtrade_engine.cmake)
-include(${CMAKE_SOURCE_DIR}/cmake/app/qtrade_services.cmake)
-
-# -----------------------------------------------------------------------------
-# Strategy plugins
-# -----------------------------------------------------------------------------
-include(${CMAKE_SOURCE_DIR}/cmake/strategy/qtrade_strategy_plugins.cmake)
 
 # -----------------------------------------------------------------------------
 # Install (downstream: find_package(qtrade CONFIG))
+# 本仓只交付库与头文件；交易客户端见 qtrade_client，策略见 qtrade_strategy。
 # -----------------------------------------------------------------------------
 include(${CMAKE_SOURCE_DIR}/cmake/qtrade_install.cmake)
 

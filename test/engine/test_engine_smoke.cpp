@@ -63,10 +63,10 @@ TEST(EngineSmoke, TradingEngineStartStop) {
   WaitUntil([&] { return engine.IsReady(); });
   ASSERT_TRUE(engine.IsRunning());
   ASSERT_TRUE(engine.IsReady());
-  EXPECT_EQ(engine.LifecycleState(), qtrade::engine::EngineLifecycleState::kReady);
+  EXPECT_EQ(engine.State(), qtrade::engine::EngineState::kReady);
   engine.Stop();
   ASSERT_FALSE(engine.IsRunning());
-  EXPECT_EQ(engine.LifecycleState(), qtrade::engine::EngineLifecycleState::kStopped);
+  EXPECT_EQ(engine.State(), qtrade::engine::EngineState::kStopped);
 }
 
 TEST(EngineSmoke, MarketTickSize) {

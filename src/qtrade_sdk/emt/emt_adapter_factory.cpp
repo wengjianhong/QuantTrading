@@ -11,9 +11,6 @@
 namespace qtrade::adapter::emt {
 namespace {
 
-/// @brief 写入可选错误码输出
-/// @param out_error 输出指针；可为 nullptr
-/// @param code 错误码
 void SetOutError(ErrorCode* out_error, ErrorCode code) {
   if (out_error != nullptr) {
     *out_error = code;
@@ -22,50 +19,38 @@ void SetOutError(ErrorCode* out_error, ErrorCode code) {
 
 }  // namespace
 
-std::optional<EmtAdapterBundle> CreateEmtAdapters(qtrade::client::AccountClient& account_client,
+std::optional<EmtAdapterBundle> CreateEmtAdapters(qtrade::account::IAccountBridge& account_bridge,
                                                   const std::string& tenant_id,
                                                   const std::string& engine_id,
                                                   const std::string& account_id,
                                                   const std::string& quote_connection_string,
                                                   ErrorCode* out_error) {
-  if (!account_client.IsInitialized()) {
-    SetOutError(out_error, ErrorCode::kNotInitialized);
-    return std::nullopt;
-  }
   if (account_id.empty() || quote_connection_string.empty()) {
     SetOutError(out_error, ErrorCode::kInternalError);
     return std::nullopt;
   }
 
-  // 1. 拉取账户凭证
-  qtrade::account::v1::GetCredentialRequest credential_request;
-  credential_request.set_tenant_id(tenant_id);
-  credential_request.set_engine_id(engine_id);
-  credential_request.set_account_id(account_id);
-  qtrade::account::v1::GetCredentialResponse credential_response;
-  if (const auto result = account_client.GetCredential(credential_request, credential_response);
-      result != ErrorCode::kSuccess) {
-    SetOutError(out_error, result);
+  const auto credential_result = account_bridge.GetCredential(tenant_id, account_id, engine_id);
+  if (credential_result.error_code != ErrorCode::kSuccess || !credential_result.data.has_value()) {
+    SetOutError(out_error, credential_result.error_code);
     return std::nullopt;
   }
 
-  const auto& credential = credential_response.credential();
-  if (credential.account_id() != account_id || credential.connection_string().empty() ||
-      credential.password().empty()) {
+  const auto& credential = *credential_result.data;
+  if (credential.account_id != account_id || credential.connection_string.empty() || credential.password.empty()) {
     SetOutError(out_error, ErrorCode::kInternalError);
     return std::nullopt;
   }
 
-  // 2. 构造适配器与连接请求
   EmtAdapterBundle bundle;
-  bundle.trader_request.broker_id = credential.broker_id();
-  bundle.trader_request.account_id = credential.account_id();
-  bundle.trader_request.connection_string = credential.connection_string();
-  bundle.trader_request.password = credential.password();
+  bundle.trader_request.broker_id = credential.broker_id;
+  bundle.trader_request.account_id = credential.account_id;
+  bundle.trader_request.connection_string = credential.connection_string;
+  bundle.trader_request.password = credential.password;
   bundle.quote_request.name = "emt";
   bundle.quote_request.connection_string = quote_connection_string;
-  bundle.quote_request.user = credential.account_id();
-  bundle.quote_request.password = credential.password();
+  bundle.quote_request.user = credential.account_id;
+  bundle.quote_request.password = credential.password;
   bundle.quote_api = std::make_unique<qtrade::adapter::quote::EmtQuoteApi>();
   bundle.trader_api = std::make_unique<qtrade::adapter::trader::EmtTraderApi>();
   SetOutError(out_error, ErrorCode::kSuccess);

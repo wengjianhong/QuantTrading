@@ -11,6 +11,7 @@
 
 #include "qtrade/engine/ems/execution_api.hpp"
 
+#include <qtrade/bridge/account_risk_bridge.hpp>
 #include <qtrade_sdk/trader/trader_api.hpp>
 
 #include <condition_variable>
@@ -18,10 +19,6 @@
 #include <mutex>
 #include <string>
 #include <thread>
-
-namespace qtrade::client {
-class AccountRiskClient;
-}
 
 namespace qtrade::engine::oms {
 class OrderApi;
@@ -49,9 +46,9 @@ class ExecutionManager final : public ExecutionApi {
   /// @param order_api OMS 模块间接口；可为 nullptr
   void SetOrderApi(oms::OrderApi* order_api);
 
-  /// @brief 绑定 account-risk 客户端（发送失败时释放预占）
-  /// @param account_risk_client 客户端；可为 nullptr 表示不释放
-  void SetAccountRiskClient(qtrade::client::AccountRiskClient* account_risk_client);
+  /// @brief 绑定 account-risk 桥接（发送失败时释放预占）
+  /// @param account_risk_bridge 桥接；可为 nullptr 表示不释放
+  void SetAccountRiskBridge(qtrade::account_risk::IAccountRiskBridge* account_risk_bridge);
 
   /// @brief 设置 ReleaseOrder 所需的租户/账户身份
   void SetAccountRiskIdentity(std::string tenant_id, std::string account_id);
@@ -89,7 +86,7 @@ class ExecutionManager final : public ExecutionApi {
   void Run();
 
   /// @brief 发送失败时尽力释放 account-risk 预占
-  void ReleaseReservationOnSendFailure(qtrade::client::AccountRiskClient* account_risk_client,
+  void ReleaseReservationOnSendFailure(qtrade::account_risk::IAccountRiskBridge* account_risk_bridge,
                                        const std::string& tenant_id,
                                        const std::string& account_id,
                                        const std::string& order_id);
@@ -100,8 +97,8 @@ class ExecutionManager final : public ExecutionApi {
   qtrade_sdk::trader::TraderApi* trader_api_ = nullptr;
   /// OMS 稳定接口；未设置时跳过状态回写
   oms::OrderApi* order_api_ = nullptr;
-  /// account-risk；未设置时跳过失败释放
-  qtrade::client::AccountRiskClient* account_risk_client_ = nullptr;
+  /// account-risk 桥接；未设置时跳过失败释放
+  qtrade::account_risk::IAccountRiskBridge* account_risk_bridge_ = nullptr;
   /// ReleaseOrder 租户 ID
   std::string tenant_id_;
   /// ReleaseOrder 账户 ID

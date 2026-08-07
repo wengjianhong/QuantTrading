@@ -6,7 +6,6 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/engine/ems/execution_manager.hpp"
 
-#include "qtrade/client/account_risk_client/account_risk_client.hpp"
 #include "qtrade/engine/oms/order_api.hpp"
 
 #include <spdlog/spdlog.h>
@@ -55,9 +54,9 @@ void ExecutionManager::SetOrderApi(oms::OrderApi* order_api) {
   order_api_ = order_api;
 }
 
-void ExecutionManager::SetAccountRiskClient(qtrade::client::AccountRiskClient* account_risk_client) {
+void ExecutionManager::SetAccountRiskBridge(qtrade::account_risk::IAccountRiskBridge* account_risk_bridge) {
   std::lock_guard lock(mutex_);
-  account_risk_client_ = account_risk_client;
+  account_risk_bridge_ = account_risk_bridge;
 }
 
 void ExecutionManager::SetAccountRiskIdentity(std::string tenant_id, std::string account_id) {
@@ -102,21 +101,17 @@ ErrorCode ExecutionManager::EnqueueCancel(const qtrade_sdk::trader::CancelOrderR
   return ErrorCode::kSuccess;
 }
 
-void ExecutionManager::ReleaseReservationOnSendFailure(qtrade::client::AccountRiskClient* account_risk_client,
+void ExecutionManager::ReleaseReservationOnSendFailure(qtrade::account_risk::IAccountRiskBridge* account_risk_bridge,
                                                        const std::string& tenant_id,
                                                        const std::string& account_id,
                                                        const std::string& order_id) {
-  if (account_risk_client == nullptr || !account_risk_client->IsInitialized() || order_id.empty()) {
+  if (account_risk_bridge == nullptr || order_id.empty()) {
     return;
   }
-  qtrade::account_risk::v1::ReleaseOrderRequest request;
-  request.set_tenant_id(tenant_id);
-  request.set_account_id(account_id);
-  request.set_order_id(order_id);
-  request.set_reason(qtrade::account_risk::v1::ReleaseOrderRequest::EMS_ENQUEUE_FAILED);
-  qtrade::account_risk::v1::ReleaseOrderResponse response;
-  if (const auto rc = account_risk_client->ReleaseOrder(request, response); rc != ErrorCode::kSuccess) {
-    spdlog::warn("ReleaseOrder failed: order_id={}, code={}", order_id, static_cast<int>(rc));
+  const auto result = account_risk_bridge->ReleaseOrder(
+    tenant_id, account_id, order_id, qtrade::account_risk::ReleaseReason::kEmsEnqueueFailed, 0.0, 0.0);
+  if (result.error_code != ErrorCode::kSuccess) {
+    spdlog::warn("ReleaseOrder failed: order_id={}, code={}", order_id, static_cast<int>(result.error_code));
   }
 }
 
@@ -127,7 +122,7 @@ void ExecutionManager::Run() {
     WorkItem item;
     qtrade_sdk::trader::TraderApi* trader_api = nullptr;
     oms::OrderApi* order_api = nullptr;
-    qtrade::client::AccountRiskClient* account_risk_client = nullptr;
+    qtrade::account_risk::IAccountRiskBridge* account_risk_bridge = nullptr;
     std::string tenant_id;
     std::string account_id;
     {
@@ -140,7 +135,7 @@ void ExecutionManager::Run() {
       pending_items_.pop_front();
       trader_api = trader_api_;
       order_api = order_api_;
-      account_risk_client = account_risk_client_;
+      account_risk_bridge = account_risk_bridge_;
       tenant_id = tenant_id_;
       account_id = account_id_;
     }
@@ -160,7 +155,7 @@ void ExecutionManager::Run() {
       const auto pending_rc = order_api->MarkSendPending(order.order_id);
       if (pending_rc != ErrorCode::kSuccess) {
         (void)order_api->RecordSendResult(order.order_id, pending_rc);
-        ReleaseReservationOnSendFailure(account_risk_client, tenant_id, account_id, order.order_id);
+        ReleaseReservationOnSendFailure(account_risk_bridge, tenant_id, account_id, order.order_id);
         continue;
       }
     }
@@ -182,7 +177,7 @@ void ExecutionManager::Run() {
       (void)order_api->RecordSendResult(order.order_id, result);
     }
     if (result != ErrorCode::kSuccess) {
-      ReleaseReservationOnSendFailure(account_risk_client, tenant_id, account_id, order.order_id);
+      ReleaseReservationOnSendFailure(account_risk_bridge, tenant_id, account_id, order.order_id);
     }
   }
 }
