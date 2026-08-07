@@ -14,7 +14,7 @@
 
 #include "qtrade/engine/oms/order_api.hpp"
 
-#include <qtrade_sdk/trader/trader_types.hpp>
+#include <qtrade/sdk/trader/trader_types.hpp>
 
 #include <atomic>
 #include <mutex>

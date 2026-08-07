@@ -7,8 +7,8 @@
 #ifndef QTRADE_SDK_TRADER_STRUCT_HPP_
 #define QTRADE_SDK_TRADER_STRUCT_HPP_
 
-#include <qtrade_sdk/trader/fund_struct.hpp>
-#include <qtrade_sdk/trader/trader_types.hpp>
+#include <qtrade/sdk/trader/fund_struct.hpp>
+#include <qtrade/sdk/trader/trader_types.hpp>
 
 #include <cstdint>
 #include <string>

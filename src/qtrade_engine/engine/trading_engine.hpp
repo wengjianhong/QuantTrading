@@ -25,8 +25,8 @@
 
 #include <qtrade/engine/engine.hpp>
 #include <qtrade/error_code/error_codes.hpp>
-#include <qtrade_sdk/quote/quote_api.hpp>
-#include <qtrade_sdk/trader/trader_api.hpp>
+#include <qtrade/sdk/quote/quote_api.hpp>
+#include <qtrade/sdk/trader/trader_api.hpp>
 
 #include <atomic>
 #include <cstdint>

@@ -8,8 +8,8 @@
 #ifndef QTRADE_ENGINE_UTILS_ADAPTER_PAYLOAD_VALIDATION_HPP_
 #define QTRADE_ENGINE_UTILS_ADAPTER_PAYLOAD_VALIDATION_HPP_
 
-#include <qtrade_sdk/quote/quote_struct.hpp>
-#include <qtrade_sdk/trader/trader_struct.hpp>
+#include <qtrade/sdk/quote/quote_struct.hpp>
+#include <qtrade/sdk/trader/trader_struct.hpp>
 
 #include <cmath>
 

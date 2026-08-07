@@ -5,8 +5,9 @@
 ///
 ///            推荐调用顺序：
 ///              CreateEngine()
-///                → 就绪桥接实例（由持有方 Init）→ Set*Bridge / Set*Api（按需，须在 Init 前）
+///                → 就绪桥接（持有方 Init）→ Set*Bridge（须在 Init 前）
 ///                → Init(bootstrap)
+///                → 就绪行情/交易适配器（持有方创建并 Connect）→ Set*Api（须在 Start 前）
 ///                → AddStrategy(...) 和/或 LoadStrategiesFromPlugins(plugin_dir)
 ///                → Start()
 ///                → … 运行 …
@@ -14,7 +15,7 @@
 ///                → 持有方再 Shutdown / 销毁桥接
 ///
 ///            桥接指针由调用方持有，须保证活到 Stop 完成之后。
-///            注入的 I*Bridge 须已可用；引擎只调用业务接口，不管理其连接生命周期。
+///            注入的 I*Bridge / QuoteApi / TraderApi 须已可用；引擎不创建厂商适配器。
 ///
 /// @author    wengjianhong
 /// @date      2026-08-06
@@ -28,8 +29,8 @@
 #include <qtrade/common/config/qtrade_engine_bootstrap_config.hpp>
 #include <qtrade/error_code/error_codes.hpp>
 #include <qtrade/strategy/strategy.hpp>
-#include <qtrade_sdk/quote/quote_api.hpp>
-#include <qtrade_sdk/trader/trader_api.hpp>
+#include <qtrade/sdk/quote/quote_api.hpp>
+#include <qtrade/sdk/trader/trader_api.hpp>
 
 #include <memory>
 #include <string>
@@ -78,11 +79,11 @@ class IEngine {
   /// @param bridge 非拥有指针；生命周期与就绪状态由调用方管理
   virtual void SetAccountRiskBridge(qtrade::account_risk::IAccountRiskBridge* bridge) = 0;
 
-  /// @brief 注入行情适配器；未设置时由引擎按运行配置装配默认实现
+  /// @brief 注入行情适配器；须已 Connect。可在 Init 前后设置，但须在 Start 之前
   /// @param quote_api 所有权转入引擎
   virtual void SetQuoteApi(std::unique_ptr<qtrade_sdk::quote::QuoteApi> quote_api) = 0;
 
-  /// @brief 注入交易适配器；未设置时由引擎按运行配置装配默认实现
+  /// @brief 注入交易适配器；须已 Connect。可在 Init 前后设置，但须在 Start 之前
   /// @param trader_api 所有权转入引擎
   virtual void SetTraderApi(std::unique_ptr<qtrade_sdk::trader::TraderApi> trader_api) = 0;
 

@@ -8,7 +8,7 @@
 #define QTRADE_SDK_TRADER_API_HPP_
 
 #include <qtrade/error_code/error_codes.hpp>
-#include <qtrade_sdk/trader/trader_spi.hpp>
+#include <qtrade/sdk/trader/trader_spi.hpp>
 
 #include <cstdint>
 #include <functional>

@@ -8,7 +8,7 @@
 #define QTRADE_SDK_QUOTE_API_HPP_
 
 #include <qtrade/error_code/error_codes.hpp>
-#include <qtrade_sdk/quote/quote_spi.hpp>
+#include <qtrade/sdk/quote/quote_spi.hpp>
 
 #include <cstddef>
 #include <cstdint>

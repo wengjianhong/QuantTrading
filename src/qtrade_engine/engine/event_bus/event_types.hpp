@@ -8,8 +8,8 @@
 #ifndef QTRADE_TRADING_ENGINE_EVENT_TYPES_HPP_
 #define QTRADE_TRADING_ENGINE_EVENT_TYPES_HPP_
 
-#include <qtrade_sdk/quote/quote_struct.hpp>
-#include <qtrade_sdk/trader/trader_struct.hpp>
+#include <qtrade/sdk/quote/quote_struct.hpp>
+#include <qtrade/sdk/trader/trader_struct.hpp>
 
 #include <functional>
 #include <memory>

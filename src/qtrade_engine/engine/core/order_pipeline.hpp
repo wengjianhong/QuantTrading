@@ -14,7 +14,7 @@
 #include <qtrade/bridge/account_risk_bridge.hpp>
 #include <qtrade/error_code/error_codes.hpp>
 #include <qtrade/strategy/strategy.hpp>
-#include <qtrade_sdk/trader/trader_struct.hpp>
+#include <qtrade/sdk/trader/trader_struct.hpp>
 
 #include <string>
 

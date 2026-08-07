@@ -1,16 +1,16 @@
 /// @file      mock_adapter_factory.hpp
 /// @brief     Mock 行情/交易适配器装配辅助
-/// @details   构造 Mock QuoteApi/TraderApi，并填充连接请求；供引擎 InitAdapters 调用。
+/// @details   构造 Mock QuoteApi/TraderApi，并填充连接请求；供 client / 单测调用。
 /// @author    wengjianhong
 /// @date      2026-08-03
 /// @copyright CC BY-NC-SA 4.0
 #ifndef QTRADE_ADAPTER_MOCK_ADAPTER_FACTORY_HPP_
 #define QTRADE_ADAPTER_MOCK_ADAPTER_FACTORY_HPP_
 
-#include <qtrade_sdk/quote/quote_api.hpp>
-#include <qtrade_sdk/quote/quote_struct.hpp>
-#include <qtrade_sdk/trader/trader_api.hpp>
-#include <qtrade_sdk/trader/trader_struct.hpp>
+#include <qtrade/sdk/quote/quote_api.hpp>
+#include <qtrade/sdk/quote/quote_struct.hpp>
+#include <qtrade/sdk/trader/trader_api.hpp>
+#include <qtrade/sdk/trader/trader_struct.hpp>
 
 #include <memory>
 #include <string>

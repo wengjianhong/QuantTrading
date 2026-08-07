@@ -11,8 +11,6 @@
 #include "qtrade/common/system/time.hpp"
 #include "qtrade/engine/utils/adapter_payload_validation.hpp"
 #include "qtrade/error_code/error_codes.hpp"
-#include "qtrade_sdk/emt/emt_adapter_factory.hpp"
-#include "qtrade_sdk/mock/mock_adapter_factory.hpp"
 
 #include <spdlog/spdlog.h>
 
@@ -462,80 +460,18 @@ ErrorCode TradingEngine::InitEventLanes() {
 }
 
 ErrorCode TradingEngine::InitAdapters() {
-  // 1. 已装配则直接成功；config 未启用时跳过（单元测试可注入 mock API）
+  // 适配器由调用方注入并完成 Connect；引擎不再按 execution_adapter 创建厂商实现
   if (quote_api_ != nullptr && trader_api_ != nullptr) {
     return ErrorCode::kSuccess;
   }
-  // config 未启用时跳过
   if (!bootstrap_config_.support_services.config_service.enabled) {
     spdlog::info("skip adapters (config_service disabled; tests may inject mock)");
     return ErrorCode::kSuccess;
   }
 
-  qtrade::config::EngineConfig runtime_config;
-  {
-    std::lock_guard lock(runtime_config_mutex_);
-    runtime_config = runtime_config_;
-  }
-  if (runtime_config.execution_adapter.empty() || runtime_config.quote_connection_string.empty()) {
-    lifecycle_.Transition(EngineState::kFailed, "ADAPTER_INIT_FAILED");
-    return ErrorCode::kNotInitialized;
-  }
-
-  // 2. 按适配器类型构造 API 与连接请求（mock / emt）
-  qtrade_sdk::quote::ConnectRequest quote_request;
-  qtrade_sdk::trader::ConnectRequest trader_request;
-  if (runtime_config.execution_adapter == "mock") {
-    auto bundle = qtrade::adapter::mock::CreateMockAdapters(runtime_config.quote_connection_string,
-                                                            bootstrap_config_.config.identity.account_id);
-    quote_request = std::move(bundle.quote_request);
-    trader_request = std::move(bundle.trader_request);
-    SetQuoteApi(std::move(bundle.quote_api));
-    SetTraderApi(std::move(bundle.trader_api));
-  } else if (runtime_config.execution_adapter == "emt") {
-    if (account_bridge_ == nullptr) {
-      lifecycle_.Transition(EngineState::kFailed, "ADAPTER_INIT_FAILED");
-      return ErrorCode::kNotInitialized;
-    }
-    ErrorCode create_error = ErrorCode::kInternalError;
-    auto bundle = qtrade::adapter::emt::CreateEmtAdapters(*account_bridge_,
-                                                          bootstrap_config_.config.identity.tenant_id,
-                                                          bootstrap_config_.config.identity.engine_id,
-                                                          bootstrap_config_.config.identity.account_id,
-                                                          runtime_config.quote_connection_string,
-                                                          &create_error);
-    if (!bundle.has_value()) {
-      lifecycle_.Transition(EngineState::kFailed, "ADAPTER_INIT_FAILED");
-      return create_error;
-    }
-    quote_request = std::move(bundle->quote_request);
-    trader_request = std::move(bundle->trader_request);
-    SetQuoteApi(std::move(bundle->quote_api));
-    SetTraderApi(std::move(bundle->trader_api));
-  } else {
-    lifecycle_.Transition(EngineState::kFailed, "ADAPTER_INIT_FAILED");
-    return ErrorCode::kNotSupported;
-  }
-
-  // 3. 连接行情与交易通道
-  auto* quote_api = quote_api_.get();
-  auto* trader_api = trader_api_.get();
-  if (quote_api == nullptr || trader_api == nullptr) {
-    lifecycle_.Transition(EngineState::kFailed, "ADAPTER_INIT_FAILED");
-    return ErrorCode::kNotInitialized;
-  }
-  if (const auto result = quote_api->Connect(quote_request); result != ErrorCode::kSuccess) {
-    quote_api->Disconnect();
-    lifecycle_.Transition(EngineState::kFailed, "ADAPTER_INIT_FAILED");
-    return result;
-  }
-  if (const auto result = trader_api->Connect(trader_request); result != ErrorCode::kSuccess) {
-    quote_api->Disconnect();
-    trader_api->Disconnect();
-    lifecycle_.Transition(EngineState::kFailed, "ADAPTER_INIT_FAILED");
-    return result;
-  }
-  return ErrorCode::kSuccess;
+  spdlog::error("quote/trader adapters not injected (SetQuoteApi/SetTraderApi required before Init/Start)");
+  lifecycle_.Transition(EngineState::kFailed, "ADAPTER_NOT_INJECTED");
+  return ErrorCode::kNotInitialized;
 }
 
 ErrorCode TradingEngine::FetchRuntimeConfig() {

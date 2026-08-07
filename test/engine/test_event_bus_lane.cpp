@@ -6,8 +6,8 @@
 
 #include "qtrade/engine/event_bus/event_lanes.hpp"
 
-#include <qtrade_sdk/quote/quote_struct.hpp>
-#include <qtrade_sdk/trader/trader_struct.hpp>
+#include <qtrade/sdk/quote/quote_struct.hpp>
+#include <qtrade/sdk/trader/trader_struct.hpp>
 
 #include <gtest/gtest.h>
 

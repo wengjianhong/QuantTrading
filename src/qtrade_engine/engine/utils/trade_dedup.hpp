@@ -8,7 +8,7 @@
 #ifndef QTRADE_ENGINE_UTILS_TRADE_DEDUP_HPP_
 #define QTRADE_ENGINE_UTILS_TRADE_DEDUP_HPP_
 
-#include <qtrade_sdk/trader/trader_struct.hpp>
+#include <qtrade/sdk/trader/trader_struct.hpp>
 
 #include <string>
 

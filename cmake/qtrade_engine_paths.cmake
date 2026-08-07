@@ -1,14 +1,13 @@
 # ---------------------------------------------------------------------------
 # Project paths (centralized; keep CMake out of src/)
 #
-# Physical layout: src/qtrade_engine/, src/qtrade_sdk/
-# Public #include path stays qtrade/ / qtrade_sdk/ (see include overlay below).
+# Physical layout: src/qtrade_engine/（含 adapter/mock 供单测）
+# Public headers: include/qtrade/...（含 sdk/）
 # ---------------------------------------------------------------------------
 
 set(QTRADE_ENGINE_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/include)
 set(QTRADE_ENGINE_SRC_DIR ${CMAKE_SOURCE_DIR}/src)
 set(QTRADE_ENGINE_SRC_QTRADE_DIR ${QTRADE_ENGINE_SRC_DIR}/qtrade_engine)
-set(QTRADE_ENGINE_SRC_QTRADE_SDK_DIR ${QTRADE_ENGINE_SRC_DIR}/qtrade_sdk)
 
 # Map src/qtrade_engine -> build/include_overlay/qtrade so #include <qtrade/...>
 # keeps working while the physical directory matches the project name.

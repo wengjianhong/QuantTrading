@@ -1,30 +1,34 @@
-/// @file      emt_trader_api.hpp
-/// @brief     EMT TraderApi 适配器（Target: qtrade_sdk::trader::TraderApi）
-/// @details   将 qtrade SDK 的交易接口适配至 EMT 交易 API。
+/// @file      mock_trader_api.hpp
+/// @brief     Mock TraderApi 适配器（Target: qtrade_sdk::trader::TraderApi）
+/// @details   提供可用于演示和测试的内存交易接口实现。
 /// @author    qtrade
 /// @date      2026-07-19
 /// @copyright Copyright (c) 2026 qtrade.
-#ifndef QTRADE_ADAPTER_EMT_TRADER_API_HPP_
-#define QTRADE_ADAPTER_EMT_TRADER_API_HPP_
+#ifndef QTRADE_ADAPTER_MOCK_TRADER_API_HPP_
+#define QTRADE_ADAPTER_MOCK_TRADER_API_HPP_
 
-#include "qtrade_sdk/emt/trader/emt_trader_spi.hpp"
+#include "qtrade/adapter/mock/trader/mock_trader_spi.hpp"
 
-#include <qtrade_sdk/trader/trader_api.hpp>
+#include <qtrade/sdk/trader/trader_api.hpp>
 
+#include <atomic>
 #include <cstdint>
-#include <functional>
+#include <memory>
+#include <mutex>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
-namespace qtrade::adapter::trader {
+namespace qtrade::adapter::mock::trader {
 
-/// @brief EMT 交易 API 适配器。
-/// @details 接入 EMT SDK 后持有并转发调用；实现 qtrade SDK 的交易接口。
-class EmtTraderApi final : public qtrade_sdk::trader::TraderApi {
+/// @brief Mock 交易 API 适配器。
+/// @details 模拟交易连接、订单及成交回调，实现 qtrade SDK 交易接口。
+class MockTraderApi final : public qtrade_sdk::trader::TraderApi {
  public:
-  /// @brief 构造 EMT 交易 API 适配器。
-  EmtTraderApi();
-  /// @brief 析构 EMT 交易 API 适配器。
-  ~EmtTraderApi() override;
+  /// @brief 构造 Mock 交易 API 适配器。
+  MockTraderApi();
+  /// @brief 析构 Mock 交易 API 适配器。
+  ~MockTraderApi() override;
 
   /// @copydoc qtrade_sdk::trader::TraderApi::SetCpuAffinity
   void SetCpuAffinity(std::int32_t thread1_cpu_core_id, std::int32_t thread2_cpu_core_id) override;
@@ -179,9 +183,13 @@ class EmtTraderApi final : public qtrade_sdk::trader::TraderApi {
   /// @copydoc qtrade_sdk::trader::TraderApi::SetTradeCallback
   void SetTradeCallback(TradeCallback cb) override;
 
+  /// @brief 设置发单后是否立即生成全量成交
+  /// @param auto_fill true 保持默认立即成交行为
+  void SetAutoFill(bool auto_fill);
+
  private:
-  /// @brief EMT 交易回调适配器。
-  EmtTraderSpi emt_spi_;
+  /// @brief Mock 交易回调适配器。
+  MockTraderSpi mock_spi_;
   /// @brief 已注册的 qtrade 交易回调对象。
   qtrade_sdk::trader::TraderSpi* spi_ = nullptr;
   /// @brief 最近一次 API 错误信息。
@@ -192,16 +200,34 @@ class EmtTraderApi final : public qtrade_sdk::trader::TraderApi {
   TradeCallback on_trade_;
   /// @brief 当前交易日。
   std::string trading_day_;
-  /// @brief EMT API 版本。
-  std::string api_version_{"emt"};
+  /// @brief Mock API 版本。
+  std::string api_version_ = "mock";
   /// @brief 当前账户标识。
   std::string account_id_;
-  /// @brief 设置给 EMT API 的软件版本。
+  /// @brief 设置的软件版本。
   std::string software_version_;
-  /// @brief 待接入的 EMT 原生交易 API。
-  /// @details TODO(EMT SDK): EMT::API::TraderApi* emt_api_ = nullptr;
+  /// @brief 连接状态。
+  bool connected_ = false;
+  /// @brief 当前会话标识。
+  std::uint64_t session_id_ = 0;
+  /// @brief 下一个券商/通道委托号。
+  std::uint64_t next_broker_order_id_ = 1;
+  /// @brief 下一个成交标识。
+  std::uint64_t next_trade_id_ = 1;
+  /// @brief 是否发单后立即成交。
+  std::atomic<bool> auto_fill_ = true;
+  /// @brief 券商/通道委托号到最近订单快照的映射。
+  std::unordered_map<std::uint64_t, qtrade_sdk::trader::Order> orders_;
+  /// @brief 已生成的成交回报。
+  std::vector<qtrade_sdk::trader::Trade> trades_;
+  /// @brief 保护 Mock 订单表的互斥锁。
+  std::mutex orders_mutex_;
 };
 
-}  // namespace qtrade::adapter::trader
+/// @brief 创建 Mock 交易 API。
+/// @return 用于演示与测试的交易 API 实例。
+std::unique_ptr<qtrade_sdk::trader::TraderApi> CreateMockTraderApi();
 
-#endif  // QTRADE_ADAPTER_EMT_TRADER_API_HPP_
+}  // namespace qtrade::adapter::mock::trader
+
+#endif  // QTRADE_ADAPTER_MOCK_TRADER_API_HPP_

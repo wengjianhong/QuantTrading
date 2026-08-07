@@ -7,9 +7,9 @@
 #ifndef QTRADE_SDK_QUOTE_STRUCT_HPP_
 #define QTRADE_SDK_QUOTE_STRUCT_HPP_
 
-#include <qtrade_sdk/constants/constants.hpp>
-#include <qtrade_sdk/quote/quote_types.hpp>
-#include <qtrade_sdk/trader/trader_types.hpp>
+#include <qtrade/sdk/constants/constants.hpp>
+#include <qtrade/sdk/quote/quote_types.hpp>
+#include <qtrade/sdk/trader/trader_types.hpp>
 
 #include <array>
 #include <cstdint>

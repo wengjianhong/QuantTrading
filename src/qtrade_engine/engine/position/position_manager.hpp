@@ -9,7 +9,7 @@
 #ifndef QTRADE_TRADING_ENGINE_POSITION_MANAGER_HPP_
 #define QTRADE_TRADING_ENGINE_POSITION_MANAGER_HPP_
 
-#include <qtrade_sdk/trader/trader_struct.hpp>
+#include <qtrade/sdk/trader/trader_struct.hpp>
 
 #include <cstdint>
 #include <map>

@@ -8,7 +8,7 @@
 #define QTRADE_ENGINE_RISK_RISK_API_HPP_
 
 #include <qtrade/error_code/error_codes.hpp>
-#include <qtrade_sdk/trader/trader_struct.hpp>
+#include <qtrade/sdk/trader/trader_struct.hpp>
 
 #include <cstdint>
 

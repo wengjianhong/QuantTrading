@@ -4,7 +4,7 @@
 /// @author    wengjianhong
 /// @date      2026-07-19
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade_sdk/mock/trader/mock_trader_api.hpp"
+#include "qtrade/adapter/mock/trader/mock_trader_api.hpp"
 
 namespace qtrade::adapter::mock::trader {
 

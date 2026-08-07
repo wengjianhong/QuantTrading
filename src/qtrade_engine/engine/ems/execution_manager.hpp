@@ -12,7 +12,7 @@
 #include "qtrade/engine/ems/execution_api.hpp"
 
 #include <qtrade/bridge/account_risk_bridge.hpp>
-#include <qtrade_sdk/trader/trader_api.hpp>
+#include <qtrade/sdk/trader/trader_api.hpp>
 
 #include <condition_variable>
 #include <deque>

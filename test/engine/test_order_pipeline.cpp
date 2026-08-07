@@ -1,7 +1,7 @@
 #include "qtrade/common/config/qtrade_engine_bootstrap_config.hpp"
 #include "qtrade/engine/trading_engine.hpp"
-#include "qtrade_sdk/mock/quote/mock_quote_api.hpp"
-#include "qtrade_sdk/mock/trader/mock_trader_api.hpp"
+#include "qtrade/adapter/mock/quote/mock_quote_api.hpp"
+#include "qtrade/adapter/mock/trader/mock_trader_api.hpp"
 
 #include <gtest/gtest.h>
 

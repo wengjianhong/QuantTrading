@@ -1,33 +1,35 @@
-/// @file      emt_quote_api.hpp
-/// @brief     EMT QuoteApi 适配器（Target: qtrade_sdk::quote::QuoteApi）
-/// @details   将 qtrade SDK 的行情接口适配至 EMT 行情 API。
+/// @file      mock_quote_api.hpp
+/// @brief     Mock QuoteApi 适配器（Target: qtrade_sdk::quote::QuoteApi）
+/// @details   提供可用于演示和测试的内存行情接口实现。
 /// @author    qtrade
 /// @date      2026-07-19
 /// @copyright Copyright (c) 2026 qtrade.
-#ifndef QTRADE_ADAPTER_EMT_QUOTE_API_HPP_
-#define QTRADE_ADAPTER_EMT_QUOTE_API_HPP_
+#ifndef QTRADE_ADAPTER_MOCK_QUOTE_API_HPP_
+#define QTRADE_ADAPTER_MOCK_QUOTE_API_HPP_
 
-#include "qtrade_sdk/emt/quote/emt_quote_spi.hpp"
+#include "qtrade/adapter/mock/quote/mock_quote_spi.hpp"
 
-#include <qtrade_sdk/quote/quote_api.hpp>
+#include <qtrade/sdk/quote/quote_api.hpp>
 
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
-namespace qtrade::adapter::quote {
+namespace qtrade::adapter::mock::quote {
 
-/// @brief EMT 行情 API 适配器。
-/// @details 接入 EMT SDK 后持有并转发行情接口调用。
-class EmtQuoteApi final : public qtrade_sdk::quote::QuoteApi {
+/// @brief Mock 行情 API 适配器。
+/// @details 模拟行情连接、订阅和行情回调，实现 qtrade SDK 行情接口。
+class MockQuoteApi final : public qtrade_sdk::quote::QuoteApi {
  public:
-  /// @brief 构造 EMT 行情 API 适配器。
-  EmtQuoteApi();
-  /// @brief 析构 EMT 行情 API 适配器。
-  ~EmtQuoteApi() override;
+  /// @brief 构造 Mock 行情 API 适配器。
+  MockQuoteApi();
+  /// @brief 析构 Mock 行情 API 适配器。
+  ~MockQuoteApi() override;
 
   /// @copydoc qtrade_sdk::quote::QuoteApi::RegisterSpi
   void RegisterSpi(qtrade_sdk::quote::QuoteSpi& quote_spi) override;
@@ -127,26 +129,35 @@ class EmtQuoteApi final : public qtrade_sdk::quote::QuoteApi {
   std::vector<std::string> GetSupportedInstruments() const override;
 
  private:
-  /// @brief EMT 行情回调适配器。
-  EmtQuoteSpi emt_spi_;
+  /// @brief 生成并发布模拟 Tick 数据。
+  void GenerateMockTicks();
+
+  /// @brief Mock 行情回调适配器。
+  MockQuoteSpi mock_spi_;
   /// @brief 已注册的 qtrade 行情回调对象。
   qtrade_sdk::quote::QuoteSpi* quote_spi_ = nullptr;
   /// @brief Tick 数据回调。
-  TickCallback on_tick_;
+  TickCallback on_tick_ = nullptr;
   /// @brief Bar 数据回调。
-  BarCallback on_bar_;
+  BarCallback on_bar_ = nullptr;
   /// @brief 当前连接配置。
   qtrade_sdk::quote::ConnectRequest config_;
   /// @brief 连接状态。
-  std::atomic<bool> connected_{false};
+  std::atomic<bool> connected_ = false;
+  /// @brief 模拟 Tick 生成线程的运行状态。
+  std::atomic<bool> running_ = false;
   /// @brief 支持的合约列表。
   std::vector<std::string> instruments_;
   /// @brief 保护共享状态的互斥锁。
   std::mutex mutex_;
-  /// @brief 待接入的 EMT 原生行情 API。
-  /// @details TODO(EMT SDK): EMT::API::QuoteApi* emt_api_ = nullptr;
+  /// @brief 生成模拟 Tick 的工作线程。
+  std::thread tick_thread_;
 };
 
-}  // namespace qtrade::adapter::quote
+/// @brief 创建 Mock 行情 API。
+/// @return 用于演示与测试的行情 API 实例。
+std::unique_ptr<qtrade_sdk::quote::QuoteApi> CreateMockQuoteApi();
 
-#endif  // QTRADE_ADAPTER_EMT_QUOTE_API_HPP_
+}  // namespace qtrade::adapter::mock::quote
+
+#endif  // QTRADE_ADAPTER_MOCK_QUOTE_API_HPP_

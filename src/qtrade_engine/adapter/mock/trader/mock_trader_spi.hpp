@@ -7,7 +7,7 @@
 #ifndef QTRADE_ADAPTER_MOCK_TRADER_SPI_HPP_
 #define QTRADE_ADAPTER_MOCK_TRADER_SPI_HPP_
 
-#include <qtrade_sdk/trader/trader_spi.hpp>
+#include <qtrade/sdk/trader/trader_spi.hpp>
 
 #include <cstdint>
 

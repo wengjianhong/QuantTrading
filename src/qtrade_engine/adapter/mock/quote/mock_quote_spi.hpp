@@ -7,7 +7,7 @@
 #ifndef QTRADE_ADAPTER_MOCK_QUOTE_SPI_HPP_
 #define QTRADE_ADAPTER_MOCK_QUOTE_SPI_HPP_
 
-#include <qtrade_sdk/quote/quote_spi.hpp>
+#include <qtrade/sdk/quote/quote_spi.hpp>
 
 namespace qtrade::adapter::mock::quote {
 
