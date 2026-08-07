@@ -28,13 +28,12 @@
 ```shell
 qtrade/
 ├── CMakeLists.txt                  # 根构建入口：全局选项、依赖、include(cmake/...)
-├── cmake/                          # 构建脚本（qtrade_ 前缀 + snake_case，与 src/ 分离）
-│   ├── qtrade_paths.cmake          # 工程路径变量
-│   ├── lib/qtrade_common.cmake     # 库：qtrade_common
-│   ├── lib/qtrade_core.cmake       # 库：qtrade_core
-│   ├── app/qtrade_engine.cmake     # 可执行文件 qtrade_engine
-│   ├── app/qtrade_services.cmake   # include 各支撑服务
-│   └── app/services/qtrade_*.cmake # 每个微服务独立构建脚本
+├── cmake/                          # 构建脚本（qtrade_engine_ 前缀，与 src/ 分离）
+│   ├── qtrade_engine_paths.cmake   # 工程路径变量
+│   ├── qtrade_engine_lib.cmake     # 单一静态库 libqtrade_engine.a
+│   ├── qtrade_engine_install.cmake # install / find_package 导出
+│   └── qtrade_engine-config.cmake  # 包配置入口
+
 ├── docs/
 │   ├── architecture.md             # 系统架构权威文档：架构总览、模块设计、交互方式、容灾方案、安全合规
 │   ├── guide.md                    # 开发指南：编码规范、插件开发流程、部署步骤、调试方法、协作规则

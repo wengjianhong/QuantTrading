@@ -19,7 +19,7 @@ target_include_directories(qtrade_tests PRIVATE
 
 # Link Libraries
 target_link_libraries(qtrade_tests PRIVATE
-  qtrade_core
+  qtrade_engine
   GTest::gtest
   GTest::gtest_main
 )

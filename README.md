@@ -1,12 +1,14 @@
-# 量化交易系统(QTrade)
+# qtrade_engine
 
 License: CC BY-NC-SA 4.0 (禁止商用，仅供学习研究)
 
 高性能 C++ 量化交易**核心库**：对外提供 `IEngine` / 桥接接口与引擎实现。本仓**不**产出交易进程二进制或策略 `.so`。
 
-- 交易客户端（`qtrade_engine`）：见独立仓库 **qtrade_client**
+- 交易客户端（进程 `qtrade_engine`）：见独立仓库 **qtrade_client**
 - 支撑微服务与 gRPC 桥接：见 **qtrade_service**
 - 策略插件：见 **qtrade_strategy**
+
+CMake 包名：`qtrade_engine`（`find_package(qtrade_engine)`）。C++ 公开命名空间与头路径仍为 `qtrade::` / `#include <qtrade/...>`。
 
 ## 整体设计
 
@@ -37,17 +39,18 @@ sudo cmake --install build
 
 ```
 /usr/local/qtrade/
-├── lib/libqtrade_{common,core}.a
+├── lib/libqtrade_engine.a
+├── lib/cmake/qtrade_engine/
 ├── include/qtrade/
 ├── include/qtrade_sdk/
 └── config/qtrade_engine.json   # 引导配置样例
 ```
 
-### 下游项目依赖 qtrade
+### 下游项目依赖
 
 ```cmake
-find_package(qtrade CONFIG REQUIRED)
-target_link_libraries(my_app PRIVATE qtrade::qtrade_core)
+find_package(qtrade_engine CONFIG REQUIRED)
+target_link_libraries(my_app PRIVATE qtrade_engine::qtrade_engine)
 ```
 
 若同时依赖 cpputils：`-DCMAKE_PREFIX_PATH="/usr/local/cpputils;/usr/local/qtrade"`。

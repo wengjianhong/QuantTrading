@@ -1,25 +1,25 @@
 # ---------------------------------------------------------------------------
-# Install rules for find_package(qtrade CONFIG).
+# Install rules for find_package(qtrade_engine CONFIG).
 #
 # Default prefix: /usr/local (override with -DCMAKE_INSTALL_PREFIX=).
 # Installed layout:
-#   lib/libqtrade_{common,core}.a
+#   lib/libqtrade_engine.a
 #   include/qtrade/...
 #   include/qtrade_sdk/...
 #   config/qtrade_engine.json（引导配置样例；进程由 qtrade_client 提供）
-#   lib/cmake/qtrade/...
+#   lib/cmake/qtrade_engine/...
 # ---------------------------------------------------------------------------
 
 include(CMakePackageConfigHelpers)
 
 write_basic_package_version_file(
-  "${CMAKE_CURRENT_BINARY_DIR}/qtrade-config-version.cmake"
+  "${CMAKE_CURRENT_BINARY_DIR}/qtrade_engine-config-version.cmake"
   VERSION ${PROJECT_VERSION}
   COMPATIBILITY SameMajorVersion
 )
 
-install(TARGETS qtrade_common qtrade_core
-  EXPORT qtradeTargets
+install(TARGETS qtrade_engine
+  EXPORT qtrade_engineTargets
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 
@@ -49,14 +49,14 @@ install(DIRECTORY ${CMAKE_SOURCE_DIR}/config/
   FILES_MATCHING PATTERN "*.json"
 )
 
-install(EXPORT qtradeTargets
-  FILE qtradeTargets.cmake
-  NAMESPACE qtrade::
-  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/qtrade
+install(EXPORT qtrade_engineTargets
+  FILE qtrade_engineTargets.cmake
+  NAMESPACE qtrade_engine::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/qtrade_engine
 )
 
 install(FILES
-  ${CMAKE_CURRENT_LIST_DIR}/qtrade-config.cmake
-  ${CMAKE_CURRENT_BINARY_DIR}/qtrade-config-version.cmake
-  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/qtrade
+  ${CMAKE_CURRENT_LIST_DIR}/qtrade_engine-config.cmake
+  ${CMAKE_CURRENT_BINARY_DIR}/qtrade_engine-config-version.cmake
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/qtrade_engine
 )

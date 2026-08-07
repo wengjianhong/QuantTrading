@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(qtrade VERSION 0.1.0 LANGUAGES CXX)
+project(qtrade_engine VERSION 0.1.0 LANGUAGES CXX)
 
 # -----------------------------------------------------------------------------
 # Toolchain defaults
@@ -32,17 +32,16 @@ find_package(nlohmann_json 3.11.0 REQUIRED)
 find_package(cpputils 0.1.0 REQUIRED CONFIG)
 
 # -----------------------------------------------------------------------------
-# Libraries
+# Library
 # -----------------------------------------------------------------------------
-include(${CMAKE_SOURCE_DIR}/cmake/qtrade_paths.cmake)
-include(${CMAKE_SOURCE_DIR}/cmake/lib/qtrade_common.cmake)
-include(${CMAKE_SOURCE_DIR}/cmake/lib/qtrade_core.cmake)
+include(${CMAKE_SOURCE_DIR}/cmake/qtrade_engine_paths.cmake)
+include(${CMAKE_SOURCE_DIR}/cmake/qtrade_engine_lib.cmake)
 
 # -----------------------------------------------------------------------------
-# Install (downstream: find_package(qtrade CONFIG))
+# Install (downstream: find_package(qtrade_engine CONFIG))
 # 本仓只交付库与头文件；交易客户端见 qtrade_client，策略见 qtrade_strategy。
 # -----------------------------------------------------------------------------
-include(${CMAKE_SOURCE_DIR}/cmake/qtrade_install.cmake)
+include(${CMAKE_SOURCE_DIR}/cmake/qtrade_engine_install.cmake)
 
 # -----------------------------------------------------------------------------
 # Tests
