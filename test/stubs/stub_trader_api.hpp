@@ -1,13 +1,13 @@
-/// @file      mock_trader_api.hpp
+/// @file      stub_trader_api.hpp
 /// @brief     Mock TraderApi 适配器（Target: qtrade_sdk::trader::TraderApi）
 /// @details   提供可用于演示和测试的内存交易接口实现。
 /// @author    qtrade
 /// @date      2026-07-19
 /// @copyright Copyright (c) 2026 qtrade.
-#ifndef QTRADE_ADAPTER_MOCK_TRADER_API_HPP_
-#define QTRADE_ADAPTER_MOCK_TRADER_API_HPP_
+#ifndef QTRADE_TEST_STUB_TRADER_API_HPP_
+#define QTRADE_TEST_STUB_TRADER_API_HPP_
 
-#include "qtrade/adapter/mock/trader/mock_trader_spi.hpp"
+#include "stubs/stub_trader_spi.hpp"
 
 #include <qtrade/sdk/trader/trader_api.hpp>
 
@@ -19,16 +19,16 @@
 #include <unordered_map>
 #include <vector>
 
-namespace qtrade::adapter::mock::trader {
+namespace qtrade::test::stub {
 
-/// @brief Mock 交易 API 适配器。
+/// @brief 测试用 Stub 交易 API 适配器。
 /// @details 模拟交易连接、订单及成交回调，实现 qtrade SDK 交易接口。
-class MockTraderApi final : public qtrade_sdk::trader::TraderApi {
+class StubTraderApi final : public qtrade_sdk::trader::TraderApi {
  public:
-  /// @brief 构造 Mock 交易 API 适配器。
-  MockTraderApi();
-  /// @brief 析构 Mock 交易 API 适配器。
-  ~MockTraderApi() override;
+  /// @brief 构造 测试用 Stub 交易 API 适配器。
+  StubTraderApi();
+  /// @brief 析构 测试用 Stub 交易 API 适配器。
+  ~StubTraderApi() override;
 
   /// @copydoc qtrade_sdk::trader::TraderApi::SetCpuAffinity
   void SetCpuAffinity(std::int32_t thread1_cpu_core_id, std::int32_t thread2_cpu_core_id) override;
@@ -188,8 +188,8 @@ class MockTraderApi final : public qtrade_sdk::trader::TraderApi {
   void SetAutoFill(bool auto_fill);
 
  private:
-  /// @brief Mock 交易回调适配器。
-  MockTraderSpi mock_spi_;
+  /// @brief 测试用 Stub 交易回调适配器。
+  StubTraderSpi mock_spi_;
   /// @brief 已注册的 qtrade 交易回调对象。
   qtrade_sdk::trader::TraderSpi* spi_ = nullptr;
   /// @brief 最近一次 API 错误信息。
@@ -224,10 +224,10 @@ class MockTraderApi final : public qtrade_sdk::trader::TraderApi {
   std::mutex orders_mutex_;
 };
 
-/// @brief 创建 Mock 交易 API。
+/// @brief 创建 测试用 Stub 交易 API。
 /// @return 用于演示与测试的交易 API 实例。
-std::unique_ptr<qtrade_sdk::trader::TraderApi> CreateMockTraderApi();
+std::unique_ptr<qtrade_sdk::trader::TraderApi> CreateStubTraderApi();
 
-}  // namespace qtrade::adapter::mock::trader
+}  // namespace qtrade::test::stub
 
-#endif  // QTRADE_ADAPTER_MOCK_TRADER_API_HPP_
+#endif  // QTRADE_TEST_STUB_TRADER_API_HPP_

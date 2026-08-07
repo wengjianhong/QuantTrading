@@ -1,10 +1,10 @@
-/// @file      mock_quote_api.cpp
+/// @file      stub_quote_api.cpp
 /// @brief     Mock QuoteApi 适配器实现
 /// @details   实现模拟行情接口的连接、订阅管理与行情生成分发行为。
 /// @author    wengjianhong
 /// @date      2026-07-19
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade/adapter/mock/quote/mock_quote_api.hpp"
+#include "stubs/stub_quote_api.hpp"
 
 #include "qtrade/common/system/time.hpp"
 
@@ -12,39 +12,39 @@
 
 #include <random>
 
-namespace qtrade::adapter::mock::quote {
+namespace qtrade::test::stub {
 
 namespace sdk = qtrade_sdk::quote;
 
-MockQuoteApi::MockQuoteApi() = default;
+StubQuoteApi::StubQuoteApi() = default;
 
-MockQuoteApi::~MockQuoteApi() {
+StubQuoteApi::~StubQuoteApi() {
   Disconnect();
 }
 
-void MockQuoteApi::RegisterSpi(sdk::QuoteSpi& quote_spi) {
+void StubQuoteApi::RegisterSpi(sdk::QuoteSpi& quote_spi) {
   quote_spi_ = &quote_spi;
   mock_spi_.SetTarget(&quote_spi);
 }
 
-void MockQuoteApi::UnregisterSpi() {
+void StubQuoteApi::UnregisterSpi() {
   quote_spi_ = nullptr;
   mock_spi_.SetTarget(nullptr);
 }
 
-qtrade::ErrorCode MockQuoteApi::Connect(const sdk::ConnectRequest& request) {
+qtrade::ErrorCode StubQuoteApi::Connect(const sdk::ConnectRequest& request) {
   if (connected_) {
     return qtrade::ErrorCode::kSuccess;
   }
   config_ = request;
   connected_ = true;
   running_ = true;
-  tick_thread_ = std::thread([this]() { GenerateMockTicks(); });
-  spdlog::info("[MockQuoteApi] connected: {}", config_.name);
+  tick_thread_ = std::thread([this]() { GenerateTicks(); });
+  spdlog::info("[StubQuoteApi] connected: {}", config_.name);
   return qtrade::ErrorCode::kSuccess;
 }
 
-void MockQuoteApi::Disconnect() {
+void StubQuoteApi::Disconnect() {
   if (!connected_) {
     return;
   }
@@ -53,14 +53,14 @@ void MockQuoteApi::Disconnect() {
     tick_thread_.join();
   }
   connected_ = false;
-  spdlog::info("[MockQuoteApi] disconnected");
+  spdlog::info("[StubQuoteApi] disconnected");
 }
 
-bool MockQuoteApi::IsConnected() const {
+bool StubQuoteApi::IsConnected() const {
   return connected_;
 }
 
-std::int32_t MockQuoteApi::Login(const std::string& ip,
+std::int32_t StubQuoteApi::Login(const std::string& ip,
                                  std::uint16_t port,
                                  const std::string& user,
                                  const std::string& pwd) {
@@ -71,11 +71,11 @@ std::int32_t MockQuoteApi::Login(const std::string& ip,
   return 0;
 }
 
-void MockQuoteApi::Logout() {
+void StubQuoteApi::Logout() {
   Disconnect();
 }
 
-std::int32_t MockQuoteApi::RebuildSzData(std::uint32_t channel_no,
+std::int32_t StubQuoteApi::RebuildSzData(std::uint32_t channel_no,
                                          std::uint64_t begin_seq,
                                          std::uint64_t end_seq,
                                          std::uint64_t request_id) {
@@ -86,85 +86,85 @@ std::int32_t MockQuoteApi::RebuildSzData(std::uint32_t channel_no,
   return -1;
 }
 
-void MockQuoteApi::SetThreadAffinity(std::int32_t recv_cpu_no, std::int32_t process_cpu_no) {
+void StubQuoteApi::SetThreadAffinity(std::int32_t recv_cpu_no, std::int32_t process_cpu_no) {
   (void)recv_cpu_no;
   (void)process_cpu_no;
 }
 
-std::int32_t MockQuoteApi::SetBuffer(std::size_t buffer_size) {
+std::int32_t StubQuoteApi::SetBuffer(std::size_t buffer_size) {
   (void)buffer_size;
   return 0;
 }
 
-int MockQuoteApi::SubscribeAllIndexData(sdk::ExchangeType exchange_id) {
+int StubQuoteApi::SubscribeAllIndexData(sdk::ExchangeType exchange_id) {
   (void)exchange_id;
   return -1;
 }
 
-int MockQuoteApi::UnSubscribeAllIndexData(sdk::ExchangeType exchange_id) {
+int StubQuoteApi::UnSubscribeAllIndexData(sdk::ExchangeType exchange_id) {
   (void)exchange_id;
   return -1;
 }
 
-int MockQuoteApi::SubscribeIndexData(const std::vector<std::string>& tickers, sdk::ExchangeType exchange_id) {
+int StubQuoteApi::SubscribeIndexData(const std::vector<std::string>& tickers, sdk::ExchangeType exchange_id) {
   (void)tickers;
   (void)exchange_id;
   return -1;
 }
 
-int MockQuoteApi::UnSubscribeIndexData(const std::vector<std::string>& tickers, sdk::ExchangeType exchange_id) {
+int StubQuoteApi::UnSubscribeIndexData(const std::vector<std::string>& tickers, sdk::ExchangeType exchange_id) {
   (void)tickers;
   (void)exchange_id;
   return -1;
 }
 
-int MockQuoteApi::SubscribeAllMarketData(sdk::ExchangeType exchange_id) {
+int StubQuoteApi::SubscribeAllMarketData(sdk::ExchangeType exchange_id) {
   (void)exchange_id;
   return -1;
 }
 
-int MockQuoteApi::UnSubscribeAllMarketData(sdk::ExchangeType exchange_id) {
+int StubQuoteApi::UnSubscribeAllMarketData(sdk::ExchangeType exchange_id) {
   (void)exchange_id;
   return -1;
 }
 
-int MockQuoteApi::SubscribeMarketData(const std::vector<std::string>& tickers, sdk::ExchangeType exchange_id) {
+int StubQuoteApi::SubscribeMarketData(const std::vector<std::string>& tickers, sdk::ExchangeType exchange_id) {
   (void)tickers;
   (void)exchange_id;
   return -1;
 }
 
-int MockQuoteApi::UnSubscribeMarketData(const std::vector<std::string>& tickers, sdk::ExchangeType exchange_id) {
+int StubQuoteApi::UnSubscribeMarketData(const std::vector<std::string>& tickers, sdk::ExchangeType exchange_id) {
   (void)tickers;
   (void)exchange_id;
   return -1;
 }
 
-qtrade::ErrorCode MockQuoteApi::Subscribe(const sdk::SubscribeRequest& request) {
+qtrade::ErrorCode StubQuoteApi::Subscribe(const sdk::SubscribeRequest& request) {
   std::lock_guard<std::mutex> lock(mutex_);
   instruments_ = request.instruments;
-  spdlog::info("[MockQuoteApi] subscribed {} instruments", instruments_.size());
+  spdlog::info("[StubQuoteApi] subscribed {} instruments", instruments_.size());
   return qtrade::ErrorCode::kSuccess;
 }
 
-qtrade::ErrorCode MockQuoteApi::Unsubscribe(const sdk::UnsubscribeRequest& request) {
+qtrade::ErrorCode StubQuoteApi::Unsubscribe(const sdk::UnsubscribeRequest& request) {
   std::lock_guard<std::mutex> lock(mutex_);
   (void)request;
   instruments_.clear();
   return qtrade::ErrorCode::kSuccess;
 }
 
-int MockQuoteApi::QueryAllTickers(sdk::ExchangeType exchange_id) {
+int StubQuoteApi::QueryAllTickers(sdk::ExchangeType exchange_id) {
   (void)exchange_id;
   return -1;
 }
 
-int MockQuoteApi::QueryAllTickersFullInfo(sdk::ExchangeType exchange_id) {
+int StubQuoteApi::QueryAllTickersFullInfo(sdk::ExchangeType exchange_id) {
   (void)exchange_id;
   return -1;
 }
 
-int MockQuoteApi::QueryLatestInfo(const std::vector<std::string>& tickers,
+int StubQuoteApi::QueryLatestInfo(const std::vector<std::string>& tickers,
                                   sdk::TickerType ticker_type,
                                   sdk::ExchangeType exchange_id) {
   (void)tickers;
@@ -173,32 +173,32 @@ int MockQuoteApi::QueryLatestInfo(const std::vector<std::string>& tickers,
   return -1;
 }
 
-int MockQuoteApi::QueryTickersPriceInfo(const std::vector<std::string>& tickers, sdk::ExchangeType exchange_id) {
+int StubQuoteApi::QueryTickersPriceInfo(const std::vector<std::string>& tickers, sdk::ExchangeType exchange_id) {
   (void)tickers;
   (void)exchange_id;
   return -1;
 }
 
-qtrade::ErrorCode MockQuoteApi::QuerySnapshot(const sdk::QuerySnapshotRequest& request,
+qtrade::ErrorCode StubQuoteApi::QuerySnapshot(const sdk::QuerySnapshotRequest& request,
                                               sdk::QuerySnapshotResponse& response) {
   (void)request;
   response.ticks.clear();
   return qtrade::ErrorCode::kNotSupported;
 }
 
-void MockQuoteApi::SetTickCallback(TickCallback cb) {
+void StubQuoteApi::SetTickCallback(TickCallback cb) {
   on_tick_ = std::move(cb);
 }
 
-void MockQuoteApi::SetBarCallback(BarCallback cb) {
+void StubQuoteApi::SetBarCallback(BarCallback cb) {
   on_bar_ = std::move(cb);
 }
 
-std::vector<std::string> MockQuoteApi::GetSupportedInstruments() const {
+std::vector<std::string> StubQuoteApi::GetSupportedInstruments() const {
   return {"IF2401", "IC2401", "IH2401"};
 }
 
-void MockQuoteApi::GenerateMockTicks() {
+void StubQuoteApi::GenerateTicks() {
   std::random_device rd;
   std::mt19937 gen(rd());
   double base_price = 100.0;
@@ -240,12 +240,12 @@ void MockQuoteApi::GenerateMockTicks() {
   }
 }
 
-}  // namespace qtrade::adapter::mock::quote
+}  // namespace qtrade::test::stub
 
-namespace qtrade::adapter::mock::quote {
+namespace qtrade::test::stub {
 
-std::unique_ptr<qtrade_sdk::quote::QuoteApi> CreateMockQuoteApi() {
-  return std::make_unique<MockQuoteApi>();
+std::unique_ptr<qtrade_sdk::quote::QuoteApi> CreateStubQuoteApi() {
+  return std::make_unique<StubQuoteApi>();
 }
 
-}  // namespace qtrade::adapter::mock::quote
+}  // namespace qtrade::test::stub

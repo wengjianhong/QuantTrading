@@ -1,21 +1,21 @@
-/// @file      mock_trader_spi.hpp
-/// @brief     Mock 交易 SPI（模拟厂商回调，转发至 Target）
-/// @details   封装 Mock 交易事件并转发给 qtrade SDK 交易回调接口。
+/// @file      stub_trader_spi.hpp
+/// @brief     测试用 Stub 交易 SPI（模拟厂商回调，转发至 Target）
+/// @details   封装 测试用 Stub 交易事件并转发给 qtrade SDK 交易回调接口。
 /// @author    qtrade
 /// @date      2026-07-19
 /// @copyright Copyright (c) 2026 qtrade.
-#ifndef QTRADE_ADAPTER_MOCK_TRADER_SPI_HPP_
-#define QTRADE_ADAPTER_MOCK_TRADER_SPI_HPP_
+#ifndef QTRADE_TEST_STUB_TRADER_SPI_HPP_
+#define QTRADE_TEST_STUB_TRADER_SPI_HPP_
 
 #include <qtrade/sdk/trader/trader_spi.hpp>
 
 #include <cstdint>
 
-namespace qtrade::adapter::mock::trader {
+namespace qtrade::test::stub {
 
-/// @brief Mock 交易 SPI 回调适配器。
+/// @brief 测试用 Stub 交易 SPI 回调适配器。
 /// @details 将合成交易回报转发至 qtrade SDK 交易回调接口。
-class MockTraderSpi {
+class StubTraderSpi {
  public:
   /// @brief 设置接收模拟交易回调的目标对象。
   /// @param target qtrade SDK 交易回调目标；可为空。
@@ -50,6 +50,6 @@ class MockTraderSpi {
   qtrade_sdk::trader::TraderSpi* target_ = nullptr;
 };
 
-}  // namespace qtrade::adapter::mock::trader
+}  // namespace qtrade::test::stub
 
-#endif  // QTRADE_ADAPTER_MOCK_TRADER_SPI_HPP_
+#endif  // QTRADE_TEST_STUB_TRADER_SPI_HPP_

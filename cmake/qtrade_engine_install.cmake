@@ -4,9 +4,13 @@
 # Default prefix: /usr/local (override with -DCMAKE_INSTALL_PREFIX=).
 # Installed layout:
 #   lib/libqtrade_engine.a
-#   include/qtrade/...（含 sdk/ 接口头）
-#   config/qtrade_engine.json（引导配置样例；进程由 qtrade_client 提供）
+#   include/qtrade/...（公开契约 + 实现头，路径仍为 qtrade/engine、qtrade/common）
+#   config/qtrade_engine.json
 #   lib/cmake/qtrade_engine/...
+#
+# 物理源已扁平到 src/qtrade_engine/{common,oms,...}；安装时映射回公开 include 路径，
+# 使 #include "qtrade/engine/..." / "qtrade/common/..." 在安装树中仍成立。
+# （长期应仅安装 include/ 下的对外头；client 依赖的实现头需先迁入 include/。）
 # ---------------------------------------------------------------------------
 
 include(CMakePackageConfigHelpers)
@@ -26,14 +30,34 @@ install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/qtrade/
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/qtrade
 )
 
-# 实现头安装到 include/qtrade（公开 #include 路径）；物理源在 src/qtrade_engine/
-# 不含 adapter/（厂商适配在 qtrade_client；mock 仅供本仓单测）
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/qtrade_engine/
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/qtrade
+# common → include/qtrade/common
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/qtrade_engine/common/
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/qtrade/common
   FILES_MATCHING
     PATTERN "*.hpp"
     PATTERN "*.h"
-    PATTERN "adapter" EXCLUDE
+)
+
+# Flattened engine modules → include/qtrade/engine/<module>
+set(_qtrade_engine_install_modules
+  account bridge cms core ems event_bus oms position risk strategy utils
+)
+foreach(_mod IN LISTS _qtrade_engine_install_modules)
+  install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/qtrade_engine/${_mod}/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/qtrade/engine/${_mod}
+    FILES_MATCHING
+      PATTERN "*.hpp"
+      PATTERN "*.h"
+  )
+endforeach()
+unset(_qtrade_engine_install_modules)
+
+# Top-level engine headers → include/qtrade/engine/
+install(FILES
+  ${CMAKE_SOURCE_DIR}/src/qtrade_engine/trading_engine.hpp
+  ${CMAKE_SOURCE_DIR}/src/qtrade_engine/trading_engine_define.hpp
+  ${CMAKE_SOURCE_DIR}/src/qtrade_engine/trading_engine_struct.hpp
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/qtrade/engine
 )
 
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/config/

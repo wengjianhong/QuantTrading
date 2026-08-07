@@ -8,7 +8,7 @@ License: CC BY-NC-SA 4.0 (禁止商用，仅供学习研究)
 - 支撑微服务与 gRPC 桥接：见 **qtrade_service**
 - 策略插件：见 **qtrade_strategy**
 
-CMake 包名：`qtrade_engine`（`find_package(qtrade_engine)`）。C++ 公开命名空间与头路径为 `qtrade::` / `#include <qtrade/...>`（含 `#include <qtrade/sdk/...>`，命名空间仍为 `qtrade_sdk::`）。仓内实现目录为 `src/qtrade_engine/`；厂商适配器实现在 **qtrade_client**。
+CMake 包名：`qtrade_engine`（`find_package(qtrade_engine)`）。C++ 公开命名空间与头路径为 `qtrade::` / `#include <qtrade/...>`（含 `#include <qtrade/sdk/...>`，命名空间仍为 `qtrade_sdk::`）。仓内实现目录为扁平的 `src/qtrade_engine/{common,oms,...}`（`#include` 仍为 `qtrade/engine/...` / `qtrade/common/...`）；行情/交易适配器（含 mock）在 **qtrade_client**；引擎单测用 `test/stubs/`。
 
 ## 整体设计
 

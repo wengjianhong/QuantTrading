@@ -1,13 +1,13 @@
-/// @file      mock_quote_api.hpp
+/// @file      stub_quote_api.hpp
 /// @brief     Mock QuoteApi 适配器（Target: qtrade_sdk::quote::QuoteApi）
 /// @details   提供可用于演示和测试的内存行情接口实现。
 /// @author    qtrade
 /// @date      2026-07-19
 /// @copyright Copyright (c) 2026 qtrade.
-#ifndef QTRADE_ADAPTER_MOCK_QUOTE_API_HPP_
-#define QTRADE_ADAPTER_MOCK_QUOTE_API_HPP_
+#ifndef QTRADE_TEST_STUB_QUOTE_API_HPP_
+#define QTRADE_TEST_STUB_QUOTE_API_HPP_
 
-#include "qtrade/adapter/mock/quote/mock_quote_spi.hpp"
+#include "stubs/stub_quote_spi.hpp"
 
 #include <qtrade/sdk/quote/quote_api.hpp>
 
@@ -20,16 +20,16 @@
 #include <thread>
 #include <vector>
 
-namespace qtrade::adapter::mock::quote {
+namespace qtrade::test::stub {
 
-/// @brief Mock 行情 API 适配器。
+/// @brief 测试用 Stub 行情 API 适配器。
 /// @details 模拟行情连接、订阅和行情回调，实现 qtrade SDK 行情接口。
-class MockQuoteApi final : public qtrade_sdk::quote::QuoteApi {
+class StubQuoteApi final : public qtrade_sdk::quote::QuoteApi {
  public:
-  /// @brief 构造 Mock 行情 API 适配器。
-  MockQuoteApi();
-  /// @brief 析构 Mock 行情 API 适配器。
-  ~MockQuoteApi() override;
+  /// @brief 构造 测试用 Stub 行情 API 适配器。
+  StubQuoteApi();
+  /// @brief 析构 测试用 Stub 行情 API 适配器。
+  ~StubQuoteApi() override;
 
   /// @copydoc qtrade_sdk::quote::QuoteApi::RegisterSpi
   void RegisterSpi(qtrade_sdk::quote::QuoteSpi& quote_spi) override;
@@ -130,10 +130,10 @@ class MockQuoteApi final : public qtrade_sdk::quote::QuoteApi {
 
  private:
   /// @brief 生成并发布模拟 Tick 数据。
-  void GenerateMockTicks();
+  void GenerateTicks();
 
-  /// @brief Mock 行情回调适配器。
-  MockQuoteSpi mock_spi_;
+  /// @brief 测试用 Stub 行情回调适配器。
+  StubQuoteSpi mock_spi_;
   /// @brief 已注册的 qtrade 行情回调对象。
   qtrade_sdk::quote::QuoteSpi* quote_spi_ = nullptr;
   /// @brief Tick 数据回调。
@@ -154,10 +154,10 @@ class MockQuoteApi final : public qtrade_sdk::quote::QuoteApi {
   std::thread tick_thread_;
 };
 
-/// @brief 创建 Mock 行情 API。
+/// @brief 创建 测试用 Stub 行情 API。
 /// @return 用于演示与测试的行情 API 实例。
-std::unique_ptr<qtrade_sdk::quote::QuoteApi> CreateMockQuoteApi();
+std::unique_ptr<qtrade_sdk::quote::QuoteApi> CreateStubQuoteApi();
 
-}  // namespace qtrade::adapter::mock::quote
+}  // namespace qtrade::test::stub
 
-#endif  // QTRADE_ADAPTER_MOCK_QUOTE_API_HPP_
+#endif  // QTRADE_TEST_STUB_QUOTE_API_HPP_

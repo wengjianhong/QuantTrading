@@ -1,96 +1,96 @@
-/// @file      mock_trader_api.cpp
+/// @file      stub_trader_api.cpp
 /// @brief     Mock TraderApi 适配器实现
 /// @details   实现模拟交易接口的连接、委托、查询及回调分发行为。
 /// @author    wengjianhong
 /// @date      2026-07-19
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade/adapter/mock/trader/mock_trader_api.hpp"
+#include "stubs/stub_trader_api.hpp"
 
-namespace qtrade::adapter::mock::trader {
+namespace qtrade::test::stub {
 
 namespace sdk = qtrade_sdk::trader;
 
-MockTraderApi::MockTraderApi() = default;
+StubTraderApi::StubTraderApi() = default;
 
-MockTraderApi::~MockTraderApi() {
+StubTraderApi::~StubTraderApi() {
   Release();
 }
 
-void MockTraderApi::SetCpuAffinity(std::int32_t thread1_cpu_core_id, std::int32_t thread2_cpu_core_id) {
+void StubTraderApi::SetCpuAffinity(std::int32_t thread1_cpu_core_id, std::int32_t thread2_cpu_core_id) {
   (void)thread1_cpu_core_id;
   (void)thread2_cpu_core_id;
 }
 
-std::string MockTraderApi::GetErrMsgByCode(std::int32_t error_code, std::uint64_t session_id) {
+std::string StubTraderApi::GetErrMsgByCode(std::int32_t error_code, std::uint64_t session_id) {
   (void)error_code;
   (void)session_id;
   return {};
 }
 
-void MockTraderApi::Release() {
+void StubTraderApi::Release() {
   Disconnect();
 }
 
-std::string MockTraderApi::GetTradingDay() const {
+std::string StubTraderApi::GetTradingDay() const {
   return trading_day_;
 }
 
-void MockTraderApi::RegisterSpi(sdk::TraderSpi& spi) {
+void StubTraderApi::RegisterSpi(sdk::TraderSpi& spi) {
   spi_ = &spi;
   mock_spi_.SetTarget(&spi);
 }
 
-void MockTraderApi::UnregisterSpi() {
+void StubTraderApi::UnregisterSpi() {
   spi_ = nullptr;
   mock_spi_.SetTarget(nullptr);
 }
 
-const sdk::RspInfo* MockTraderApi::GetApiLastError() const {
+const sdk::RspInfo* StubTraderApi::GetApiLastError() const {
   return &last_error_;
 }
 
-std::string MockTraderApi::GetApiVersion() const {
+std::string StubTraderApi::GetApiVersion() const {
   return api_version_;
 }
 
-std::uint8_t MockTraderApi::GetClientIDByBrokerOrderId(std::uint64_t broker_order_id) {
+std::uint8_t StubTraderApi::GetClientIDByBrokerOrderId(std::uint64_t broker_order_id) {
   (void)broker_order_id;
   return 0;
 }
 
-std::string MockTraderApi::GetAccountByBrokerOrderId(std::uint64_t broker_order_id) {
+std::string StubTraderApi::GetAccountByBrokerOrderId(std::uint64_t broker_order_id) {
   (void)broker_order_id;
   return account_id_;
 }
 
-void MockTraderApi::SubscribePublicTopic(sdk::ResumeType resume_type) {
+void StubTraderApi::SubscribePublicTopic(sdk::ResumeType resume_type) {
   (void)resume_type;
 }
 
-void MockTraderApi::SetSoftwareVersion(const std::string& version) {
+void StubTraderApi::SetSoftwareVersion(const std::string& version) {
   software_version_ = version;
 }
 
-void MockTraderApi::SetHeartBeatInterval(std::uint32_t interval) {
+void StubTraderApi::SetHeartBeatInterval(std::uint32_t interval) {
   (void)interval;
 }
 
-qtrade::ErrorCode MockTraderApi::Connect(const sdk::ConnectRequest& request) {
+qtrade::ErrorCode StubTraderApi::Connect(const sdk::ConnectRequest& request) {
   (void)request;
   connected_ = true;
   mock_spi_.PublishConnected();
   return qtrade::ErrorCode::kSuccess;
 }
 
-void MockTraderApi::Disconnect() {
+void StubTraderApi::Disconnect() {
   connected_ = false;
 }
 
-bool MockTraderApi::IsConnected() const {
+bool StubTraderApi::IsConnected() const {
   return connected_;
 }
 
-std::uint64_t MockTraderApi::Login(const std::string& ip,
+std::uint64_t StubTraderApi::Login(const std::string& ip,
                                    int port,
                                    const std::string& user,
                                    const std::string& password,
@@ -109,23 +109,23 @@ std::uint64_t MockTraderApi::Login(const std::string& ip,
   return session_id_;
 }
 
-int MockTraderApi::Logout(std::uint64_t session_id) {
+int StubTraderApi::Logout(std::uint64_t session_id) {
   (void)session_id;
   session_id_ = 0;
   return 0;
 }
 
-bool MockTraderApi::IsServerRestart(std::uint64_t session_id) {
+bool StubTraderApi::IsServerRestart(std::uint64_t session_id) {
   (void)session_id;
   return false;
 }
 
-std::uint64_t MockTraderApi::InsertOrder(const sdk::OrderRequest& order, std::uint64_t session_id) {
+std::uint64_t StubTraderApi::InsertOrder(const sdk::OrderRequest& order, std::uint64_t session_id) {
   (void)session_id;
   return order.broker_order_id;
 }
 
-qtrade::ErrorCode MockTraderApi::SendOrder(const sdk::OrderRequest& request) {
+qtrade::ErrorCode StubTraderApi::SendOrder(const sdk::OrderRequest& request) {
   if (!connected_) {
     return qtrade::ErrorCode::kConnectionError;
   }
@@ -152,7 +152,7 @@ qtrade::ErrorCode MockTraderApi::SendOrder(const sdk::OrderRequest& request) {
   }
   if (auto_fill_.load(std::memory_order_acquire) && on_trade_) {
     sdk::Trade trade;
-    trade.trade_id = "MOCK-TRADE-" + std::to_string(next_trade_id_++);
+    trade.trade_id = "STUB-TRADE-" + std::to_string(next_trade_id_++);
     trade.broker_order_id = broker_order_id;
     trade.client_order_id = request.client_order_id;
     trade.instrument = request.instrument;
@@ -175,13 +175,13 @@ qtrade::ErrorCode MockTraderApi::SendOrder(const sdk::OrderRequest& request) {
   return qtrade::ErrorCode::kSuccess;
 }
 
-std::uint64_t MockTraderApi::CancelOrder(std::uint64_t broker_order_id, std::uint64_t session_id) {
+std::uint64_t StubTraderApi::CancelOrder(std::uint64_t broker_order_id, std::uint64_t session_id) {
   (void)broker_order_id;
   (void)session_id;
   return 0;
 }
 
-qtrade::ErrorCode MockTraderApi::CancelOrder(const sdk::CancelOrderRequest& request) {
+qtrade::ErrorCode StubTraderApi::CancelOrder(const sdk::CancelOrderRequest& request) {
   if (!connected_) {
     return qtrade::ErrorCode::kConnectionError;
   }
@@ -207,21 +207,21 @@ qtrade::ErrorCode MockTraderApi::CancelOrder(const sdk::CancelOrderRequest& requ
   return qtrade::ErrorCode::kSuccess;
 }
 
-int MockTraderApi::QueryOrderByBrokerOrderId(std::uint64_t broker_order_id, std::uint64_t session_id, int request_id) {
+int StubTraderApi::QueryOrderByBrokerOrderId(std::uint64_t broker_order_id, std::uint64_t session_id, int request_id) {
   (void)broker_order_id;
   (void)session_id;
   (void)request_id;
   return -1;
 }
 
-int MockTraderApi::QueryOrders(const sdk::QueryOrdersRequest& query_param, std::uint64_t session_id, int request_id) {
+int StubTraderApi::QueryOrders(const sdk::QueryOrdersRequest& query_param, std::uint64_t session_id, int request_id) {
   (void)query_param;
   (void)session_id;
   (void)request_id;
   return -1;
 }
 
-qtrade::ErrorCode MockTraderApi::QueryOrders(const sdk::QueryOrdersRequest& request,
+qtrade::ErrorCode StubTraderApi::QueryOrders(const sdk::QueryOrdersRequest& request,
                                              sdk::QueryOrdersResponse& response) {
   response.orders.clear();
   std::lock_guard lock(orders_mutex_);
@@ -236,13 +236,13 @@ qtrade::ErrorCode MockTraderApi::QueryOrders(const sdk::QueryOrdersRequest& requ
   return qtrade::ErrorCode::kSuccess;
 }
 
-int MockTraderApi::QueryUnfinishedOrders(std::uint64_t session_id, int request_id) {
+int StubTraderApi::QueryUnfinishedOrders(std::uint64_t session_id, int request_id) {
   (void)session_id;
   (void)request_id;
   return -1;
 }
 
-int MockTraderApi::QueryOrdersByPage(const sdk::QueryOrdersByPageRequest& query_param,
+int StubTraderApi::QueryOrdersByPage(const sdk::QueryOrdersByPageRequest& query_param,
                                      std::uint64_t session_id,
                                      int request_id) {
   (void)query_param;
@@ -251,21 +251,21 @@ int MockTraderApi::QueryOrdersByPage(const sdk::QueryOrdersByPageRequest& query_
   return -1;
 }
 
-int MockTraderApi::QueryTradesByBrokerOrderId(std::uint64_t broker_order_id, std::uint64_t session_id, int request_id) {
+int StubTraderApi::QueryTradesByBrokerOrderId(std::uint64_t broker_order_id, std::uint64_t session_id, int request_id) {
   (void)broker_order_id;
   (void)session_id;
   (void)request_id;
   return -1;
 }
 
-int MockTraderApi::QueryTrades(const sdk::QueryTradesRequest& query_param, std::uint64_t session_id, int request_id) {
+int StubTraderApi::QueryTrades(const sdk::QueryTradesRequest& query_param, std::uint64_t session_id, int request_id) {
   (void)query_param;
   (void)session_id;
   (void)request_id;
   return -1;
 }
 
-qtrade::ErrorCode MockTraderApi::QueryTrades(const sdk::QueryTradesRequest& request,
+qtrade::ErrorCode StubTraderApi::QueryTrades(const sdk::QueryTradesRequest& request,
                                              sdk::QueryTradesResponse& response) {
   response.trades.clear();
   std::lock_guard lock(orders_mutex_);
@@ -280,7 +280,7 @@ qtrade::ErrorCode MockTraderApi::QueryTrades(const sdk::QueryTradesRequest& requ
   return qtrade::ErrorCode::kSuccess;
 }
 
-int MockTraderApi::QueryPosition(const std::string& ticker,
+int StubTraderApi::QueryPosition(const std::string& ticker,
                                  std::uint64_t session_id,
                                  int request_id,
                                  sdk::MarketType market) {
@@ -291,7 +291,7 @@ int MockTraderApi::QueryPosition(const std::string& ticker,
   return -1;
 }
 
-qtrade::ErrorCode MockTraderApi::QueryPositions(const sdk::QueryPositionRequest& request,
+qtrade::ErrorCode StubTraderApi::QueryPositions(const sdk::QueryPositionRequest& request,
                                                 sdk::QueryPositionResponse& response) {
   response.positions.clear();
   std::unordered_map<std::string, sdk::Position> positions;
@@ -321,13 +321,13 @@ qtrade::ErrorCode MockTraderApi::QueryPositions(const sdk::QueryPositionRequest&
   return qtrade::ErrorCode::kSuccess;
 }
 
-int MockTraderApi::QueryAsset(std::uint64_t session_id, int request_id) {
+int StubTraderApi::QueryAsset(std::uint64_t session_id, int request_id) {
   (void)session_id;
   (void)request_id;
   return -1;
 }
 
-qtrade::ErrorCode MockTraderApi::QueryAsset(const sdk::QueryAssetRequest& request, sdk::QueryAssetResponse& response) {
+qtrade::ErrorCode StubTraderApi::QueryAsset(const sdk::QueryAssetRequest& request, sdk::QueryAssetResponse& response) {
   response.asset = {};
   response.asset.account_id = request.account_id.empty() ? account_id_ : request.account_id;
   response.asset.total_asset = 1000000.0;
@@ -335,13 +335,13 @@ qtrade::ErrorCode MockTraderApi::QueryAsset(const sdk::QueryAssetRequest& reques
   return qtrade::ErrorCode::kSuccess;
 }
 
-std::uint64_t MockTraderApi::FundTransfer(const sdk::FundTransferRequest& fund_transfer, std::uint64_t session_id) {
+std::uint64_t StubTraderApi::FundTransfer(const sdk::FundTransferRequest& fund_transfer, std::uint64_t session_id) {
   (void)fund_transfer;
   (void)session_id;
   return 0;
 }
 
-int MockTraderApi::QueryOtherServerFund(const sdk::FundQueryRequest& query_param,
+int StubTraderApi::QueryOtherServerFund(const sdk::FundQueryRequest& query_param,
                                         std::uint64_t session_id,
                                         int request_id) {
   (void)query_param;
@@ -350,14 +350,14 @@ int MockTraderApi::QueryOtherServerFund(const sdk::FundQueryRequest& query_param
   return -1;
 }
 
-std::uint64_t MockTraderApi::CreditQuotaTransfer(const sdk::QuotaTransferRequest& quota_transfer,
+std::uint64_t StubTraderApi::CreditQuotaTransfer(const sdk::QuotaTransferRequest& quota_transfer,
                                                  std::uint64_t session_id) {
   (void)quota_transfer;
   (void)session_id;
   return 0;
 }
 
-int MockTraderApi::QueryCreditQuotaTransfer(const sdk::QueryQuotaTransferLogRequest& query_param,
+int StubTraderApi::QueryCreditQuotaTransfer(const sdk::QueryQuotaTransferLogRequest& query_param,
                                             std::uint64_t session_id,
                                             int request_id) {
   (void)query_param;
@@ -366,7 +366,7 @@ int MockTraderApi::QueryCreditQuotaTransfer(const sdk::QueryQuotaTransferLogRequ
   return -1;
 }
 
-int MockTraderApi::QueryFundTransfer(const sdk::QueryFundTransferLogRequest& query_param,
+int StubTraderApi::QueryFundTransfer(const sdk::QueryFundTransferLogRequest& query_param,
                                      std::uint64_t session_id,
                                      int request_id) {
   (void)query_param;
@@ -375,24 +375,24 @@ int MockTraderApi::QueryFundTransfer(const sdk::QueryFundTransferLogRequest& que
   return -1;
 }
 
-void MockTraderApi::SetOrderCallback(OrderCallback cb) {
+void StubTraderApi::SetOrderCallback(OrderCallback cb) {
   on_order_ = std::move(cb);
 }
 
-void MockTraderApi::SetTradeCallback(TradeCallback cb) {
+void StubTraderApi::SetTradeCallback(TradeCallback cb) {
   on_trade_ = std::move(cb);
 }
 
-void MockTraderApi::SetAutoFill(bool auto_fill) {
+void StubTraderApi::SetAutoFill(bool auto_fill) {
   auto_fill_.store(auto_fill, std::memory_order_release);
 }
 
-}  // namespace qtrade::adapter::mock::trader
+}  // namespace qtrade::test::stub
 
-namespace qtrade::adapter::mock::trader {
+namespace qtrade::test::stub {
 
-std::unique_ptr<qtrade_sdk::trader::TraderApi> CreateMockTraderApi() {
-  return std::make_unique<MockTraderApi>();
+std::unique_ptr<qtrade_sdk::trader::TraderApi> CreateStubTraderApi() {
+  return std::make_unique<StubTraderApi>();
 }
 
-}  // namespace qtrade::adapter::mock::trader
+}  // namespace qtrade::test::stub

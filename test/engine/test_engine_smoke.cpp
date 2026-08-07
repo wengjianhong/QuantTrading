@@ -6,8 +6,8 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/common/config/qtrade_engine_bootstrap_config.hpp"
 #include "qtrade/engine/trading_engine.hpp"
-#include "qtrade/adapter/mock/quote/mock_quote_api.hpp"
-#include "qtrade/adapter/mock/trader/mock_trader_api.hpp"
+#include "stubs/stub_quote_api.hpp"
+#include "stubs/stub_trader_api.hpp"
 
 #include <qtrade/sdk/quote/quote_struct.hpp>
 
@@ -30,16 +30,16 @@ void WaitUntil(const std::function<bool()>& predicate) {
   }
 }
 
-void InstallMockAdapters(qtrade::engine::TradingEngine& engine) {
-  auto quote_api = qtrade::adapter::mock::quote::CreateMockQuoteApi();
+void InstallStubAdapters(qtrade::engine::TradingEngine& engine) {
+  auto quote_api = qtrade::test::stub::CreateStubQuoteApi();
   qtrade_sdk::quote::ConnectRequest quote_request;
-  quote_request.connection_string = "mock://quote";
+  quote_request.connection_string = "stub://quote";
   EXPECT_EQ(quote_api->Connect(quote_request), qtrade::ErrorCode::kSuccess);
   engine.SetQuoteApi(std::move(quote_api));
 
-  auto trader_api = qtrade::adapter::mock::trader::CreateMockTraderApi();
+  auto trader_api = qtrade::test::stub::CreateStubTraderApi();
   qtrade_sdk::trader::ConnectRequest trader_request;
-  trader_request.connection_string = "mock://trader";
+  trader_request.connection_string = "stub://trader";
   EXPECT_EQ(trader_api->Connect(trader_request), qtrade::ErrorCode::kSuccess);
   engine.SetTraderApi(std::move(trader_api));
 }
@@ -57,7 +57,7 @@ TEST(EngineSmoke, TradingEngineStartStop) {
   config.support_services.account_risk_service.enabled = false;
   qtrade::engine::TradingEngine engine;
   ASSERT_EQ(engine.Init(config), qtrade::ErrorCode::kSuccess);
-  InstallMockAdapters(engine);
+  InstallStubAdapters(engine);
   ASSERT_EQ(engine.Start(), qtrade::ErrorCode::kSuccess);
   engine.SubscribeQuote({"IF2506"});
   WaitUntil([&] { return engine.IsReady(); });
@@ -75,18 +75,18 @@ TEST(EngineSmoke, MarketTickSize) {
   SUCCEED();
 }
 
-TEST(EngineSmoke, InjectedMockAdaptersReachReady) {
+TEST(EngineSmoke, InjectedStubAdaptersReachReady) {
   const std::string suffix = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
   qtrade::common::config::QtradeEngineBootstrapConfig config;
   config.config.identity.tenant_id = "test";
-  config.config.identity.engine_id = "configured-mock-" + suffix;
+  config.config.identity.engine_id = "configured-stub-" + suffix;
   config.config.identity.account_id = "test-account";
   config.support_services.config_service.enabled = false;
   config.support_services.account_service.enabled = false;
   config.support_services.account_risk_service.enabled = false;
   qtrade::engine::TradingEngine engine;
   ASSERT_EQ(engine.Init(config), qtrade::ErrorCode::kSuccess);
-  InstallMockAdapters(engine);
+  InstallStubAdapters(engine);
   ASSERT_EQ(engine.Start(), qtrade::ErrorCode::kSuccess);
   engine.SubscribeQuote({"IF2506"});
   WaitUntil([&] { return engine.IsReady(); });

@@ -9,7 +9,7 @@
 |《[Architecture.md](Architecture.md)》层次|代码侧落到何处|
 |---|---|
 |适配层|`src/qtrade_sdk/`（可插拔动态库：行情源、交易通道协议转换；按厂商分子目录 mock/、emt/）|
-|交易引擎层|`src/qtrade_engine/engine/`（单进程封闭运行：事件总线、行情/交易标准化、策略引擎、OMS、EMS、账户、持仓、实时风控、合规）|
+|交易引擎层|`src/qtrade_engine/`（与 `common/` 同级的扁平模块：事件总线、OMS、EMS、账户、持仓、风控、合规等；`#include` 仍为 `qtrade/engine/...`）|
 |支撑服务客户端|见 **qtrade_service** 仓库 `src/qtrade_service/client/`|
 |支撑服务层|见 **qtrade_service** 仓库 `src/qtrade_service/service/<名称>/`|
 |内部框架基建|见 **qtrade_service** 仓库 `src/qtrade_service/framework/`|

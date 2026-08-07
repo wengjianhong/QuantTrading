@@ -1,7 +1,7 @@
 #include "qtrade/common/config/qtrade_engine_bootstrap_config.hpp"
 #include "qtrade/engine/trading_engine.hpp"
-#include "qtrade/adapter/mock/quote/mock_quote_api.hpp"
-#include "qtrade/adapter/mock/trader/mock_trader_api.hpp"
+#include "stubs/stub_quote_api.hpp"
+#include "stubs/stub_trader_api.hpp"
 
 #include <gtest/gtest.h>
 
@@ -22,17 +22,17 @@ void WaitUntil(const std::function<bool()>& predicate) {
   }
 }
 
-void InstallConnectedMockQuote(qtrade::engine::TradingEngine& engine) {
-  auto quote_api = qtrade::adapter::mock::quote::CreateMockQuoteApi();
+void InstallConnectedStubQuote(qtrade::engine::TradingEngine& engine) {
+  auto quote_api = qtrade::test::stub::CreateStubQuoteApi();
   qtrade_sdk::quote::ConnectRequest request;
-  request.connection_string = "mock://quote";
+  request.connection_string = "stub://quote";
   EXPECT_EQ(quote_api->Connect(request), qtrade::ErrorCode::kSuccess);
   engine.SetQuoteApi(std::move(quote_api));
 }
 
 }  // namespace
 
-TEST(OrderPipeline, MockOrderFlowsThroughOmsAndTraderLane) {
+TEST(OrderPipeline, StubOrderFlowsThroughOmsAndTraderLane) {
   const std::string suffix = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
   qtrade::engine::TradingEngine engine;
   qtrade::common::config::QtradeEngineBootstrapConfig config;
@@ -44,10 +44,10 @@ TEST(OrderPipeline, MockOrderFlowsThroughOmsAndTraderLane) {
   config.support_services.account_risk_service.enabled = false;
   ASSERT_EQ(engine.Init(config), qtrade::ErrorCode::kSuccess);
 
-  InstallConnectedMockQuote(engine);
-  engine.SetTraderApi(qtrade::adapter::mock::trader::CreateMockTraderApi());
+  InstallConnectedStubQuote(engine);
+  engine.SetTraderApi(qtrade::test::stub::CreateStubTraderApi());
   qtrade_sdk::trader::ConnectRequest connect_request;
-  connect_request.connection_string = "mock://test";
+  connect_request.connection_string = "stub://test";
   ASSERT_EQ(engine.GetTraderApi()->Connect(connect_request), qtrade::ErrorCode::kSuccess);
 
   ASSERT_EQ(engine.Start(), qtrade::ErrorCode::kSuccess);
@@ -95,13 +95,13 @@ TEST(OrderPipeline, CancelFlowsThroughEmsAndVenueReport) {
   config.support_services.account_risk_service.enabled = false;
   ASSERT_EQ(engine.Init(config), qtrade::ErrorCode::kSuccess);
 
-  InstallConnectedMockQuote(engine);
-  auto trader_api = std::make_unique<qtrade::adapter::mock::trader::MockTraderApi>();
+  InstallConnectedStubQuote(engine);
+  auto trader_api = std::make_unique<qtrade::test::stub::StubTraderApi>();
   trader_api->SetAutoFill(false);
   auto* raw_trader_api = trader_api.get();
   engine.SetTraderApi(std::move(trader_api));
   qtrade_sdk::trader::ConnectRequest connect_request;
-  connect_request.connection_string = "mock://cancel";
+  connect_request.connection_string = "stub://cancel";
   ASSERT_EQ(raw_trader_api->Connect(connect_request), qtrade::ErrorCode::kSuccess);
   ASSERT_EQ(engine.Start(), qtrade::ErrorCode::kSuccess);
   engine.SubscribeQuote({"IF2506"});

@@ -465,7 +465,7 @@ ErrorCode TradingEngine::InitAdapters() {
     return ErrorCode::kSuccess;
   }
   if (!bootstrap_config_.support_services.config_service.enabled) {
-    spdlog::info("skip adapters (config_service disabled; tests may inject mock)");
+    spdlog::info("skip adapters (config_service disabled; tests may inject stub)");
     return ErrorCode::kSuccess;
   }
 

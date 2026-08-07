@@ -9,12 +9,24 @@ find_package(GTest 1.14.0 REQUIRED)
 # Source Files
 file(GLOB_RECURSE ALL_TEST_FILES CONFIGURE_DEPENDS "test_*.cpp")
 
+# 测试用 Stub Api（仅测试链接；生产 mock 在 qtrade_client）
+set(QTRADE_ENGINE_TEST_STUB_SOURCES
+  stubs/stub_quote_api.cpp
+  stubs/stub_quote_spi.cpp
+  stubs/stub_trader_api.cpp
+  stubs/stub_trader_spi.cpp
+)
+
 # Build Executable
-add_executable(qtrade_tests ${ALL_TEST_FILES})
+add_executable(qtrade_tests
+  ${ALL_TEST_FILES}
+  ${QTRADE_ENGINE_TEST_STUB_SOURCES}
+)
 
 # Include Directories
 target_include_directories(qtrade_tests PRIVATE
   ${CMAKE_SOURCE_DIR}/src
+  ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 # Link Libraries
