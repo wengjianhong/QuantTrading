@@ -122,11 +122,6 @@ class IAccountRiskBridge {
   /// @return Result<AccountRiskPolicy> 策略快照
   virtual Result<AccountRiskPolicy> GetAccountRiskPolicy(const std::string& account_id) const = 0;
 
-  /// @brief 写入账户硬风控策略
-  /// @param policy 策略快照
-  /// @return ErrorCode::kSuccess 表示接受；其他表示拒绝
-  virtual ErrorCode ApplyAccountRiskPolicy(const AccountRiskPolicy& policy) = 0;
-
   /// @brief 预占账户额度
   /// @param account_id 交易账户号（全局唯一）
   /// @param intent 订单意图

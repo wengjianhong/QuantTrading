@@ -36,12 +36,12 @@ struct OrderBatch {
 
 /// @brief 策略实例配置（与 config.v1.StrategyConfig 字段对齐；不依赖 protobuf）
 struct StrategyConfig {
+  /// 是否启用
+  bool enabled = false;
   /// 策略实例标识
   std::string strategy_id;
   /// 策略插件名
   std::string strategy_name;
-  /// 是否启用
-  bool enabled = false;
   /// 订阅合约列表
   std::vector<std::string> instruments;
   /// 单笔下单量

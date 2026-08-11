@@ -30,7 +30,7 @@ qtrade/
 ├── CMakeLists.txt                  # 根构建入口：全局选项、依赖、include(cmake/...)
 ├── cmake/                          # 构建脚本（qtrade_engine_ 前缀，与 src/ 分离）
 │   ├── qtrade_engine_paths.cmake   # 工程路径变量
-│   ├── qtrade_engine_lib.cmake     # 单一静态库 libqtrade_engine.a
+│   ├── qtrade_engine_lib.cmake     # 共享库 libqtrade_engine.so
 │   ├── qtrade_engine_install.cmake # install / find_package 导出
 │   └── qtrade_engine-config.cmake  # 包配置入口
 
@@ -74,7 +74,7 @@ qtrade/
 │   │   │   ├── monitor_client/
 │   │   │   └── registry_client/
 │   │   ├── service/                # 【支撑服务层】业务实现（无 main；入口在 apps/）
-│   │   │   ├── config_service/     # 异步 gRPC（含 SubscribeConfig Streaming）
+│   │   │   ├── config_service/     # gRPC（引擎路径：GetEngineConfig；Subscribe 可保留未用）
 │   │   │   │   ├── grpc/           # Async + CQ 接入、CallTag 调度
 │   │   │   │   └── ...
 │   │   │   ├── account_service/    # 同步 gRPC（Unary RPC）
@@ -160,7 +160,7 @@ qtrade/
 
 - **B/D 段（异步）**：内存快照、历史副本、指标和远程审计投递；旁路 spool（若启用）不是订单恢复源，不得另建一套订单事实
 
-- **控制面**：本地快照 + gRPC `SubscribeConfig` 变更推送；冷启动 `GetConfig` 拉全量（独立控制线程/启动阶段，不在策略回调内）
+- **控制面**：启动阶段出站 `GetEngineConfig` 拉全量并缓存；**不**订阅运行时推送，配置变更须停引擎后重 Init/Start（独立控制/启动路径，不在策略回调内）
 
 ### 3.2 E/C 段与旁路
 
@@ -182,21 +182,21 @@ qtrade/
 |交易引擎内部|内存结构体 + Lane-Q/Lane-T 内存队列|无网络、无序列化|
 |交易引擎 ↔ 适配器|函数调用 + 回调接口|同进程内|
 |交易引擎 → 支撑服务（D 段）|`client/` 异步接口 + Protobuf|Outbound 线程 fire-and-forget；内部传输可插拔，MVP 可 stub|
-|引擎 ↔ config-service|gRPC + Protobuf|引擎仅作 Client：`GetConfig` + `SubscribeConfig`（`EngineConfig`）|
-|引擎 ↔ account-service|gRPC + Protobuf|【规划】引擎 Client：`ResolveCredential`（启动/换密，不进 A 段）|
+|引擎 ↔ config-service|gRPC + Protobuf|引擎仅作 Client：启动时 `GetEngineConfig`（`EngineConfig`）；无运行时 Subscribe|
+|引擎 ↔ account-service|gRPC + Protobuf|引擎 Client：`GetCredential(account_id, engine_id)`（启动拉取，不进 A 段）|
 |引擎 ↔ account-risk-service|gRPC + Protobuf|E 段仅同步 `ReserveOrder`；`Unknown` 查询确认；Release/Settle 为直接 gRPC 尽力调用（失败 warn，靠 TTL/对账）|
 |引擎 ↔ safety-control|引擎主动建立双向 gRPC 流|冻结 → 撤单 → 确认/对账 → 必要时断开；返回分阶段 ACK|
 |支撑服务之间|gRPC + Protobuf|同步 / 异步均可（如 config 写入前校验 account 授权）|
 |接入层 ↔ 外部系统|HTTP(S)/WebSocket|**外部独立项目**；RESTful 北向，网关转 gRPC 调本仓库支撑服务|
 |外部接入层 → QTrade 支撑服务|gRPC + Protobuf|config / **account** / history / observability 等（`src/qtrade/service/`）|
 
-### 4.2 旁路上报与配置 Watch 规范
+### 4.2 旁路上报与配置规范
 
 - **D 段**：`log_client`、`monitor_client` 等仅定义引擎侧异步接口；是否实现远程 gRPC/HTTP、是否 no-op 由里程碑决定
 
-- **控制面（config）**：配置变更经 config-service 审计后，由 `SubscribeConfig` 推送带 `version`、`release_id`、生效时间、过期时间和签名的快照；EngineConfig、RiskBudget 与 AccountRiskPolicy 按同一 `release_id` 联合生效
+- **控制面（config）**：冷启动经 `GetEngineConfig` 拉取带 `version` 的快照并缓存；**不**做运行时 Subscribe/Watch。变更须停引擎后重 Init/Start
 
-- **凭证面（account）**：登录凭证经 account-service 按需拉取，不进 `SubscribeConfig`（详见《架构》§2.6）
+- **凭证面（account）**：登录凭证经 account-service `GetCredential` 按需拉取，与配置面分离（详见《架构》§2.6）；账户以全局唯一 `account_id` 标识
 
 - **P0 事实源**：当前阶段订单恢复以柜台快照 + account-risk 预占对账为准，不以本地订单主日志为准（当前不启用）。本地 Spool（若启用）是远程审计投递缓冲，**不是**订单恢复源，不得维护另一套订单状态，也不得用于自动补单
 
@@ -238,7 +238,7 @@ qtrade/
 }
 ```
 
-配置更新必须按 `version + release_id` 幂等应用。策略启停和普通参数可在事件边界热更新；策略二进制、品种归属和账户绑定通过 controlled reload 生效；MVP 不支持跨实例在线迁移。
+业务配置在启动时按 `version` 校验后载入。策略参数与绑定在运行中**不可热更新**；启停粒度为**整交易引擎**（进程 `Start`/`Stop`），不支持单策略运行时启停。策略二进制、品种归属和账户绑定变更须停机后重 Init/Start；MVP 不支持跨实例在线迁移。
 
 
 ---
@@ -338,7 +338,7 @@ Api 适配器实现 QTrade 的稳定接口并转发调用；Spi 适配器继承�
 
 - 策略**仅由内部行情 Tick/Bar 事件驱动**，不接受任何外部触发信号
 
-- 所有**引擎业务配置**更新经 config-service 的 gRPC `SubscribeConfig` 推送；**交易凭证**经 account-service 单独管理（《架构》§2.6）；禁止外部直接修改交易引擎内存
+- 引擎业务配置在启动时经 config-service `GetEngineConfig` 拉取；**交易凭证**经 account-service 单独管理（《架构》§2.6）；禁止外部直接修改交易引擎内存；运行中不接受配置热推
 
 ### 6.3 可观测性
 
@@ -444,7 +444,7 @@ Api 适配器实现 QTrade 的稳定接口并转发调用；Spi 适配器继承�
 | account-service 与凭证、配置分离 | MVP | ❌ 服务与凭证链路待实现 |
 | 行情适配器与 READY 门禁 | MVP | ✅ 已有 `QuoteApi` + `QuoteHealthMonitor`；故障切换待实现 |
 | 交易回报标准化与 OMS 串联 | MVP | 🟡 骨架已有；语义标准化与回报链路待完善 |
-| config-client Watch | MVP | 🟡 客户端待接入引擎 |
+| config 启动拉取（GetEngineConfig） | MVP | ✅ client bridge 已接入；无运行时 Watch |
 | D 段旁路上报与支撑微服务 | MVP | 🟡 接口或服务桩存在；远程上报与引擎集成待实现 |
 | account-risk-service（E 段） | MVP | ❌ 服务、协议与账簿待实现 |
 | 外部接入层 | 二期（非本仓库） | 由独立项目实现；本仓库提供稳定 gRPC 契约 |

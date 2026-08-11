@@ -57,19 +57,15 @@ struct EngineConfig {
 };
 
 /// @brief 配置桥接器
-/// @details 注入引擎前须已可用；连接/订阅等生命周期由实现方 / 持有方管理，本接口不包含 Start/Stop。
+/// @details 注入引擎前须已可用（启动时拉取一次运行配置）；不支持运行时推送热更。
+///          连接等生命周期由实现方 / 持有方管理，本接口不包含 Start/Stop。
 class IConfigBridge {
  public:
   virtual ~IConfigBridge() = default;
 
-  /// @brief 读取当前引擎运行配置
+  /// @brief 读取当前引擎运行配置（启动时拉取并缓存）
   /// @return Result<EngineConfig> 当前配置
   virtual Result<EngineConfig> GetEngineConfig() const = 0;
-
-  /// @brief 写入引擎运行配置
-  /// @param config 与控制面下发结构对齐的引擎配置
-  /// @return ErrorCode::kSuccess 表示接受；其他表示拒绝（如校验失败）
-  virtual ErrorCode ApplyEngineConfig(const EngineConfig& config) = 0;
 };
 
 }  // namespace qtrade::config

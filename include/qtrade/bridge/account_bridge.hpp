@@ -38,11 +38,6 @@ class IAccountBridge {
   /// @return Result<CredentialMaterial> 凭证材料
   virtual Result<CredentialMaterial> GetCredential(const std::string& account_id,
                                                    const std::string& engine_id) const = 0;
-
-  /// @brief 写入凭证材料
-  /// @param credential 凭证材料
-  /// @return ErrorCode::kSuccess 表示接受
-  virtual ErrorCode ApplyCredential(const CredentialMaterial& credential) = 0;
 };
 
 }  // namespace qtrade::account

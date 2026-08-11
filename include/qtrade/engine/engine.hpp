@@ -9,6 +9,7 @@
 ///                → Init(bootstrap)
 ///                → 就绪行情/交易适配器（持有方创建并 Connect）→ Set*Api（须在 Start 前）
 ///                → AddStrategy(...) 和/或 LoadStrategiesFromPlugins(plugin_dir)
+///                → Start() / Stop()（整引擎启停；不支持运行中单策略启停或热更配置）
 ///                → Start()
 ///                → … 运行 …
 ///                → Stop()
@@ -115,11 +116,12 @@ class IEngine {
   virtual void SetTraderApi(std::unique_ptr<qtrade_sdk::trader::TraderApi> trader_api) = 0;
 
   // ---------------------------------------------------------------------------
-  // 策略登记（须在 Start 之前；不支持运行中增删）
+  // 策略登记（须在 Start 之前；不支持运行中增删或单策略启停）
   // ---------------------------------------------------------------------------
 
   /// @brief 进程内注册策略实例（推荐的无 so 接入方式）
   /// @details 引擎负责注入发单回调并调用 strategy->Init(config)，再纳入策略管理器。
+  ///          仅登记；真正 Start/Stop 跟随整引擎生命周期。
   /// @param config 策略实例配置（strategy_id / instruments 等）
   /// @param strategy 策略实例所有权；不可为空
   /// @return ErrorCode::kSuccess 表示成功
