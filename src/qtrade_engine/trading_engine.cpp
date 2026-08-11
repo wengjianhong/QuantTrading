@@ -9,7 +9,7 @@
 #include "qtrade/engine/trading_engine.hpp"
 
 #include "qtrade/common/system/time.hpp"
-#include "qtrade/engine/utils/adapter_payload_validation.hpp"
+#include "qtrade/common/utils/adapter_payload_validation.hpp"
 #include "qtrade/error_code/error_codes.hpp"
 
 #include <spdlog/spdlog.h>
@@ -21,10 +21,10 @@
 
 namespace qtrade::engine {
 
-using qtrade::engine::utils::IsValidBar;
-using qtrade::engine::utils::IsValidOrder;
-using qtrade::engine::utils::IsValidTick;
-using qtrade::engine::utils::IsValidTrade;
+using qtrade::common::utils::IsValidBar;
+using qtrade::common::utils::IsValidOrder;
+using qtrade::common::utils::IsValidTick;
+using qtrade::common::utils::IsValidTrade;
 
 // =============================================================================
 // 构造 / 析构
@@ -426,7 +426,7 @@ ErrorCode TradingEngine::InitEngineModules() {
   // 1. OMS：仅内存状态机；冷启动不回放本地订单，Working 态由柜台快照对账重建
   oms::OrderManagerOptions order_options;
   order_options.engine_epoch = engine_epoch_;
-  order_options.tenant_id = bootstrap_config_.config.identity.tenant_id;
+  order_options.account_id = bootstrap_config_.config.identity.account_id;
   order_options.engine_id = bootstrap_config_.config.identity.engine_id;
   if (const auto rc = order_manager_.Initialize(order_options); rc != ErrorCode::kSuccess) {
     spdlog::error("order_manager init failed, code={}", static_cast<int>(rc));
@@ -442,12 +442,10 @@ ErrorCode TradingEngine::InitEngineModules() {
   execution_manager_.SetOrderApi(&order_manager_);
   if (account_risk_bridge_ != nullptr) {
     order_pipeline_.SetAccountRiskBridge(account_risk_bridge_);
-    order_pipeline_.SetAccountRiskIdentity(bootstrap_config_.config.identity.tenant_id,
-                                           bootstrap_config_.config.identity.account_id,
+    order_pipeline_.SetAccountRiskIdentity(bootstrap_config_.config.identity.account_id,
                                            bootstrap_config_.config.identity.engine_id);
     execution_manager_.SetAccountRiskBridge(account_risk_bridge_);
-    execution_manager_.SetAccountRiskIdentity(bootstrap_config_.config.identity.tenant_id,
-                                              bootstrap_config_.config.identity.account_id);
+    execution_manager_.SetAccountRiskIdentity(bootstrap_config_.config.identity.account_id);
   }
 
   return ErrorCode::kSuccess;
@@ -858,8 +856,7 @@ void TradingEngine::ReleaseAccountRiskReservation(const std::string& order_id,
   if (account_risk_bridge_ == nullptr || order_id.empty()) {
     return;
   }
-  const auto result = account_risk_bridge_->ReleaseOrder(bootstrap_config_.config.identity.tenant_id,
-                                                         bootstrap_config_.config.identity.account_id,
+  const auto result = account_risk_bridge_->ReleaseOrder(bootstrap_config_.config.identity.account_id,
                                                          order_id,
                                                          reason,
                                                          0.0,

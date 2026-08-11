@@ -6,7 +6,7 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/engine/position/position_manager.hpp"
 
-#include "qtrade/engine/utils/trade_dedup.hpp"
+#include "qtrade/common/utils/trade_dedup.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -15,7 +15,7 @@
 
 namespace qtrade::engine::position {
 namespace trader = qtrade_sdk::trader;
-using qtrade::engine::utils::GenerateTradeDedupKey;
+using qtrade::common::utils::GenerateTradeDedupKey;
 
 namespace {
 

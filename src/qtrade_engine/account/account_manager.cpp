@@ -6,13 +6,13 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/engine/account/account_manager.hpp"
 
-#include "qtrade/engine/utils/trade_dedup.hpp"
+#include "qtrade/common/utils/trade_dedup.hpp"
 
 #include <algorithm>
 #include <cmath>
 
 namespace qtrade::engine::account {
-using qtrade::engine::utils::GenerateTradeDedupKey;
+using qtrade::common::utils::GenerateTradeDedupKey;
 
 void AccountManager::ApplyAssetSnapshot(const qtrade_sdk::trader::AccountAsset& asset) {
   std::lock_guard lock(mutex_);

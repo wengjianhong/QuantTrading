@@ -28,9 +28,9 @@
 #include <qtrade/bridge/config_bridge.hpp>
 #include <qtrade/common/config/qtrade_engine_bootstrap_config.hpp>
 #include <qtrade/error_code/error_codes.hpp>
-#include <qtrade/strategy/strategy.hpp>
 #include <qtrade/sdk/quote/quote_api.hpp>
 #include <qtrade/sdk/trader/trader_api.hpp>
+#include <qtrade/strategy/strategy.hpp>
 
 #include <memory>
 #include <string>
@@ -62,6 +62,33 @@ enum class EngineState {
 class IEngine {
  public:
   virtual ~IEngine() = default;
+
+  // ---------------------------------------------------------------------------
+  // 生命周期
+  // ---------------------------------------------------------------------------
+
+  /// @brief 初始化引擎：校验/启动桥接、拉取运行配置、装配内部模块与默认适配器
+  /// @param bootstrap 进程引导配置（日志、身份、支撑服务端点等）
+  /// @return ErrorCode::kSuccess 表示成功
+  virtual ErrorCode Init(const qtrade::common::config::QtradeEngineBootstrapConfig& bootstrap) = 0;
+
+  /// @brief 启动引擎：连接柜台、对账、事件泵、策略与 EMS
+  /// @return ErrorCode::kSuccess 表示成功
+  virtual ErrorCode Start() = 0;
+
+  /// @brief 停止引擎：停策略与通道；返回后可销毁本对象
+  /// @return 已运行并完成停机返回 kSuccess；未处于运行态时可能返回错误码
+  virtual ErrorCode Stop() = 0;
+
+  // ---------------------------------------------------------------------------
+  // 状态查询
+  // ---------------------------------------------------------------------------
+
+  /// @brief 当前生命周期状态（与内部状态机同一枚举）
+  [[nodiscard]] virtual EngineState State() const = 0;
+
+  /// @brief 是否已 Start 且尚未 Stop
+  [[nodiscard]] virtual bool IsRunning() const = 0;
 
   // ---------------------------------------------------------------------------
   // 依赖注入（须在 Init 之前调用）
@@ -103,33 +130,6 @@ class IEngine {
   /// @param plugin_dir 策略 .so 所在目录（由调用方显式传入，不从 bootstrap 隐式读取）
   /// @return ErrorCode::kSuccess 表示成功
   virtual ErrorCode LoadStrategiesFromPlugins(const std::string& plugin_dir) = 0;
-
-  // ---------------------------------------------------------------------------
-  // 生命周期
-  // ---------------------------------------------------------------------------
-
-  /// @brief 初始化引擎：校验/启动桥接、拉取运行配置、装配内部模块与默认适配器
-  /// @param bootstrap 进程引导配置（日志、身份、支撑服务端点等）
-  /// @return ErrorCode::kSuccess 表示成功
-  virtual ErrorCode Init(const qtrade::common::config::QtradeEngineBootstrapConfig& bootstrap) = 0;
-
-  /// @brief 启动引擎：连接柜台、对账、事件泵、策略与 EMS
-  /// @return ErrorCode::kSuccess 表示成功
-  virtual ErrorCode Start() = 0;
-
-  /// @brief 停止引擎：停策略与通道；返回后可销毁本对象
-  /// @return 已运行并完成停机返回 kSuccess；未处于运行态时可能返回错误码
-  virtual ErrorCode Stop() = 0;
-
-  // ---------------------------------------------------------------------------
-  // 状态查询
-  // ---------------------------------------------------------------------------
-
-  /// @brief 当前生命周期状态（与内部状态机同一枚举）
-  [[nodiscard]] virtual EngineState State() const = 0;
-
-  /// @brief 是否已 Start 且尚未 Stop
-  [[nodiscard]] virtual bool IsRunning() const = 0;
 };
 
 /// @brief 创建引擎实例（隐藏具体实现类型）

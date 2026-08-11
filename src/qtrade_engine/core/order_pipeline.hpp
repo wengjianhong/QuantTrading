@@ -31,7 +31,7 @@ class OrderPipeline {
 
   void SetAccountRiskBridge(qtrade::account_risk::IAccountRiskBridge* account_risk_bridge);
 
-  void SetAccountRiskIdentity(std::string tenant_id, std::string account_id, std::string engine_id);
+  void SetAccountRiskIdentity(std::string account_id, std::string engine_id);
 
   ErrorCode Submit(const qtrade_sdk::trader::OrderRequest& request);
 
@@ -47,7 +47,6 @@ class OrderPipeline {
   oms::OrderApi& orders_;
   ems::ExecutionApi& execution_;
   qtrade::account_risk::IAccountRiskBridge* account_risk_bridge_ = nullptr;
-  std::string tenant_id_;
   std::string account_id_;
   std::string engine_id_;
 };

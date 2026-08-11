@@ -5,15 +5,15 @@
 /// @author    wengjianhong
 /// @date      2026-08-05
 /// @copyright CC BY-NC-SA 4.0
-#ifndef QTRADE_ENGINE_UTILS_ADAPTER_PAYLOAD_VALIDATION_HPP_
-#define QTRADE_ENGINE_UTILS_ADAPTER_PAYLOAD_VALIDATION_HPP_
+#ifndef QTRADE_COMMON_UTILS_ADAPTER_PAYLOAD_VALIDATION_HPP_
+#define QTRADE_COMMON_UTILS_ADAPTER_PAYLOAD_VALIDATION_HPP_
 
 #include <qtrade/sdk/quote/quote_struct.hpp>
 #include <qtrade/sdk/trader/trader_struct.hpp>
 
 #include <cmath>
 
-namespace qtrade::engine::utils {
+namespace qtrade::common::utils {
 
 /// @brief 校验 Tick 是否可进入 Lane-Q
 [[nodiscard]] inline bool IsValidTick(const qtrade_sdk::quote::MarketTick& tick) {
@@ -41,6 +41,6 @@ namespace qtrade::engine::utils {
          !(trade.order_id.empty() && trade.broker_order_id == 0 && trade.client_order_id == 0);
 }
 
-}  // namespace qtrade::engine::utils
+}  // namespace qtrade::common::utils
 
-#endif  // QTRADE_ENGINE_UTILS_ADAPTER_PAYLOAD_VALIDATION_HPP_
+#endif  // QTRADE_COMMON_UTILS_ADAPTER_PAYLOAD_VALIDATION_HPP_

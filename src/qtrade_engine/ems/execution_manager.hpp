@@ -50,8 +50,8 @@ class ExecutionManager final : public ExecutionApi {
   /// @param account_risk_bridge 桥接；可为 nullptr 表示不释放
   void SetAccountRiskBridge(qtrade::account_risk::IAccountRiskBridge* account_risk_bridge);
 
-  /// @brief 设置 ReleaseOrder 所需的租户/账户身份
-  void SetAccountRiskIdentity(std::string tenant_id, std::string account_id);
+  /// @brief 设置 ReleaseOrder 所需的账户身份
+  void SetAccountRiskIdentity(std::string account_id);
 
   /// @brief 将新单加入 EMS 有界队列
   /// @param order OMS 订单快照
@@ -87,7 +87,6 @@ class ExecutionManager final : public ExecutionApi {
 
   /// @brief 发送失败时尽力释放 account-risk 预占
   void ReleaseReservationOnSendFailure(qtrade::account_risk::IAccountRiskBridge* account_risk_bridge,
-                                       const std::string& tenant_id,
                                        const std::string& account_id,
                                        const std::string& order_id);
 
@@ -99,9 +98,7 @@ class ExecutionManager final : public ExecutionApi {
   oms::OrderApi* order_api_ = nullptr;
   /// account-risk 桥接；未设置时跳过失败释放
   qtrade::account_risk::IAccountRiskBridge* account_risk_bridge_ = nullptr;
-  /// ReleaseOrder 租户 ID
-  std::string tenant_id_;
-  /// ReleaseOrder 账户 ID
+  /// ReleaseOrder 账户 ID（全局唯一）
   std::string account_id_;
   /// 待发送工作项队列；撤单从队头插入
   std::deque<WorkItem> pending_items_;

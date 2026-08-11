@@ -15,10 +15,9 @@
 namespace qtrade::account_risk {
 
 /// @brief 账户硬风控策略
+/// @details 以全局唯一 account_id 标识账户。
 struct AccountRiskPolicy {
-  /// 租户标识
-  std::string tenant_id;
-  /// 交易账户号
+  /// 交易账户号（全局唯一）
   std::string account_id;
   /// 策略版本
   std::uint64_t version = 0;
@@ -119,11 +118,9 @@ class IAccountRiskBridge {
   virtual ~IAccountRiskBridge() = default;
 
   /// @brief 读取账户硬风控策略
-  /// @param tenant_id 租户标识
-  /// @param account_id 交易账户号
+  /// @param account_id 交易账户号（全局唯一）
   /// @return Result<AccountRiskPolicy> 策略快照
-  virtual Result<AccountRiskPolicy> GetAccountRiskPolicy(const std::string& tenant_id,
-                                                         const std::string& account_id) const = 0;
+  virtual Result<AccountRiskPolicy> GetAccountRiskPolicy(const std::string& account_id) const = 0;
 
   /// @brief 写入账户硬风控策略
   /// @param policy 策略快照
@@ -131,41 +128,34 @@ class IAccountRiskBridge {
   virtual ErrorCode ApplyAccountRiskPolicy(const AccountRiskPolicy& policy) = 0;
 
   /// @brief 预占账户额度
-  /// @param tenant_id 租户标识
-  /// @param account_id 交易账户号
+  /// @param account_id 交易账户号（全局唯一）
   /// @param intent 订单意图
   /// @param risk_config_version 引擎侧策略版本；0 表示不校验
   /// @param reservation_ttl_ms 预占有效期（毫秒）；0 表示使用默认 TTL
   /// @return Result<ReserveOrderResult> 预占裁决
-  virtual Result<ReserveOrderResult> ReserveOrder(const std::string& tenant_id,
-                                                  const std::string& account_id,
+  virtual Result<ReserveOrderResult> ReserveOrder(const std::string& account_id,
                                                   const OrderIntent& intent,
                                                   std::uint64_t risk_config_version = 0,
                                                   std::int64_t reservation_ttl_ms = 0) = 0;
 
   /// @brief 释放订单预占
-  /// @param tenant_id 租户标识
-  /// @param account_id 交易账户号
+  /// @param account_id 交易账户号（全局唯一）
   /// @param order_id 全局订单 ID
   /// @param reason 释放原因
   /// @param settled_notional 已结算名义金额；SETTLED 时可填写
   /// @param settled_margin 已结算保证金；SETTLED 时可填写
   /// @return Result<ReleaseOrderResult> 释放结果
-  virtual Result<ReleaseOrderResult> ReleaseOrder(const std::string& tenant_id,
-                                                  const std::string& account_id,
+  virtual Result<ReleaseOrderResult> ReleaseOrder(const std::string& account_id,
                                                   const std::string& order_id,
                                                   ReleaseReason reason,
                                                   double settled_notional = 0.0,
                                                   double settled_margin = 0.0) = 0;
 
   /// @brief 查询指定订单预占状态
-  /// @param tenant_id 租户标识
-  /// @param account_id 交易账户号
+  /// @param account_id 交易账户号（全局唯一）
   /// @param order_id 全局订单 ID
   /// @return Result<Reservation> 预占状态
-  virtual Result<Reservation> GetReservation(const std::string& tenant_id,
-                                             const std::string& account_id,
-                                             const std::string& order_id) const = 0;
+  virtual Result<Reservation> GetReservation(const std::string& account_id, const std::string& order_id) const = 0;
 };
 
 }  // namespace qtrade::account_risk

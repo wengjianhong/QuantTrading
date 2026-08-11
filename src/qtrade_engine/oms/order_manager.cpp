@@ -6,7 +6,7 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/engine/oms/order_manager.hpp"
 
-#include "qtrade/engine/utils/trade_dedup.hpp"
+#include "qtrade/common/utils/trade_dedup.hpp"
 
 #include <spdlog/spdlog.h>
 
@@ -14,7 +14,7 @@
 
 namespace qtrade::engine::oms {
 namespace trader = qtrade_sdk::trader;
-using qtrade::engine::utils::GenerateTradeDedupKey;
+using qtrade::common::utils::GenerateTradeDedupKey;
 
 namespace {
 
@@ -38,7 +38,7 @@ OrderManager::~OrderManager() {
 
 ErrorCode OrderManager::Initialize(const OrderManagerOptions& options) {
   // 1. 校验身份字段
-  if (options.tenant_id.empty() || options.engine_id.empty() || options.engine_epoch == 0) {
+  if (options.account_id.empty() || options.engine_id.empty() || options.engine_epoch == 0) {
     return ErrorCode::kSystemError;
   }
   std::lock_guard lock(mutex_);
@@ -46,7 +46,7 @@ ErrorCode OrderManager::Initialize(const OrderManagerOptions& options) {
     return ErrorCode::kSystemError;
   }
   // 2. 绑定身份并清空内存表
-  tenant_id_ = options.tenant_id;
+  account_id_ = options.account_id;
   engine_id_ = options.engine_id;
   engine_epoch_ = options.engine_epoch;
   orders_.clear();
@@ -75,7 +75,7 @@ void OrderManager::Shutdown() {
 
 std::string OrderManager::AllocateOrderId() {
   const auto sequence = order_id_counter_.fetch_add(1, std::memory_order_acq_rel) + 1;
-  return tenant_id_ + "-" + engine_id_ + "-" + std::to_string(engine_epoch_) + "-" + std::to_string(sequence);
+  return account_id_ + "-" + engine_id_ + "-" + std::to_string(engine_epoch_) + "-" + std::to_string(sequence);
 }
 
 std::optional<trader::Order> OrderManager::CreateOrder(const trader::OrderRequest& request,

@@ -42,7 +42,7 @@ install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/qtrade_engine/common/
 
 # Flattened engine modules → include/qtrade/engine/<module>
 set(_qtrade_engine_install_modules
-  account bridge cms core ems event_bus oms position risk strategy utils
+  account bridge cms core ems event_bus oms position risk strategy
 )
 foreach(_mod IN LISTS _qtrade_engine_install_modules)
   install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/qtrade_engine/${_mod}/

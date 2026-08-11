@@ -59,9 +59,8 @@ void ExecutionManager::SetAccountRiskBridge(qtrade::account_risk::IAccountRiskBr
   account_risk_bridge_ = account_risk_bridge;
 }
 
-void ExecutionManager::SetAccountRiskIdentity(std::string tenant_id, std::string account_id) {
+void ExecutionManager::SetAccountRiskIdentity(std::string account_id) {
   std::lock_guard lock(mutex_);
-  tenant_id_ = std::move(tenant_id);
   account_id_ = std::move(account_id);
 }
 
@@ -102,14 +101,13 @@ ErrorCode ExecutionManager::EnqueueCancel(const qtrade_sdk::trader::CancelOrderR
 }
 
 void ExecutionManager::ReleaseReservationOnSendFailure(qtrade::account_risk::IAccountRiskBridge* account_risk_bridge,
-                                                       const std::string& tenant_id,
                                                        const std::string& account_id,
                                                        const std::string& order_id) {
   if (account_risk_bridge == nullptr || order_id.empty()) {
     return;
   }
   const auto result = account_risk_bridge->ReleaseOrder(
-    tenant_id, account_id, order_id, qtrade::account_risk::ReleaseReason::kEmsEnqueueFailed, 0.0, 0.0);
+    account_id, order_id, qtrade::account_risk::ReleaseReason::kEmsEnqueueFailed, 0.0, 0.0);
   if (result.error_code != ErrorCode::kSuccess) {
     spdlog::warn("ReleaseOrder failed: order_id={}, code={}", order_id, static_cast<int>(result.error_code));
   }
@@ -123,7 +121,6 @@ void ExecutionManager::Run() {
     qtrade_sdk::trader::TraderApi* trader_api = nullptr;
     oms::OrderApi* order_api = nullptr;
     qtrade::account_risk::IAccountRiskBridge* account_risk_bridge = nullptr;
-    std::string tenant_id;
     std::string account_id;
     {
       std::unique_lock lock(mutex_);
@@ -136,7 +133,6 @@ void ExecutionManager::Run() {
       trader_api = trader_api_;
       order_api = order_api_;
       account_risk_bridge = account_risk_bridge_;
-      tenant_id = tenant_id_;
       account_id = account_id_;
     }
 
@@ -155,7 +151,7 @@ void ExecutionManager::Run() {
       const auto pending_rc = order_api->MarkSendPending(order.order_id);
       if (pending_rc != ErrorCode::kSuccess) {
         (void)order_api->RecordSendResult(order.order_id, pending_rc);
-        ReleaseReservationOnSendFailure(account_risk_bridge, tenant_id, account_id, order.order_id);
+        ReleaseReservationOnSendFailure(account_risk_bridge, account_id, order.order_id);
         continue;
       }
     }
@@ -177,7 +173,7 @@ void ExecutionManager::Run() {
       (void)order_api->RecordSendResult(order.order_id, result);
     }
     if (result != ErrorCode::kSuccess) {
-      ReleaseReservationOnSendFailure(account_risk_bridge, tenant_id, account_id, order.order_id);
+      ReleaseReservationOnSendFailure(account_risk_bridge, account_id, order.order_id);
     }
   }
 }

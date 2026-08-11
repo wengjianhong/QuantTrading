@@ -48,6 +48,17 @@ class TradingEngine final : public IEngine {
   TradingEngine& operator=(const TradingEngine&) = delete;
 
   // ---------------------------------------------------------------------------
+  // IEngine：生命周期与状态
+  // ---------------------------------------------------------------------------
+
+  ErrorCode Init(const qtrade::common::config::QtradeEngineBootstrapConfig& config) override;
+  ErrorCode Start() override;
+  ErrorCode Stop() override;
+
+  [[nodiscard]] EngineState State() const override;
+  [[nodiscard]] bool IsRunning() const override;
+
+  // ---------------------------------------------------------------------------
   // IEngine：依赖注入（须在 Init 前）
   // ---------------------------------------------------------------------------
 
@@ -64,17 +75,6 @@ class TradingEngine final : public IEngine {
   ErrorCode AddStrategy(const qtrade::strategy::StrategyConfig& config,
                         std::unique_ptr<qtrade::strategy::IStrategy> strategy) override;
   ErrorCode LoadStrategiesFromPlugins(const std::string& plugin_dir) override;
-
-  // ---------------------------------------------------------------------------
-  // IEngine：生命周期与状态
-  // ---------------------------------------------------------------------------
-
-  ErrorCode Init(const qtrade::common::config::QtradeEngineBootstrapConfig& config) override;
-  ErrorCode Start() override;
-  ErrorCode Stop() override;
-
-  [[nodiscard]] EngineState State() const override;
-  [[nodiscard]] bool IsRunning() const override;
 
   // ---------------------------------------------------------------------------
   // 实现侧扩展（非 IEngine；供 boot / 测试 / 内部编排）

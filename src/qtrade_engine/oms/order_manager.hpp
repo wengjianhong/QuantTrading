@@ -26,8 +26,8 @@ namespace qtrade::engine::oms {
 
 /// @brief OMS 初始化选项
 struct OrderManagerOptions {
-  /// 租户 ID
-  std::string tenant_id;
+  /// 交易账户号（全局唯一；写入全局 order_id）
+  std::string account_id;
   /// 引擎 ID
   std::string engine_id;
   /// 引擎 epoch（Init 时取 Unix 秒，写入全局 order_id）
@@ -192,7 +192,7 @@ class OrderManager final : public OrderApi {
   /// 订单 ID 递增计数器
   std::atomic<std::uint64_t> order_id_counter_{0};
   /// 租户 ID，用于生成全局订单 ID
-  std::string tenant_id_;
+  std::string account_id_;
   /// 引擎 ID，用于生成全局订单 ID
   std::string engine_id_;
   /// 当前引擎 epoch

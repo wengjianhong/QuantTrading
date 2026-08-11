@@ -24,8 +24,7 @@ void OrderPipeline::SetAccountRiskBridge(qtrade::account_risk::IAccountRiskBridg
   account_risk_bridge_ = account_risk_bridge;
 }
 
-void OrderPipeline::SetAccountRiskIdentity(std::string tenant_id, std::string account_id, std::string engine_id) {
-  tenant_id_ = std::move(tenant_id);
+void OrderPipeline::SetAccountRiskIdentity(std::string account_id, std::string engine_id) {
   account_id_ = std::move(account_id);
   engine_id_ = std::move(engine_id);
 }
@@ -34,8 +33,7 @@ void OrderPipeline::ReleaseReservation(const std::string& order_id, qtrade::acco
   if (account_risk_bridge_ == nullptr || order_id.empty()) {
     return;
   }
-  const auto result =
-    account_risk_bridge_->ReleaseOrder(tenant_id_, account_id_, order_id, reason, 0.0, 0.0);
+  const auto result = account_risk_bridge_->ReleaseOrder(account_id_, order_id, reason, 0.0, 0.0);
   if (result.error_code != ErrorCode::kSuccess) {
     spdlog::warn("ReleaseOrder failed: order_id={}, code={}", order_id, static_cast<int>(result.error_code));
   }
@@ -63,14 +61,13 @@ ErrorCode OrderPipeline::Submit(const qtrade_sdk::trader::OrderRequest& request)
     intent.estimated_notional = request.price * static_cast<double>(request.volume);
     intent.side = std::to_string(static_cast<int>(request.side));
 
-    const auto reserve_result =
-      account_risk_bridge_->ReserveOrder(tenant_id_, account_id_, intent, risk_.Version(), 0);
+    const auto reserve_result = account_risk_bridge_->ReserveOrder(account_id_, intent, risk_.Version(), 0);
     const bool reserve_unknown =
       reserve_result.error_code == ErrorCode::kTimeout ||
       (reserve_result.error_code == ErrorCode::kSuccess && reserve_result.data.has_value() &&
        reserve_result.data->decision == qtrade::account_risk::ReserveDecision::kUnknown);
     if (reserve_unknown) {
-      const auto query_result = account_risk_bridge_->GetReservation(tenant_id_, account_id_, order_id);
+      const auto query_result = account_risk_bridge_->GetReservation(account_id_, order_id);
       if (query_result.error_code != ErrorCode::kSuccess || !query_result.data.has_value() ||
           query_result.data->status != "reserved") {
         return query_result.error_code == ErrorCode::kNotFound ? ErrorCode::kTimeout : query_result.error_code;

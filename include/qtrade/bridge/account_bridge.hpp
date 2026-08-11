@@ -14,11 +14,9 @@
 namespace qtrade::account {
 
 /// @brief 仅供已授权引擎建立柜台连接的短生命周期凭证材料
-/// @details 不得用于账户查询/列表；调用方不得记录或转发 password
+/// @details 不得用于账户查询/列表；调用方不得记录或转发 password。
 struct CredentialMaterial {
-  /// 租户标识
-  std::string tenant_id;
-  /// 交易账户号
+  /// 交易账户号（全局唯一）
   std::string account_id;
   /// 交易柜台标识
   std::string broker_id;
@@ -35,12 +33,10 @@ class IAccountBridge {
   virtual ~IAccountBridge() = default;
 
   /// @brief 读取建立柜台连接所需的凭证材料
-  /// @param tenant_id 租户标识
-  /// @param account_id 交易账户号
+  /// @param account_id 交易账户号（全局唯一）
   /// @param engine_id 引擎实例标识
   /// @return Result<CredentialMaterial> 凭证材料
-  virtual Result<CredentialMaterial> GetCredential(const std::string& tenant_id,
-                                                   const std::string& account_id,
+  virtual Result<CredentialMaterial> GetCredential(const std::string& account_id,
                                                    const std::string& engine_id) const = 0;
 
   /// @brief 写入凭证材料
