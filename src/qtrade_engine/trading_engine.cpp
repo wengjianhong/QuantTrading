@@ -8,7 +8,6 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/engine/trading_engine.hpp"
 
-#include "qtrade/common/system/time.hpp"
 #include "qtrade/common/utils/adapter_payload_validation.hpp"
 #include "qtrade/error_code/error_codes.hpp"
 
@@ -63,8 +62,7 @@ ErrorCode TradingEngine::AddStrategy(const qtrade::strategy::StrategyConfig& con
     return ErrorCode::kAlreadyStarted;
   }
 
-  const ErrorCode code =
-    strategy_manager_.AddStrategyFromPlugin(config, plugin_so_path, MakeOrderSender());
+  const ErrorCode code = strategy_manager_.AddStrategyFromPlugin(config, plugin_so_path, MakeOrderSender());
   if (code != ErrorCode::kSuccess) {
     return code;
   }
@@ -572,13 +570,6 @@ ErrorCode TradingEngine::ApplyEngineConfig(const EngineConfig& config) {
   if (config.engine_id.empty() || config.account_id.empty()) {
     spdlog::warn("invalid engine config: empty engine_id/account_id");
     lifecycle_.Transition(EngineState::kFailed, "CONFIG_SNAPSHOT_INVALID");
-    return ErrorCode::kInvalidArgument;
-  }
-
-  const auto now_ms = qtrade::common::system::UnixMillisNow();
-  if (config.valid_until_unix_ms > 0 && now_ms >= config.valid_until_unix_ms) {
-    spdlog::error("rejected expired engine config");
-    lifecycle_.Transition(EngineState::kFailed, "CONFIG_EXPIRED");
     return ErrorCode::kInvalidArgument;
   }
 

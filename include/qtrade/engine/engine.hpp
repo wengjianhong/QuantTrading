@@ -63,8 +63,6 @@ struct EngineConfig {
   std::string quote_failover;
   /// 实例级弱一致风险预算
   RiskBudget risk_budget;
-  /// 配置失效时间（Unix 毫秒）；0 表示不校验过期
-  std::int64_t valid_until_unix_ms = 0;
 };
 
 /// @brief 引擎生命周期状态（IEngine::State 与 EngineLifecycle 共用）

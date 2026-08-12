@@ -464,7 +464,7 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
 
 - **引擎 ↔ account-risk-service（E 段，账户级硬风控）**：
   - 发单前：A 段完成 CMS 与实例预算校验后，以 `order_id` 幂等调用 `ReserveOrder(account_id, OrderIntent, release_id)`；仅 `Approved` 才进入 OMS 内存受理与 C 段
-  - 结果语义：`Rejected` 明确拒单；超时、断连或响应无法确认时为 `Unknown`。引擎使用同一 `order_id` 调用 `GetReservation`，在确认结果前不得发单或释放本地预算
+  - 结果语义：`Rejected` 明确拒单；超时、断连或响应无法确认时为 `Unknown`。引擎使用同一 `order_id` 调用 `QueryReservation`，在确认结果前不得发单或释放本地预算
   - 单写规则：MVP 以账户为分区键，使用数据库串行化事务和账簿版本 CAS 形成唯一写入顺序；服务进程内存不能作为权威账簿。预占、账簿更新和幂等记录在同一事务中提交
   - 回报后：订单状态协调器更新本地 OMS/Account/PMS；`ReleaseOrder`/结算为直接 gRPC 尽力调用，失败只 warn，不阻塞 Lane-T；孤儿预占靠 TTL/对账
   - 部分成交：已成交部分转为实际占用，剩余挂单继续保留预占；只有终态才能释放剩余预占
@@ -483,7 +483,7 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
 | `GetEngineConfig` | Unary | client → config-service | 冷启动全量 `EngineConfig`（再 `SetEngineConfig` 注入引擎） |
 | `SubscribeEngineConfig` | Server Streaming | （服务端可保留） | **当前引擎不调用**；变更靠停机重拉 |
 | `GetCredential` | Unary | engine → account-service | 冷启动按需解析登录凭证 |
-| `ReserveOrder` / `GetReservation` | Unary | engine → account-risk-service | 同步预占；结果不确定时按 `order_id` 查询 |
+| `ReserveOrder` / `QueryReservation` | Unary | engine → account-risk-service | 同步预占；结果不确定时按 `order_id` 查询 |
 | `ReleaseOrder` / `SettleOrder` | Unary | 引擎回报/终态路径 → account-risk-service | 直接 gRPC 尽力调用；失败 warn，靠 TTL/对账；不属于 E 段 |
 | `SafetyControl` | Bidirectional Streaming | engine ↔ safety-control | 引擎主动建连；按冻结→撤单→确认→断开执行并返回分阶段 ACK |
 | `RegisterAccount` / `RotateCredential` | Unary | 接入层 → account-service | 账户与凭证管理（运维） |

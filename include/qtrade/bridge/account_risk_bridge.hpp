@@ -150,7 +150,7 @@ class IAccountRiskBridge {
   /// @param account_id 交易账户号（全局唯一）
   /// @param order_id 全局订单 ID
   /// @return Result<Reservation> 预占状态
-  virtual Result<Reservation> GetReservation(const std::string& account_id, const std::string& order_id) const = 0;
+  virtual Result<Reservation> QueryReservation(const std::string& account_id, const std::string& order_id) const = 0;
 };
 
 }  // namespace qtrade::account_risk

@@ -62,20 +62,18 @@ ErrorCode OrderPipeline::Submit(const qtrade_sdk::trader::OrderRequest& request)
     intent.side = std::to_string(static_cast<int>(request.side));
 
     const auto reserve_result = account_risk_bridge_->ReserveOrder(account_id_, intent, risk_.Version(), 0);
-    const bool reserve_unknown =
-      reserve_result.error_code == ErrorCode::kTimeout ||
-      (reserve_result.error_code == ErrorCode::kSuccess && reserve_result.data.has_value() &&
-       reserve_result.data->decision == qtrade::account_risk::ReserveDecision::kUnknown);
+    const bool reserve_unknown = reserve_result.error_code == ErrorCode::kTimeout ||
+                                 (reserve_result.error_code == ErrorCode::kSuccess && reserve_result.data.has_value() &&
+                                  reserve_result.data->decision == qtrade::account_risk::ReserveDecision::kUnknown);
     if (reserve_unknown) {
-      const auto query_result = account_risk_bridge_->GetReservation(account_id_, order_id);
+      const auto query_result = account_risk_bridge_->QueryReservation(account_id_, order_id);
       if (query_result.error_code != ErrorCode::kSuccess || !query_result.data.has_value() ||
           query_result.data->status != "reserved") {
         return query_result.error_code == ErrorCode::kNotFound ? ErrorCode::kTimeout : query_result.error_code;
       }
     } else if (reserve_result.error_code != ErrorCode::kSuccess || !reserve_result.data.has_value() ||
                reserve_result.data->decision != qtrade::account_risk::ReserveDecision::kApproved) {
-      return reserve_result.error_code == ErrorCode::kSuccess ? ErrorCode::kInternalError
-                                                              : reserve_result.error_code;
+      return reserve_result.error_code == ErrorCode::kSuccess ? ErrorCode::kInternalError : reserve_result.error_code;
     }
   }
 
