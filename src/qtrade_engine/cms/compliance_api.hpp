@@ -17,8 +17,8 @@ class ComplianceApi {
  public:
   virtual ~ComplianceApi() = default;
 
-  /// @brief 检查订单是否满足合规规则
-  /// @param request 下单请求
+  /// @brief 按 request.strategy_id 检查订单是否满足该策略合规规则
+  /// @param request 下单请求（须含非空 strategy_id）
   /// @return 通过返回 kSuccess
   [[nodiscard]] virtual ErrorCode CheckOrder(const qtrade::sdk::trader::OrderRequest& request) const = 0;
 };

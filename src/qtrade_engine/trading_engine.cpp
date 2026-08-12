@@ -1,7 +1,6 @@
 /// @file      trading_engine.cpp
 /// @brief     交易引擎实现
-/// @details   实现顺序与 trading_engine.hpp 一致：构造析构 → 生命周期 → 交易入口 →
-///            适配器/行情 → 模块访问器 → Init 子阶段 → Start 子阶段 → 接线/对账/回调。
+/// @details   实现顺序与 trading_engine.hpp 声明一致。
 ///            EngineLifecycle 仅在本文件推进，不下沉到子模块。
 /// @author    wengjianhong
 /// @date      2026-05-19
@@ -35,49 +34,8 @@ TradingEngine::~TradingEngine() {
   Stop();
 }
 
-void TradingEngine::SetAccountBridge(qtrade::account::IAccountBridge* bridge) {
-  account_bridge_ = bridge;
-}
-
-void TradingEngine::SetAccountRiskBridge(qtrade::account_risk::IAccountRiskBridge* bridge) {
-  account_risk_bridge_ = bridge;
-}
-
-qtrade::strategy::OrderSender TradingEngine::MakeOrderSender() {
-  return [this](const qtrade::strategy::OrderBatch& batch) {
-    if (!IsReady()) {
-      return ErrorCode::kNotInitialized;
-    }
-    return order_pipeline_.SubmitBatch(batch);
-  };
-}
-
-ErrorCode TradingEngine::AddStrategy(const qtrade::strategy::StrategyConfig& config,
-                                     const std::string& plugin_so_path) {
-  if (!initialized_.load(std::memory_order_acquire)) {
-    spdlog::error("AddStrategy requires Init first");
-    return ErrorCode::kNotInitialized;
-  }
-  if (running_.load(std::memory_order_acquire)) {
-    return ErrorCode::kAlreadyStarted;
-  }
-
-  const ErrorCode code = strategy_manager_.AddStrategyFromPlugin(config, plugin_so_path, MakeOrderSender());
-  if (code != ErrorCode::kSuccess) {
-    return code;
-  }
-  if (config.enabled) {
-    MergeStrategyInstruments(config.instruments);
-  }
-  return ErrorCode::kSuccess;
-}
-
-EngineState TradingEngine::State() const {
-  return lifecycle_.State();
-}
-
 // =============================================================================
-// 生命周期：Init → Start → Stop，以及状态查询
+// IEngine：生命周期与状态
 // =============================================================================
 
 ErrorCode TradingEngine::Init(const EngineConfig& config) {
@@ -142,7 +100,7 @@ ErrorCode TradingEngine::Start() {
     spdlog::error("Init TradingEngine must be called before Start TradingEngine.");
     return ErrorCode::kNotInitialized;
   }
-  if (running_) {
+  if (running_.load(std::memory_order_acquire)) {
     spdlog::error("TradingEngine is already running.");
     return ErrorCode::kAlreadyStarted;
   }
@@ -152,21 +110,21 @@ ErrorCode TradingEngine::Start() {
     return ErrorCode::kInvalidState;
   }
 
-  // 1. 适配器就绪
+  // 1. 事件通道与行情健康监控
+  if (const ErrorCode code = StartEventLanes(); code != ErrorCode::kSuccess) {
+    spdlog::error("StartEventLanes failed, code={}", static_cast<int>(code));
+    return code;
+  }
+
+  // 2. 适配器就绪
   if (const ErrorCode code = StartAdapters(); code != ErrorCode::kSuccess) {
     spdlog::error("StartAdapters failed, code={}", static_cast<int>(code));
     return code;
   }
 
-  // 2. 柜台快照 Adopt
-  if (const ErrorCode code = SyncBrokerSnapshot(); code != ErrorCode::kSuccess) {
-    spdlog::error("SyncBrokerSnapshot failed, code={}", static_cast<int>(code));
-    return code;
-  }
-
-  // 3. 事件通道与行情健康监控
-  if (const ErrorCode code = StartEventLanes(); code != ErrorCode::kSuccess) {
-    spdlog::error("StartEventLanes failed, code={}", static_cast<int>(code));
+  // 3. 柜台对账
+  if (const ErrorCode code = ReconcileBrokerState(); code != ErrorCode::kSuccess) {
+    spdlog::error("ReconcileBrokerState failed, code={}", static_cast<int>(code));
     return code;
   }
 
@@ -211,6 +169,111 @@ ErrorCode TradingEngine::Stop() {
   return ErrorCode::kSuccess;
 }
 
+EngineState TradingEngine::State() const {
+  return lifecycle_.State();
+}
+
+bool TradingEngine::IsRunning() const {
+  return running_.load(std::memory_order_acquire);
+}
+
+// =============================================================================
+// IEngine：依赖注入
+// =============================================================================
+
+void TradingEngine::SetAccountBridge(qtrade::account::IAccountBridge* bridge) {
+  account_bridge_ = bridge;
+}
+
+void TradingEngine::SetAccountRiskBridge(qtrade::account_risk::IAccountRiskBridge* bridge) {
+  account_risk_bridge_ = bridge;
+}
+
+void TradingEngine::SetQuoteApi(std::unique_ptr<qtrade::sdk::quote::QuoteApi> quote_api) {
+  if (running_.load(std::memory_order_acquire)) {
+    return;
+  }
+  quote_api_ = std::move(quote_api);
+  WireQuoteCallbacks();
+}
+
+void TradingEngine::SetTraderApi(std::unique_ptr<qtrade::sdk::trader::TraderApi> trader_api) {
+  if (running_.load(std::memory_order_acquire)) {
+    return;
+  }
+  trader_api_ = std::move(trader_api);
+  WireTraderCallbacks();
+}
+
+// =============================================================================
+// IEngine：策略登记（须在 Start 前）
+// =============================================================================
+
+ErrorCode TradingEngine::AddStrategy(const qtrade::strategy::StrategyConfig& config,
+                                     const std::string& plugin_so_path) {
+  if (!initialized_.load(std::memory_order_acquire)) {
+    spdlog::error("AddStrategy requires Init first");
+    return ErrorCode::kNotInitialized;
+  }
+  if (running_.load(std::memory_order_acquire)) {
+    return ErrorCode::kAlreadyStarted;
+  }
+
+  const ErrorCode code =
+    strategy_manager_.AddStrategyFromPlugin(config, plugin_so_path, MakeOrderSender(config.strategy_id));
+  if (code != ErrorCode::kSuccess) {
+    return code;
+  }
+  if (config.enabled) {
+    if (const auto rc = RegisterStrategyBindings(config); rc != ErrorCode::kSuccess) {
+      return rc;
+    }
+  }
+  return ErrorCode::kSuccess;
+}
+
+// =============================================================================
+// 实现侧扩展（非 IEngine）
+// =============================================================================
+
+ErrorCode TradingEngine::RegisterStrategyBindings(const qtrade::strategy::StrategyConfig& config) {
+  if (!initialized_.load(std::memory_order_acquire)) {
+    return ErrorCode::kNotInitialized;
+  }
+  if (running_.load(std::memory_order_acquire)) {
+    spdlog::error("RegisterStrategyBindings rejected: engine already started");
+    return ErrorCode::kAlreadyStarted;
+  }
+  if (config.strategy_id.empty()) {
+    return ErrorCode::kInvalidArgument;
+  }
+
+  {
+    std::lock_guard lock(engine_config_mutex_);
+    for (const auto& instrument : config.instruments) {
+      if (!instrument.empty()) {
+        subscribed_instruments_.insert(instrument);
+      }
+    }
+  }
+
+  cms::ComplianceRules rules;
+  rules.enabled = config.enabled;
+  if (config.risk.max_volume > 0) {
+    rules.max_volume = config.risk.max_volume;
+  } else if (config.order_volume > 0) {
+    rules.max_volume = config.order_volume;
+  }
+  rules.max_notional = config.risk.max_notional;
+  rules.allowed_instruments.insert(config.instruments.begin(), config.instruments.end());
+
+  if (const auto rc = compliance_.UpsertStrategyRules(config.strategy_id, rules); rc != ErrorCode::kSuccess) {
+    lifecycle_.Transition(EngineState::kFailed, "STRATEGY_COMPLIANCE_INVALID");
+    return rc;
+  }
+  return ErrorCode::kSuccess;
+}
+
 void TradingEngine::Release() {
   // 1. 释放引擎内模块（按依赖逆序释放）
   strategy_manager_.Stop();
@@ -225,49 +288,16 @@ void TradingEngine::Release() {
   trader_api_.reset();
 }
 
-bool TradingEngine::IsRunning() const {
-  return running_.load(std::memory_order_acquire);
-}
-
 bool TradingEngine::IsReady() const {
   return lifecycle_.IsReady();
 }
 
-EngineConfig TradingEngine::GetRuntimeConfig() const {
-  std::lock_guard lock(runtime_config_mutex_);
-  return runtime_config_;
-}
-
-// =============================================================================
-// 适配器与行情：注入 / 查询 / 订阅
-// =============================================================================
-
-void TradingEngine::SetQuoteApi(std::unique_ptr<qtrade::sdk::quote::QuoteApi> quote_api) {
-  if (running_) {
-    return;
-  }
-  quote_api_ = std::move(quote_api);
-  WireQuoteCallbacks();
-}
-
-void TradingEngine::SetTraderApi(std::unique_ptr<qtrade::sdk::trader::TraderApi> trader_api) {
-  if (running_) {
-    return;
-  }
-  trader_api_ = std::move(trader_api);
-  WireTraderCallbacks();
-}
-
-qtrade::sdk::quote::QuoteApi* TradingEngine::GetQuoteApi() {
-  return quote_api_.get();
-}
-
-qtrade::sdk::trader::TraderApi* TradingEngine::GetTraderApi() {
-  return trader_api_.get();
+bool TradingEngine::IsQuoteHealthy() const {
+  return quote_health_monitor_.IsHealthy();
 }
 
 void TradingEngine::SubscribeQuote(const std::vector<std::string>& instruments) {
-  if (!running_ || quote_api_ == nullptr) {
+  if (!running_.load(std::memory_order_acquire) || quote_api_ == nullptr) {
     spdlog::warn("cannot subscribe quote: api not ready");
     return;
   }
@@ -280,43 +310,20 @@ void TradingEngine::SubscribeQuote(const std::vector<std::string>& instruments) 
 }
 
 void TradingEngine::UnsubscribeQuote(const std::vector<std::string>& instruments) {
-  if (!running_ || quote_api_ == nullptr) {
+  if (!running_.load(std::memory_order_acquire) || quote_api_ == nullptr) {
     return;
   }
   quote_api_->Unsubscribe({instruments});
   spdlog::info("unsubscribed from {} instruments", instruments.size());
 }
 
-bool TradingEngine::IsQuoteHealthy() const {
-  return quote_health_monitor_.IsHealthy();
-}
-
 // =============================================================================
 // 模块访问器
 // =============================================================================
 
-event_bus::EventLanes& TradingEngine::GetEventLanes() {
-  return event_lanes_;
-}
-
-strategy::StrategyManager& TradingEngine::GetStrategyManager() {
-  return strategy_manager_;
-}
-
-oms::OrderApi& TradingEngine::GetOrderApi() {
-  return order_manager_;
-}
-
-account::AccountManager& TradingEngine::GetAccountManager() {
-  return account_manager_;
-}
-
-position::PositionManager& TradingEngine::GetPositionManager() {
-  return position_manager_;
-}
-
-OrderPipeline& TradingEngine::GetOrderPipeline() {
-  return order_pipeline_;
+EngineConfig TradingEngine::GetRuntimeConfig() const {
+  std::lock_guard lock(engine_config_mutex_);
+  return engine_config_;
 }
 
 // =============================================================================
@@ -339,8 +346,8 @@ ErrorCode TradingEngine::InitEngineModules() {
 
   EngineConfig runtime;
   {
-    std::lock_guard lock(runtime_config_mutex_);
-    runtime = runtime_config_;
+    std::lock_guard lock(engine_config_mutex_);
+    runtime = engine_config_;
   }
 
   // 1. OMS：仅内存状态机；冷启动不回放本地订单，Working 态由柜台快照对账重建
@@ -354,11 +361,7 @@ ErrorCode TradingEngine::InitEngineModules() {
     return rc;
   }
 
-  // 2. 实例风控读 OMS 活动单与敞口（须在 OMS Initialize 之后）
-  risk_manager_.SetStateProviders([this] { return order_manager_.GetActiveOrderCount(); },
-                                  [this] { return order_manager_.GetOpenNotional(); });
-
-  // 3. EMS 注入 OMS；发送失败释放预占所需的 account-risk（与 Pipeline 对称）
+  // 2. EMS 注入 OMS；发送失败释放预占所需的 account-risk（与 Pipeline 对称）
   execution_manager_.SetOrderApi(&order_manager_);
   if (account_risk_bridge_ != nullptr) {
     order_pipeline_.SetAccountRiskBridge(account_risk_bridge_);
@@ -385,6 +388,19 @@ ErrorCode TradingEngine::InitAdapters() {
   return ErrorCode::kSuccess;
 }
 
+// =============================================================================
+// Start 子阶段
+// =============================================================================
+
+ErrorCode TradingEngine::StartEventLanes() {
+  spdlog::info("StartEventLanes");
+  // Stop() 会清空 Lane-T 订阅；每次 Start 前重新注册引擎级回报处理
+  WireTraderEventHandlers();
+  event_lanes_.Start();
+  quote_health_monitor_.Start();
+  return ErrorCode::kSuccess;
+}
+
 ErrorCode TradingEngine::StartAdapters() {
   spdlog::info("StartAdapters");
   if (quote_api_ == nullptr || !quote_api_->IsConnected()) {
@@ -398,23 +414,74 @@ ErrorCode TradingEngine::StartAdapters() {
   return ErrorCode::kSuccess;
 }
 
-ErrorCode TradingEngine::SyncBrokerSnapshot() {
-  spdlog::info("SyncBrokerSnapshot");
-  // StartAdapters 已保证交易通道在线；拉柜台快照并对账，失败则拒绝 Start
-  const auto sync_result = SynchronizeBrokerState(trader_api_.get());
-  if (sync_result != ErrorCode::kSuccess) {
+ErrorCode TradingEngine::ReconcileBrokerState() {
+  spdlog::info("ReconcileBrokerState");
+  // StartAdapters 已保证交易通道在线；查询柜台并对账，失败则拒绝 Start
+  auto* trader_api = trader_api_.get();
+  if (trader_api == nullptr || !trader_api->IsConnected()) {
     lifecycle_.Transition(EngineState::kFailed, "BROKER_RECONCILIATION_FAILED");
-    return sync_result;
+    return ErrorCode::kConnectionError;
   }
-  return ErrorCode::kSuccess;
-}
 
-ErrorCode TradingEngine::StartEventLanes() {
-  spdlog::info("StartEventLanes");
-  // Stop() 会清空 Lane-T 订阅；每次 Start 前重新注册引擎级回报处理
-  WireTraderEventHandlers();
-  event_lanes_.Start();
-  quote_health_monitor_.Start();
+  // 1. 查询柜台订单、成交、持仓与资金
+  qtrade::sdk::trader::QueryOrdersResponse orders_response;
+  qtrade::sdk::trader::QueryTradesResponse trades_response;
+  qtrade::sdk::trader::QueryPositionResponse positions_response;
+  qtrade::sdk::trader::QueryAssetResponse asset_response;
+  qtrade::sdk::trader::QueryAssetRequest asset_request;
+  if (trader_api->QueryOrders({}, orders_response) != ErrorCode::kSuccess) {
+    spdlog::error("query orders failed");
+    lifecycle_.Transition(EngineState::kFailed, "BROKER_RECONCILIATION_FAILED");
+    return ErrorCode::kInternalError;
+  }
+
+  if (trader_api->QueryTrades({}, trades_response) != ErrorCode::kSuccess) {
+    spdlog::error("query trades failed");
+    lifecycle_.Transition(EngineState::kFailed, "BROKER_RECONCILIATION_FAILED");
+    return ErrorCode::kInternalError;
+  }
+
+  if (trader_api->QueryPositions({}, positions_response) != ErrorCode::kSuccess) {
+    spdlog::error("query positions failed");
+    lifecycle_.Transition(EngineState::kFailed, "BROKER_RECONCILIATION_FAILED");
+    return ErrorCode::kInternalError;
+  }
+
+  asset_request.account_id = engine_config_.account_id;
+  if (trader_api->QueryAsset(asset_request, asset_response) != ErrorCode::kSuccess) {
+    spdlog::error("query asset failed");
+    lifecycle_.Transition(EngineState::kFailed, "BROKER_RECONCILIATION_FAILED");
+    return ErrorCode::kInternalError;
+  }
+
+  // 2. 应用柜台订单/成交并校验待对账订单已清空
+  for (const auto& report : orders_response.orders) {
+    order_manager_.ReconcileBrokerOrder(report);
+    const auto local = report.order_id.empty() ? order_manager_.GetOrderByClientId(report.client_order_id)
+                                               : order_manager_.GetOrder(report.order_id);
+    if (local.has_value()) {
+      order_manager_.MarkReconciled(local->order_id);
+      account_manager_.ApplyOrder(*local);
+    }
+  }
+  for (const auto& report : trades_response.trades) {
+    order_manager_.ApplyTradeReport(report);
+    const auto local = report.order_id.empty() ? order_manager_.GetOrderByClientId(report.client_order_id)
+                                               : order_manager_.GetOrder(report.order_id);
+    if (local.has_value()) {
+      order_manager_.MarkReconciled(local->order_id);
+    }
+  }
+  position_manager_.ApplyPositionSnapshot(positions_response.positions);
+  account_manager_.ApplyAssetSnapshot(asset_response.asset);
+
+  // 3. 校验待对账订单已清空
+  const auto orders_requiring_reconciliation = order_manager_.GetOrdersRequiringReconciliation();
+  if (!orders_requiring_reconciliation.empty()) {
+    spdlog::error("orders requiring reconciliation not empty: {}", orders_requiring_reconciliation.size());
+    lifecycle_.Transition(EngineState::kFailed, "BROKER_RECONCILIATION_FAILED");
+    return ErrorCode::kInternalError;
+  }
   return ErrorCode::kSuccess;
 }
 
@@ -430,14 +497,10 @@ ErrorCode TradingEngine::StartEngineModules() {
 
 ErrorCode TradingEngine::StartMarketData() {
   spdlog::info("StartMarketData");
-  std::vector<std::string> instruments;
-  {
-    std::lock_guard lock(runtime_config_mutex_);
-    instruments.assign(subscribed_instruments_.begin(), subscribed_instruments_.end());
+  if (subscribed_instruments_.empty()) {
+    return ErrorCode::kSuccess;
   }
-  if (!instruments.empty()) {
-    SubscribeQuote(instruments);
-  }
+  SubscribeQuote(std::vector<std::string>{subscribed_instruments_.begin(), subscribed_instruments_.end()});
   return ErrorCode::kSuccess;
 }
 
@@ -512,58 +575,7 @@ void TradingEngine::DisconnectAdapters() {
 }
 
 // =============================================================================
-// 柜台对账
-// =============================================================================
-
-ErrorCode TradingEngine::SynchronizeBrokerState(qtrade::sdk::trader::TraderApi* trader_api) {
-  // 1. 查询柜台订单、成交、持仓与资金快照
-  if (trader_api == nullptr || !trader_api->IsConnected()) {
-    return ErrorCode::kConnectionError;
-  }
-
-  qtrade::sdk::trader::QueryOrdersResponse orders_response;
-  qtrade::sdk::trader::QueryTradesResponse trades_response;
-  qtrade::sdk::trader::QueryPositionResponse positions_response;
-  qtrade::sdk::trader::QueryAssetResponse asset_response;
-  if (trader_api->QueryOrders({}, orders_response) != ErrorCode::kSuccess ||
-      trader_api->QueryTrades({}, trades_response) != ErrorCode::kSuccess ||
-      trader_api->QueryPositions({}, positions_response) != ErrorCode::kSuccess) {
-    return ErrorCode::kNotSupported;
-  }
-  qtrade::sdk::trader::QueryAssetRequest asset_request;
-  {
-    std::lock_guard lock(runtime_config_mutex_);
-    asset_request.account_id = runtime_config_.account_id;
-  }
-  if (trader_api->QueryAsset(asset_request, asset_response) != ErrorCode::kSuccess) {
-    return ErrorCode::kNotSupported;
-  }
-
-  // 2. 应用柜台订单快照（可冷启动采纳进内存 OMS，不补单）并校验待对账订单已清空
-  for (const auto& report : orders_response.orders) {
-    order_manager_.ReconcileBrokerOrder(report);
-    const auto local = report.order_id.empty() ? order_manager_.GetOrderByClientId(report.client_order_id)
-                                               : order_manager_.GetOrder(report.order_id);
-    if (local.has_value()) {
-      order_manager_.MarkReconciled(local->order_id);
-      account_manager_.ApplyOrder(*local);
-    }
-  }
-  for (const auto& report : trades_response.trades) {
-    order_manager_.ApplyTradeReport(report);
-    const auto local = report.order_id.empty() ? order_manager_.GetOrderByClientId(report.client_order_id)
-                                               : order_manager_.GetOrder(report.order_id);
-    if (local.has_value()) {
-      order_manager_.MarkReconciled(local->order_id);
-    }
-  }
-  position_manager_.ApplyPositionSnapshot(positions_response.positions);
-  account_manager_.ApplyAssetSnapshot(asset_response.asset);
-  return order_manager_.GetOrdersRequiringReconciliation().empty() ? ErrorCode::kSuccess : ErrorCode::kInternalError;
-}
-
-// =============================================================================
-// 运行时回调（配置推送 / 行情健康 → 生命周期）
+// 运行时回调（配置应用 / 行情健康 → 生命周期）
 // =============================================================================
 
 ErrorCode TradingEngine::ApplyEngineConfig(const EngineConfig& config) {
@@ -579,30 +591,10 @@ ErrorCode TradingEngine::ApplyEngineConfig(const EngineConfig& config) {
     return ErrorCode::kAlreadyStarted;
   }
 
-  risk::RiskLimits limits;
-  limits.version = 0;
-  limits.max_order_notional = config.risk_budget.max_notional;
-  limits.max_total_notional = config.risk_budget.max_notional;
-  limits.max_open_orders = config.risk_budget.max_open_orders;
-  limits.safety_buffer = config.risk_budget.safety_buffer;
-  if (risk_manager_.Configure(limits) != ErrorCode::kSuccess) {
-    lifecycle_.Transition(EngineState::kFailed, "RISK_CONFIG_INVALID");
-    return ErrorCode::kInvalidArgument;
-  }
-
-  // 合规品种白名单由后续 AddStrategy 经 MergeStrategyInstruments 填充
-  cms::ComplianceRules compliance_rules;
-  compliance_rules.version = 0;
-  compliance_rules.allowed_instruments = {};
-  compliance_rules.max_notional = config.risk_budget.max_notional;
-  if (compliance_.Configure(compliance_rules) != ErrorCode::kSuccess) {
-    lifecycle_.Transition(EngineState::kFailed, "COMPLIANCE_CONFIG_INVALID");
-    return ErrorCode::kInvalidArgument;
-  }
-
   {
-    std::lock_guard lock(runtime_config_mutex_);
-    runtime_config_ = config;
+    std::lock_guard lock(engine_config_mutex_);
+    engine_config_ = config;
+    // 仅 Init 路径重置订阅集；策略 CMS 由后续 AddStrategy/RegisterStrategyBindings 填充
     subscribed_instruments_.clear();
   }
 
@@ -613,32 +605,28 @@ ErrorCode TradingEngine::ApplyEngineConfig(const EngineConfig& config) {
   return ErrorCode::kSuccess;
 }
 
-void TradingEngine::MergeStrategyInstruments(const std::vector<std::string>& instruments) {
-  std::unordered_set<std::string> snapshot;
-  double max_notional = 0.0;
-  bool changed = false;
-  {
-    std::lock_guard lock(runtime_config_mutex_);
-    for (const auto& instrument : instruments) {
-      if (instrument.empty()) {
-        continue;
-      }
-      if (subscribed_instruments_.insert(instrument).second) {
-        changed = true;
-      }
+void TradingEngine::OnMarketHealthChanged(bool healthy) {
+  const auto state = lifecycle_.State();
+
+  // 1. 行情不健康：Ready → Frozen（拒新单，仍处理回报）
+  if (!healthy) {
+    if (state == EngineState::kReady) {
+      lifecycle_.Transition(EngineState::kFrozen, "MARKET_UNHEALTHY");
+      spdlog::warn("engine frozen: market unhealthy");
     }
-    if (!changed) {
-      return;
-    }
-    snapshot = subscribed_instruments_;
-    max_notional = runtime_config_.risk_budget.max_notional;
+    return;
   }
 
-  cms::ComplianceRules compliance_rules;
-  compliance_rules.version = 0;
-  compliance_rules.allowed_instruments = std::move(snapshot);
-  compliance_rules.max_notional = max_notional;
-  (void)compliance_.Configure(compliance_rules);
+  // 2. 行情恢复：Initiated → Ready，或从 MARKET_UNHEALTHY 冻结恢复
+  if (state == EngineState::kInitiated) {
+    if (lifecycle_.Transition(EngineState::kReady) == ErrorCode::kSuccess) {
+      spdlog::info("trading engine READY");
+    }
+  } else if (state == EngineState::kFrozen && lifecycle_.Reason() == "MARKET_UNHEALTHY") {
+    if (lifecycle_.Transition(EngineState::kReady) == ErrorCode::kSuccess) {
+      spdlog::info("trading engine resumed after market recovery");
+    }
+  }
 }
 
 void TradingEngine::OnTraderOrderReport(const qtrade::sdk::trader::Order& order) {
@@ -676,30 +664,6 @@ void TradingEngine::OnTraderTradeReport(const qtrade::sdk::trader::Trade& trade)
   }
 }
 
-void TradingEngine::OnMarketHealthChanged(bool healthy) {
-  const auto state = lifecycle_.State();
-
-  // 1. 行情不健康：Ready → Frozen（拒新单，仍处理回报）
-  if (!healthy) {
-    if (state == EngineState::kReady) {
-      lifecycle_.Transition(EngineState::kFrozen, "MARKET_UNHEALTHY");
-      spdlog::warn("engine frozen: market unhealthy");
-    }
-    return;
-  }
-
-  // 2. 行情恢复：Initiated → Ready，或从 MARKET_UNHEALTHY 冻结恢复
-  if (state == EngineState::kInitiated) {
-    if (lifecycle_.Transition(EngineState::kReady) == ErrorCode::kSuccess) {
-      spdlog::info("trading engine READY");
-    }
-  } else if (state == EngineState::kFrozen && lifecycle_.Reason() == "MARKET_UNHEALTHY") {
-    if (lifecycle_.Transition(EngineState::kReady) == ErrorCode::kSuccess) {
-      spdlog::info("trading engine resumed after market recovery");
-    }
-  }
-}
-
 void TradingEngine::ReleaseAccountRiskReservation(const std::string& order_id,
                                                   qtrade::account_risk::ReleaseReason reason) {
   if (account_risk_bridge_ == nullptr || order_id.empty()) {
@@ -707,8 +671,8 @@ void TradingEngine::ReleaseAccountRiskReservation(const std::string& order_id,
   }
   std::string account_id;
   {
-    std::lock_guard lock(runtime_config_mutex_);
-    account_id = runtime_config_.account_id;
+    std::lock_guard lock(engine_config_mutex_);
+    account_id = engine_config_.account_id;
   }
   qtrade::account_risk::ReleaseRequest request;
   request.account_id = account_id;
@@ -718,6 +682,21 @@ void TradingEngine::ReleaseAccountRiskReservation(const std::string& order_id,
   if (result.error_code != ErrorCode::kSuccess) {
     spdlog::warn("Release failed: order_id={}, code={}", order_id, static_cast<int>(result.error_code));
   }
+}
+
+qtrade::strategy::OrderSender TradingEngine::MakeOrderSender(std::string strategy_id) {
+  return [this, strategy_id = std::move(strategy_id)](const qtrade::strategy::OrderBatch& batch) {
+    if (!IsReady()) {
+      return ErrorCode::kNotInitialized;
+    }
+    qtrade::strategy::OrderBatch stamped = batch;
+    for (auto& request : stamped.order_requests) {
+      if (request.strategy_id.empty()) {
+        request.strategy_id = strategy_id;
+      }
+    }
+    return order_pipeline_.SubmitBatch(stamped);
+  };
 }
 
 std::unique_ptr<IEngine> CreateEngine() {

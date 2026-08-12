@@ -31,27 +31,14 @@
 #include <qtrade/sdk/trader/trader_api.hpp>
 #include <qtrade/strategy/strategy.hpp>
 
-#include <cstdint>
 #include <memory>
 #include <string>
 
 namespace qtrade::engine {
 
-/// @brief 实例级弱一致风险预算（启动时经 Init 注入一次）
-struct RiskBudget {
-  /// 最大名义价值
-  double max_notional = 0.0;
-  /// 最大保证金
-  double max_margin = 0.0;
-  /// 最大开仓订单数
-  std::uint64_t max_open_orders = 0;
-  /// 安全缓冲
-  double safety_buffer = 0.0;
-};
-
-/// @brief 引擎运行配置（经 Init 注入；不含策略绑定与适配器选型）
-/// @details 策略由 AddStrategy 登记；行情/交易适配器由 SetQuoteApi / SetTraderApi 注入。
-///          本地引导配置（tenant、服务端点、插件目录等）不进入本结构。
+/// @brief 引擎运行配置（经 Init 注入；不含策略绑定、风控与适配器选型）
+/// @details 策略由 AddStrategy 登记（含策略级风控）；行情/交易适配器由 SetQuoteApi / SetTraderApi 注入。
+///          账户硬风控由 IAccountRiskBridge 裁决。本地引导配置不进入本结构。
 struct EngineConfig {
   /// 引擎实例标识
   std::string engine_id;
@@ -61,8 +48,6 @@ struct EngineConfig {
   std::string quote_source;
   /// 备用行情源；空表示不启用自动切换
   std::string quote_failover;
-  /// 实例级弱一致风险预算
-  RiskBudget risk_budget;
 };
 
 /// @brief 引擎生命周期状态（IEngine::State 与 EngineLifecycle 共用）
@@ -94,7 +79,7 @@ class IEngine {
   // ---------------------------------------------------------------------------
 
   /// @brief 初始化引擎：应用运行配置、装配内部模块
-  /// @param config 引擎运行配置（身份 + RiskBudget 等）；须含非空 engine_id / account_id
+  /// @param config 引擎运行配置（身份与行情源等）；须含非空 engine_id / account_id
   /// @return ErrorCode::kSuccess 表示成功
   virtual ErrorCode Init(const EngineConfig& config) = 0;
 

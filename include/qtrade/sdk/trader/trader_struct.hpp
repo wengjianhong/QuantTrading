@@ -62,6 +62,8 @@ struct ConnectRequest {
 struct OrderRequest {
   /// 用户自定义报单引用。
   std::uint32_t client_order_id = 0;
+  /// 策略实例标识；发单准入（CMS）按此查找规则。
+  std::string strategy_id;
   /// 券商/通道委托号；发单前通常为 0，由适配器在回报中回填（EMT 对应 order_emt_id）。
   std::uint64_t broker_order_id = 0;
   /// 合约代码。

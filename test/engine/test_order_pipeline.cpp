@@ -45,6 +45,12 @@ TEST(OrderPipeline, StubOrderFlowsThroughOmsAndTraderLane) {
   qtrade::engine::TradingEngine engine;
   ASSERT_EQ(engine.Init(MakeTestEngineConfig("test-engine-" + suffix)), qtrade::ErrorCode::kSuccess);
 
+  qtrade::strategy::StrategyConfig strategy_config;
+  strategy_config.enabled = true;
+  strategy_config.strategy_id = "test-strategy";
+  strategy_config.instruments = {"IF2506"};
+  ASSERT_EQ(engine.RegisterStrategyBindings(strategy_config), qtrade::ErrorCode::kSuccess);
+
   InstallConnectedStubQuote(engine);
   engine.SetTraderApi(qtrade::test::stub::CreateStubTraderApi());
   qtrade::sdk::trader::ConnectRequest connect_request;
@@ -57,6 +63,7 @@ TEST(OrderPipeline, StubOrderFlowsThroughOmsAndTraderLane) {
   ASSERT_TRUE(engine.IsReady());
 
   qtrade::sdk::trader::OrderRequest request;
+  request.strategy_id = "test-strategy";
   request.client_order_id = 1001;
   request.instrument = "IF2506";
   request.price = 10.5;
@@ -77,6 +84,7 @@ TEST(OrderPipeline, StubOrderFlowsThroughOmsAndTraderLane) {
   EXPECT_EQ(engine.GetPositionManager().GetNetPosition("IF2506"), 2);
 
   qtrade::sdk::trader::OrderRequest invalid_request;
+  invalid_request.strategy_id = "test-strategy";
   invalid_request.client_order_id = 1002;
   invalid_request.volume = 1;
   EXPECT_NE(engine.GetOrderPipeline().Submit(invalid_request), qtrade::ErrorCode::kSuccess);
@@ -88,6 +96,12 @@ TEST(OrderPipeline, CancelFlowsThroughEmsAndVenueReport) {
   const std::string suffix = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
   qtrade::engine::TradingEngine engine;
   ASSERT_EQ(engine.Init(MakeTestEngineConfig("cancel-engine-" + suffix)), qtrade::ErrorCode::kSuccess);
+
+  qtrade::strategy::StrategyConfig strategy_config;
+  strategy_config.enabled = true;
+  strategy_config.strategy_id = "cancel-strategy";
+  strategy_config.instruments = {"IF2506"};
+  ASSERT_EQ(engine.RegisterStrategyBindings(strategy_config), qtrade::ErrorCode::kSuccess);
 
   InstallConnectedStubQuote(engine);
   auto trader_api = std::make_unique<qtrade::test::stub::StubTraderApi>();
@@ -103,6 +117,7 @@ TEST(OrderPipeline, CancelFlowsThroughEmsAndVenueReport) {
   ASSERT_TRUE(engine.IsReady());
 
   qtrade::sdk::trader::OrderRequest request;
+  request.strategy_id = "cancel-strategy";
   request.client_order_id = 2001;
   request.instrument = "IF2506";
   request.price = 10.5;

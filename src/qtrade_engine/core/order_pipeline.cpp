@@ -10,12 +10,10 @@
 namespace qtrade::engine {
 
 OrderPipeline::OrderPipeline(cms::ComplianceApi& compliance,
-                             risk::RiskApi& risk,
                              oms::OrderApi& orders,
                              ems::ExecutionApi& execution,
                              qtrade::account_risk::IAccountRiskBridge* account_risk_bridge)
   : compliance_(compliance),
-    risk_(risk),
     orders_(orders),
     execution_(execution),
     account_risk_bridge_(account_risk_bridge) {}
@@ -44,28 +42,28 @@ void OrderPipeline::ReleaseReservation(const std::string& order_id, qtrade::acco
 }
 
 ErrorCode OrderPipeline::Submit(const qtrade::sdk::trader::OrderRequest& request) {
+  // 1. 策略级 CMS
   if (const auto rc = compliance_.CheckOrder(request); rc != ErrorCode::kSuccess) {
-    return rc;
-  }
-  if (const auto rc = risk_.CheckOrder(request); rc != ErrorCode::kSuccess) {
     return rc;
   }
   if (request.client_order_id != 0 && orders_.GetOrderByClientId(request.client_order_id).has_value()) {
     return ErrorCode::kSuccess;
   }
 
+  // 2. 账户硬风控预占（跨策略）
   const std::string order_id = orders_.AllocateOrderId();
   if (account_risk_bridge_ != nullptr) {
     qtrade::account_risk::ReserveRequest reserve_request;
     reserve_request.account_id = account_id_;
     reserve_request.order_id = order_id;
     reserve_request.exposure.engine_id = engine_id_;
+    reserve_request.exposure.strategy_id = request.strategy_id;
     reserve_request.exposure.instrument_id = request.instrument;
     reserve_request.exposure.price = request.price;
     reserve_request.exposure.quantity = static_cast<std::uint64_t>(request.volume);
     reserve_request.exposure.notional = request.price * static_cast<double>(request.volume);
     reserve_request.exposure.side = request.side;
-    reserve_request.expected_policy_version = risk_.Version();
+    reserve_request.expected_policy_version = 0;
 
     const auto reserve_result = account_risk_bridge_->Reserve(reserve_request);
     const bool reserve_unknown = reserve_result.error_code == ErrorCode::kTimeout ||
@@ -83,6 +81,7 @@ ErrorCode OrderPipeline::Submit(const qtrade::sdk::trader::OrderRequest& request
     }
   }
 
+  // 3. OMS → EMS
   const auto order = orders_.CreateOrder(request, order_id);
   if (!order.has_value()) {
     ReleaseReservation(order_id, qtrade::account_risk::ReleaseReason::kSendFailed);

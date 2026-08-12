@@ -34,6 +34,18 @@ struct OrderBatch {
   std::vector<qtrade::sdk::trader::OrderRequest> order_requests;
 };
 
+/// @brief 策略级风控/合规限额（由 AddStrategy 注册到 CMS；冷却/持仓由策略侧消费）
+struct StrategyRiskLimits {
+  /// 单笔最大名义金额；0 表示不限制
+  double max_notional = 0.0;
+  /// 单笔最大数量；0 表示不限制
+  std::int64_t max_volume = 0;
+  /// 最大持仓（绝对值）；0 表示不限制
+  std::int64_t max_position_volume = 0;
+  /// 发单冷却（毫秒）；0 表示不限制
+  std::int32_t order_cooldown_ms = 0;
+};
+
 /// @brief 策略实例配置（与 config.v1.StrategyConfig 字段对齐；不依赖 protobuf）
 struct StrategyConfig {
   /// 是否启用
@@ -42,14 +54,12 @@ struct StrategyConfig {
   std::string strategy_id;
   /// 策略插件名
   std::string strategy_name;
-  /// 订阅合约列表
+  /// 订阅合约列表（同时作为 CMS 品种白名单）
   std::vector<std::string> instruments;
-  /// 单笔下单量
+  /// 单笔下单量（策略行为参数；亦可作为 CMS 单笔上限回退）
   std::int64_t order_volume = 0;
-  /// 最大持仓（绝对值）
-  std::int64_t max_position_volume = 0;
-  /// 发单冷却（毫秒）
-  std::int32_t order_cooldown_ms = 0;
+  /// 策略级风控/合规限额
+  StrategyRiskLimits risk;
 
   // ========== 可选参数 ==========
   /// 策略计算窗口(K线/Tick样本数量)

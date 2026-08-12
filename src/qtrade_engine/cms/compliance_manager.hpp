@@ -1,6 +1,6 @@
 /// @file      compliance_manager.hpp
 /// @brief     合规管理器（实现 ComplianceApi）
-/// @details   对下单请求做字段合法性与可配置白名单/限幅检查
+/// @details   按策略实例管理合规规则；对下单请求做字段合法性与白名单/限幅检查
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
@@ -13,15 +13,14 @@
 #include <limits>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace qtrade::engine::cms {
 
-/// @brief 订单合规规则
+/// @brief 单策略订单合规规则
 struct ComplianceRules {
-  /// 配置版本
-  std::uint64_t version = 0;
-  /// 是否启用下单
+  /// 是否启用该策略下单
   bool enabled = true;
   /// 单笔最小数量
   std::int64_t min_volume = 1;
@@ -41,30 +40,29 @@ struct ComplianceRules {
   std::unordered_set<qtrade::sdk::trader::PriceType> allowed_price_types;
 };
 
-/// @brief 订单字段与可配置白名单合规检查
+/// @brief 按策略管理的订单字段与白名单合规检查
 class ComplianceManager final : public ComplianceApi {
  public:
-  /// @brief 构造默认规则的合规管理器
   ComplianceManager() = default;
-
-  /// @brief 析构合规管理器
   ~ComplianceManager() override = default;
 
-  /// @brief 原子替换合规规则
+  /// @brief 注册或替换指定策略的合规规则
+  /// @param strategy_id 策略实例标识
   /// @param rules 新规则
-  /// @return 版本回退或非法范围返回 kSystemError
-  ErrorCode Configure(const ComplianceRules& rules);
+  /// @return 非法参数返回 kInvalidArgument / kSystemError
+  ErrorCode UpsertStrategyRules(const std::string& strategy_id, const ComplianceRules& rules);
 
-  /// @brief 检查订单是否满足合规规则
-  /// @param request 下单请求
-  /// @return 通过返回 kSuccess
+  /// @brief 移除指定策略的合规规则
+  /// @param strategy_id 策略实例标识
+  void RemoveStrategyRules(const std::string& strategy_id);
+
+  /// @brief 按 request.strategy_id 检查订单
   [[nodiscard]] ErrorCode CheckOrder(const qtrade::sdk::trader::OrderRequest& request) const override;
 
  private:
-  /// 保护规则快照
   mutable std::mutex mutex_;
-  /// 当前规则
-  ComplianceRules rules_;
+  /// strategy_id → 合规规则
+  std::unordered_map<std::string, ComplianceRules> rules_by_strategy_;
 };
 
 }  // namespace qtrade::engine::cms

@@ -19,7 +19,6 @@
 #include "qtrade/engine/event_bus/event_lanes.hpp"
 #include "qtrade/engine/oms/order_manager.hpp"
 #include "qtrade/engine/position/position_manager.hpp"
-#include "qtrade/engine/risk/risk_manager.hpp"
 #include "qtrade/engine/strategy/strategy_manager.hpp"
 
 #include <qtrade/engine/engine.hpp>
@@ -76,57 +75,72 @@ class TradingEngine final : public IEngine {
   // 实现侧扩展（非 IEngine；供 boot / 测试 / 内部编排）
   // ---------------------------------------------------------------------------
 
+  /// @brief 登记策略订阅集与 CMS 规则（须 Init 后、Start 前；测试可不经插件登记）
+  /// @param config 策略配置（含 instruments 与 risk）
+  /// @return 成功返回 kSuccess
+  ErrorCode RegisterStrategyBindings(const qtrade::strategy::StrategyConfig& config);
+
   /// @brief 释放资源（Init 失败路径与析构使用）
   void Release();
 
   /// @brief 是否已通过内部 READY 门禁（可接受新单）；仅实现/测试使用
   [[nodiscard]] bool IsReady() const;
 
-  /// @brief 返回已应用的引擎运行配置快照
-  [[nodiscard]] EngineConfig GetRuntimeConfig() const;
+  /// @brief 查询行情是否健康
+  [[nodiscard]] bool IsQuoteHealthy() const;
 
-  /// @brief 返回当前行情适配器；未设置时返回 nullptr
-  [[nodiscard]] qtrade::sdk::quote::QuoteApi* GetQuoteApi();
-
-  /// @brief 返回当前交易适配器；未设置时返回 nullptr
-  [[nodiscard]] qtrade::sdk::trader::TraderApi* GetTraderApi();
-
-  /// @brief 订阅合约行情（须已 Start）；测试与内部配置热更新使用
+  /// @brief 订阅合约行情（须已 Start）；不修改 subscribed_instruments_
   void SubscribeQuote(const std::vector<std::string>& instruments);
 
   /// @brief 取消订阅合约行情
   void UnsubscribeQuote(const std::vector<std::string>& instruments);
 
-  /// @brief 查询行情是否健康
-  [[nodiscard]] bool IsQuoteHealthy() const;
-
   // ---------------------------------------------------------------------------
   // 模块访问器
   // ---------------------------------------------------------------------------
 
-  /// @brief 获取事件通道门面（Lane-Q + Lane-T）
-  /// @return 事件通道引用
-  event_bus::EventLanes& GetEventLanes();
+  /// @brief 返回已应用的引擎运行配置快照（Init 写入后只读）
+  [[nodiscard]] EngineConfig GetRuntimeConfig() const;
 
-  /// @brief 获取策略管理器引用
-  /// @return StrategyManager 引用
-  strategy::StrategyManager& GetStrategyManager();
+  /// @brief 返回当前行情适配器；未设置时返回 nullptr
+  [[nodiscard]] qtrade::sdk::quote::QuoteApi* GetQuoteApi() {
+    return quote_api_.get();
+  }
+
+  /// @brief 返回当前交易适配器；未设置时返回 nullptr
+  [[nodiscard]] qtrade::sdk::trader::TraderApi* GetTraderApi() {
+    return trader_api_.get();
+  }
+
+  /// @brief 获取事件通道门面（Lane-Q + Lane-T）
+  [[nodiscard]] event_bus::EventLanes& GetEventLanes() {
+    return event_lanes_;
+  }
 
   /// @brief 获取 OMS 模块间稳定接口
-  /// @return OrderApi 引用
-  oms::OrderApi& GetOrderApi();
+  [[nodiscard]] oms::OrderApi& GetOrderApi() {
+    return order_manager_;
+  }
 
-  /// @brief 获取账户管理模块引用
-  /// @return AccountManager 引用
-  account::AccountManager& GetAccountManager();
+  /// @brief 获取策略管理器
+  [[nodiscard]] strategy::StrategyManager& GetStrategyManager() {
+    return strategy_manager_;
+  }
 
-  /// @brief 获取持仓管理模块引用
-  /// @return PositionManager 引用
-  position::PositionManager& GetPositionManager();
+  /// @brief 获取账户管理模块
+  [[nodiscard]] account::AccountManager& GetAccountManager() {
+    return account_manager_;
+  }
+
+  /// @brief 获取持仓管理模块
+  [[nodiscard]] position::PositionManager& GetPositionManager() {
+    return position_manager_;
+  }
 
   /// @brief 获取发单流水线
-  /// @return OrderPipeline 引用
-  OrderPipeline& GetOrderPipeline();
+  [[nodiscard]] OrderPipeline& GetOrderPipeline() {
+    return order_pipeline_;
+  }
 
  private:
   // ---------------------------------------------------------------------------
@@ -153,17 +167,17 @@ class TradingEngine final : public IEngine {
   // Start 子阶段（由 Start() 按序调用）
   // ---------------------------------------------------------------------------
 
+  /// @brief 启动 Lane-Q/Lane-T 与行情健康监控
+  /// @return ErrorCode::kSuccess 表示成功
+  ErrorCode StartEventLanes();
+
   /// @brief 确保行情/交易适配器已装配并连接（内部幂等调用 InitAdapters）
   /// @return ErrorCode::kSuccess 表示成功
   ErrorCode StartAdapters();
 
-  /// @brief 拉取柜台快照并 Adopt 进 OMS/Account/Position
+  /// @brief 查询柜台订单/成交/持仓/资金并对账合并到 OMS/Account/Position
   /// @return ErrorCode::kSuccess 表示成功
-  ErrorCode SyncBrokerSnapshot();
-
-  /// @brief 启动 Lane-Q/Lane-T 与行情健康监控
-  /// @return ErrorCode::kSuccess 表示成功
-  ErrorCode StartEventLanes();
+  ErrorCode ReconcileBrokerState();
 
   /// @brief 启动策略管理器与 EMS
   /// @return ErrorCode::kSuccess 表示成功
@@ -194,25 +208,13 @@ class TradingEngine final : public IEngine {
   void DisconnectAdapters();
 
   // ---------------------------------------------------------------------------
-  // 柜台对账
-  // ---------------------------------------------------------------------------
-
-  /// @brief 查询柜台快照并完成启动对账
-  /// @param trader_api 交易适配器指针
-  /// @return ErrorCode::kSuccess 表示成功
-  ErrorCode SynchronizeBrokerState(qtrade::sdk::trader::TraderApi* trader_api);
-
-  // ---------------------------------------------------------------------------
   // 运行时回调（配置应用 / 行情健康 → 生命周期）
   // ---------------------------------------------------------------------------
 
-  /// @brief 应用引擎运行配置（RiskBudget / 合规品种集等）
+  /// @brief 应用引擎运行配置（身份 / 行情源）
   /// @param config 引擎配置
   /// @return 成功返回 kSuccess；身份非法时返回错误码
   ErrorCode ApplyEngineConfig(const EngineConfig& config);
-
-  /// @brief 将策略合约并入订阅集与合规白名单（AddStrategy 时调用）
-  void MergeStrategyInstruments(const std::vector<std::string>& instruments);
 
   /// @brief 处理行情健康变化并更新 READY 门禁
   /// @param healthy 行情是否健康
@@ -231,8 +233,8 @@ class TradingEngine final : public IEngine {
   /// @param reason 释放原因
   void ReleaseAccountRiskReservation(const std::string& order_id, qtrade::account_risk::ReleaseReason reason);
 
-  /// @brief 构造带 READY 门禁的策略发单回调
-  [[nodiscard]] qtrade::strategy::OrderSender MakeOrderSender();
+  /// @brief 构造带 READY 门禁的策略发单回调，并自动填入 strategy_id
+  [[nodiscard]] qtrade::strategy::OrderSender MakeOrderSender(std::string strategy_id);
 
   // ---------------------------------------------------------------------------
   // 成员：生命周期与配置
@@ -247,9 +249,9 @@ class TradingEngine final : public IEngine {
   /// 引擎生命周期状态机（仅本类读写）
   EngineLifecycle lifecycle_;
   /// 已应用的运行配置快照（Init 注入）
-  EngineConfig runtime_config_;
+  EngineConfig engine_config_;
   /// 保护业务配置快照
-  mutable std::mutex runtime_config_mutex_;
+  mutable std::mutex engine_config_mutex_;
   /// 当前已订阅行情合约集合
   std::unordered_set<std::string> subscribed_instruments_;
 
@@ -272,10 +274,8 @@ class TradingEngine final : public IEngine {
   // 成员：交易核心内的子模块
   // ---------------------------------------------------------------------------
 
-  /// 合规模块
+  /// 合规模块（按 strategy_id 管理）
   cms::ComplianceManager compliance_;
-  /// 实例风控
-  risk::RiskManager risk_manager_;
   /// 订单管理
   oms::OrderManager order_manager_;
   /// 执行管理
@@ -284,8 +284,8 @@ class TradingEngine final : public IEngine {
   account::AccountManager account_manager_;
   /// 持仓
   position::PositionManager position_manager_;
-  /// 发单流水线（须在 compliance/risk/order/execution 之后）
-  OrderPipeline order_pipeline_{compliance_, risk_manager_, order_manager_, execution_manager_};
+  /// 发单流水线（须在 compliance/order/execution 之后）
+  OrderPipeline order_pipeline_{compliance_, order_manager_, execution_manager_};
 
   // ---------------------------------------------------------------------------
   // 成员：支撑服务桥接（非拥有；由进程入口持有并注入）
