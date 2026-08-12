@@ -36,9 +36,9 @@ struct ComplianceRules {
   /// 允许合约；空集合表示全部
   std::unordered_set<std::string> allowed_instruments;
   /// 允许买卖方向；空集合表示全部已知方向
-  std::unordered_set<qtrade_sdk::trader::SideType> allowed_sides;
+  std::unordered_set<qtrade::sdk::trader::SideType> allowed_sides;
   /// 允许价格类型；空集合表示全部已知类型
-  std::unordered_set<qtrade_sdk::trader::PriceType> allowed_price_types;
+  std::unordered_set<qtrade::sdk::trader::PriceType> allowed_price_types;
 };
 
 /// @brief 订单字段与可配置白名单合规检查
@@ -58,7 +58,7 @@ class ComplianceManager final : public ComplianceApi {
   /// @brief 检查订单是否满足合规规则
   /// @param request 下单请求
   /// @return 通过返回 kSuccess
-  [[nodiscard]] ErrorCode CheckOrder(const qtrade_sdk::trader::OrderRequest& request) const override;
+  [[nodiscard]] ErrorCode CheckOrder(const qtrade::sdk::trader::OrderRequest& request) const override;
 
  private:
   /// 保护规则快照

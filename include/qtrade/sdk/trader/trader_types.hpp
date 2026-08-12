@@ -9,7 +9,7 @@
 
 #include <cstdint>
 
-namespace qtrade_sdk::trader {
+namespace qtrade::sdk::trader {
 
 /// @brief 通讯传输协议类型。
 enum class ProtocolType : std::uint8_t {
@@ -301,6 +301,6 @@ enum class QuotaOperStatus : std::uint8_t {
   kUnknown = 255,
 };
 
-}  // namespace qtrade_sdk::trader
+}  // namespace qtrade::sdk::trader
 
 #endif  // QTRADE_SDK_TRADER_TYPES_HPP_

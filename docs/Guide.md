@@ -8,7 +8,7 @@
 
 |《[Architecture.md](Architecture.md)》层次|代码侧落到何处|
 |---|---|
-|适配层|`src/qtrade_sdk/`（可插拔动态库：行情源、交易通道协议转换；按厂商分子目录 mock/、emt/）|
+|适配层|`src/qtrade/sdk/`（可插拔动态库：行情源、交易通道协议转换；按厂商分子目录 mock/、emt/）|
 |交易引擎层|`src/qtrade_engine/`（与 `common/` 同级的扁平模块：事件总线、OMS、EMS、账户、持仓、风控、合规等；`#include` 仍为 `qtrade/engine/...`）|
 |支撑服务客户端|见 **qtrade_service** 仓库 `src/qtrade_service/client/`|
 |支撑服务层|见 **qtrade_service** 仓库 `src/qtrade_service/service/<名称>/`|
@@ -46,7 +46,7 @@ qtrade/
 │   │   ├── strategy/           # 策略基类接口：IStrategy
 │   │   ├── support/            # 支撑服务生命周期接口（ISupportService）
 │   │   └── dao/                # DAO 接口声明（实现见 qtrade_service）
-│   ├── qtrade_sdk/             # 插件 Target 接口：quote/、trader/（Api + Spi）
+│   ├── qtrade/sdk/             # 插件 Target 接口：quote/、trader/（Api + Spi）
 ├── src/
 │   ├── qtrade/                     # 【交易平台产品实现】
 │   │   ├── apps/                   # 【可部署二进制入口】仅含 main，目录名 = 产物名
@@ -97,7 +97,7 @@ qtrade/
 │   │   │   │   ├── sync/           # GrpcSyncServer
 │   │   │   │   └── async/          # GrpcAsyncServer、CallTag、CQ 循环
 │   │   │   └── error_code/         # include/qtrade/error_code/ 的实现（如 code_message.cpp）
-│   └── qtrade_sdk/                 # 【SDK 接口实现】对应 include/qtrade_sdk/
+│   └── qtrade/sdk/                 # 【SDK 接口实现】对应 include/qtrade/sdk/
 │       ├── mock/quote|trader/      # Mock 开发/测试适配
 │       └── emt/quote|trader/       # EMT 厂商适配
 ├── config/                         # 【示例配置】与 build/bin 二进制同名（--config 传入）
@@ -249,30 +249,30 @@ qtrade/
 
 系统包含三类可插拔组件，均编译为独立动态库（`.so`/`.dll`）：
 
-1. **行情适配器**（Target = `qtrade_sdk::quote::QuoteApi` / `QuoteSpi`）
-   - `src/qtrade_sdk/mock/quote/`：`mock_quote_api`、`mock_quote_spi`
-   - `src/qtrade_sdk/emt/quote/`：`emt_quote_api`、`emt_quote_spi`
+1. **行情适配器**（Target = `qtrade::sdk::quote::QuoteApi` / `QuoteSpi`）
+   - `src/qtrade/sdk/mock/quote/`：`mock_quote_api`、`mock_quote_spi`
+   - `src/qtrade/sdk/emt/quote/`：`emt_quote_api`、`emt_quote_spi`
 
-2. **交易适配器**（Target = `qtrade_sdk::trader::TraderApi` / `TraderSpi`）
-   - `src/qtrade_sdk/mock/trader/`：`mock_trader_api`、`mock_trader_spi`
-   - `src/qtrade_sdk/emt/trader/`：`emt_trader_api`、`emt_trader_spi`
+2. **交易适配器**（Target = `qtrade::sdk::trader::TraderApi` / `TraderSpi`）
+   - `src/qtrade/sdk/mock/trader/`：`mock_trader_api`、`mock_trader_spi`
+   - `src/qtrade/sdk/emt/trader/`：`emt_trader_api`、`emt_trader_spi`
 
 **双向适配约定**（详见 `docs/Architecture.md` §6.1）：
 
 | 适配器 | 继承 | 职责 |
 |--------|------|------|
-| `XxxQuoteApi` / `XxxTraderApi` | **Target Api**（`qtrade_sdk::*Api`） | 引擎主动调用 → 转发至厂商 Api |
+| `XxxQuoteApi` / `XxxTraderApi` | **Target Api**（`qtrade::sdk::*Api`） | 引擎主动调用 → 转发至厂商 Api |
 | `XxxQuoteSpi` / `XxxTraderSpi` | **Adaptee Spi**（厂商 `*Spi`，接入 SDK 后） | 厂商回调 → 结构体转换 → 调用引擎注册的 Target `*Spi` |
 | 引擎内 `TradingEngine` + `QuoteHealthMonitor` | **Engine Ingress** | 适配器回调接线至 EventBus；行情健康驱动 READY 门禁 |
 
-Spi 适配器**不**继承 `qtrade_sdk::*Spi`；`#include` 该头文件仅为使用 `QuoteSpi*` 与结构体类型。
+Spi 适配器**不**继承 `qtrade::sdk::*Spi`；`#include` 该头文件仅为使用 `QuoteSpi*` 与结构体类型。
 
 一个厂商接入应按以下模式接线；实际类型和回调签名以厂商 SDK 与公共头文件为准：
 
 ```cpp
-class VendorQuoteApi final : public qtrade_sdk::quote::QuoteApi {
+class VendorQuoteApi final : public qtrade::sdk::quote::QuoteApi {
  public:
-  void RegisterSpi(qtrade_sdk::quote::QuoteSpi& spi) override {
+  void RegisterSpi(qtrade::sdk::quote::QuoteSpi& spi) override {
     vendor_spi_.SetTarget(&spi);
     vendor_api_->RegisterSpi(&vendor_spi_);
   }
@@ -287,7 +287,7 @@ class VendorQuoteSpi final : public VendorSdk::QuoteSpi {
     target_->OnDepthMarketData(Normalize(data));
   }
  private:
-  qtrade_sdk::quote::QuoteSpi* target_{};
+  qtrade::sdk::quote::QuoteSpi* target_{};
 };
 ```
 
@@ -317,14 +317,14 @@ Api 适配器实现 QTrade 的稳定接口并转发调用；Spi 适配器继承�
 
 ### 6.1 共享基础代码
 
-- 跨模块共享的数据结构定义在 `qtrade_sdk/quote/`、`qtrade_sdk/trader/`；按需 `#include` 对应头文件，使用 `qtrade_sdk::quote::`、`qtrade_sdk::trader::` 命名空间
+- 跨模块共享的数据结构定义在 `qtrade/sdk/quote/`、`qtrade/sdk/trader/`；按需 `#include` 对应头文件，使用 `qtrade::sdk::quote::`、`qtrade::sdk::trader::` 命名空间
 - 错误码枚举见 `include/qtrade/error_code/error_codes.hpp`，分段规则见 `code_segment.hpp`
-- `include/qtrade/` 下需 `.cpp` 的公共 API 实现，目录镜像放在 `src/qtrade/framework/error_code/`（如 `code_message.cpp`）；SDK 适配器实现在 `src/qtrade_sdk/<vendor>/`；引擎内部 client 头文件与实现均在 `src/qtrade/client/`
+- `include/qtrade/` 下需 `.cpp` 的公共 API 实现，目录镜像放在 `src/qtrade/framework/error_code/`（如 `code_message.cpp`）；SDK 适配器实现在 `src/qtrade/sdk/<vendor>/`；引擎内部 client 头文件与实现均在 `src/qtrade/client/`
 - 模块内部头文件与 `.cpp` 同目录放在 `src/` 下，不放入 `include/`；**`src/` 内部引用**统一以 `src/` 为 include 根，路径带层前缀，例如：
   - `#include "qtrade/service/account_service/account_service.hpp"`
   - `#include <qtrade/grpc/grpc_handler_interface.hpp>`（`include/qtrade/`，随公共头安装）
   - `#include "qtrade/dao/account_service/trading_account.hpp"`
-  - `#include "qtrade_sdk/mock/quote/mock_quote_api.hpp"`
+  - `#include "qtrade/sdk/mock/quote/mock_quote_api.hpp"`
   （CMake 对实现库使用 `target_include_directories(... PRIVATE ${QTRADE_SRC_DIR})`；公共头使用 `${QTRADE_INCLUDE_DIR}`）
 - **Handler 管道内业务数据（ServerData）**使用 DAO 记录或内部 struct，**不直接持有 proto**；proto ↔ 内部结构在 `ConvertToServerData` / `BuildResponse` 边界转换（参考 `account_service/handler/`）
 

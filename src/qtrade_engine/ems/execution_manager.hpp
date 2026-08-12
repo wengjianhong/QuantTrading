@@ -40,7 +40,7 @@ class ExecutionManager final : public ExecutionApi {
 
   /// @brief 绑定交易通道 API
   /// @param trader_api 交易适配器指针；可为 nullptr 表示解除绑定
-  void SetTraderApi(qtrade_sdk::trader::TraderApi* trader_api);
+  void SetTraderApi(qtrade::sdk::trader::TraderApi* trader_api);
 
   /// @brief 绑定 OMS 稳定接口，用于发送前标记与结果回写
   /// @param order_api OMS 模块间接口；可为 nullptr
@@ -56,12 +56,12 @@ class ExecutionManager final : public ExecutionApi {
   /// @brief 将新单加入 EMS 有界队列
   /// @param order OMS 订单快照
   /// @return 成功返回 kSuccess，队列满返回 kResourceExhausted；未启动返回 kNotInitialized
-  ErrorCode Enqueue(const qtrade_sdk::trader::Order& order) override;
+  ErrorCode Enqueue(const qtrade::sdk::trader::Order& order) override;
 
   /// @brief 将撤单加入 EMS 有界队列（优先于新单）
   /// @param request 撤单请求
   /// @return 成功返回 kSuccess，队列满返回 kResourceExhausted；未启动返回 kNotInitialized
-  ErrorCode EnqueueCancel(const qtrade_sdk::trader::CancelOrderRequest& request) override;
+  ErrorCode EnqueueCancel(const qtrade::sdk::trader::CancelOrderRequest& request) override;
 
  private:
   /// @brief EMS 工作项
@@ -77,9 +77,9 @@ class ExecutionManager final : public ExecutionApi {
     /// 工作项类型
     Type type = Type::kSend;
     /// 新单快照
-    qtrade_sdk::trader::Order order;
+    qtrade::sdk::trader::Order order;
     /// 撤单请求
-    qtrade_sdk::trader::CancelOrderRequest cancel;
+    qtrade::sdk::trader::CancelOrderRequest cancel;
   };
 
   /// @brief 工作线程主循环：出队并调用交易通道
@@ -93,7 +93,7 @@ class ExecutionManager final : public ExecutionApi {
   /// EMS 队列容量
   static constexpr std::size_t kQueueCapacity = 8192;
   /// 交易通道 API；未设置时入队失败
-  qtrade_sdk::trader::TraderApi* trader_api_ = nullptr;
+  qtrade::sdk::trader::TraderApi* trader_api_ = nullptr;
   /// OMS 稳定接口；未设置时跳过状态回写
   oms::OrderApi* order_api_ = nullptr;
   /// account-risk 桥接；未设置时跳过失败释放

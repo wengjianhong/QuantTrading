@@ -14,7 +14,7 @@
 
 namespace qtrade::test::stub {
 
-namespace sdk = qtrade_sdk::quote;
+namespace sdk = qtrade::sdk::quote;
 
 StubQuoteApi::StubQuoteApi() = default;
 
@@ -213,7 +213,7 @@ void StubQuoteApi::GenerateTicks() {
         base_price += std::uniform_real_distribution<>(-0.5, 0.5)(gen);
         tick.last_price = base_price;
 
-        for (std::size_t i = 0; i < qtrade_sdk::constants::kDefaultOrderBookDepth; ++i) {
+        for (std::size_t i = 0; i < qtrade::sdk::constants::kDefaultOrderBookDepth; ++i) {
           tick.bid_price[i] = tick.last_price - 0.2 * static_cast<double>(i + 1);
           tick.bid_volume[i] = 100 + static_cast<int64_t>(i) * 50;
           tick.ask_price[i] = tick.last_price + 0.2 * static_cast<double>(i + 1);
@@ -244,7 +244,7 @@ void StubQuoteApi::GenerateTicks() {
 
 namespace qtrade::test::stub {
 
-std::unique_ptr<qtrade_sdk::quote::QuoteApi> CreateStubQuoteApi() {
+std::unique_ptr<qtrade::sdk::quote::QuoteApi> CreateStubQuoteApi() {
   return std::make_unique<StubQuoteApi>();
 }
 

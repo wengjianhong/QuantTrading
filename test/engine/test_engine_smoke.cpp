@@ -39,13 +39,13 @@ void WaitUntil(const std::function<bool()>& predicate) {
 
 void InstallStubAdapters(qtrade::engine::TradingEngine& engine) {
   auto quote_api = qtrade::test::stub::CreateStubQuoteApi();
-  qtrade_sdk::quote::ConnectRequest quote_request;
+  qtrade::sdk::quote::ConnectRequest quote_request;
   quote_request.connection_string = "stub://quote";
   EXPECT_EQ(quote_api->Connect(quote_request), qtrade::ErrorCode::kSuccess);
   engine.SetQuoteApi(std::move(quote_api));
 
   auto trader_api = qtrade::test::stub::CreateStubTraderApi();
-  qtrade_sdk::trader::ConnectRequest trader_request;
+  qtrade::sdk::trader::ConnectRequest trader_request;
   trader_request.connection_string = "stub://trader";
   EXPECT_EQ(trader_api->Connect(trader_request), qtrade::ErrorCode::kSuccess);
   engine.SetTraderApi(std::move(trader_api));
@@ -54,8 +54,8 @@ void InstallStubAdapters(qtrade::engine::TradingEngine& engine) {
 }  // namespace
 
 TEST(EngineSmoke, TradingEngineStartStop) {
-  const auto config = MakeTestEngineConfig(
-    "test-engine-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+  const auto config =
+    MakeTestEngineConfig("test-engine-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
   qtrade::engine::TradingEngine engine;
   ASSERT_EQ(engine.Init(config), qtrade::ErrorCode::kSuccess);
   InstallStubAdapters(engine);
@@ -71,7 +71,7 @@ TEST(EngineSmoke, TradingEngineStartStop) {
 }
 
 TEST(EngineSmoke, MarketTickSize) {
-  qtrade_sdk::quote::MarketTick tick;
+  qtrade::sdk::quote::MarketTick tick;
   (void)tick;
   SUCCEED();
 }

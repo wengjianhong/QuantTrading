@@ -13,8 +13,8 @@
 
 #include <qtrade/bridge/account_risk_bridge.hpp>
 #include <qtrade/error_code/error_codes.hpp>
-#include <qtrade/strategy/strategy.hpp>
 #include <qtrade/sdk/trader/trader_struct.hpp>
+#include <qtrade/strategy/strategy.hpp>
 
 #include <string>
 
@@ -33,7 +33,7 @@ class OrderPipeline {
 
   void SetAccountRiskIdentity(std::string account_id, std::string engine_id);
 
-  ErrorCode Submit(const qtrade_sdk::trader::OrderRequest& request);
+  ErrorCode Submit(const qtrade::sdk::trader::OrderRequest& request);
 
   ErrorCode SubmitBatch(const qtrade::strategy::OrderBatch& batch);
 

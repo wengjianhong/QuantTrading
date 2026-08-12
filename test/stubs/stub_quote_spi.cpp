@@ -8,7 +8,7 @@
 
 namespace qtrade::test::stub {
 
-void StubQuoteSpi::PublishDepthMarketData(const qtrade_sdk::quote::MarketTick& market_data) {
+void StubQuoteSpi::PublishDepthMarketData(const qtrade::sdk::quote::MarketTick& market_data) {
   if (target_ != nullptr) {
     target_->OnDepthMarketData(market_data, {}, {});
   }

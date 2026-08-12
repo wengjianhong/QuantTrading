@@ -14,7 +14,7 @@
 namespace qtrade::engine::account {
 using qtrade::common::utils::GenerateTradeDedupKey;
 
-void AccountManager::ApplyAssetSnapshot(const qtrade_sdk::trader::AccountAsset& asset) {
+void AccountManager::ApplyAssetSnapshot(const qtrade::sdk::trader::AccountAsset& asset) {
   std::lock_guard lock(mutex_);
   asset_ = asset;
   has_asset_snapshot_ = true;
@@ -28,12 +28,12 @@ void AccountManager::ApplyOrder(const Order& order) {
   }
 
   // 1. 计算本订单当前应冻结名义金额（终态或非占用资金方向为 0）
-  const bool terminal = order.status == qtrade_sdk::trader::OrderStatusType::kFilled ||
-                        order.status == qtrade_sdk::trader::OrderStatusType::kCanceled ||
-                        order.status == qtrade_sdk::trader::OrderStatusType::kRejected;
-  const bool consumes_cash = order.side == qtrade_sdk::trader::SideType::kBuy ||
-                             order.side == qtrade_sdk::trader::SideType::kMarginTrade ||
-                             order.side == qtrade_sdk::trader::SideType::kPurchase;
+  const bool terminal = order.status == qtrade::sdk::trader::OrderStatusType::kFilled ||
+                        order.status == qtrade::sdk::trader::OrderStatusType::kCanceled ||
+                        order.status == qtrade::sdk::trader::OrderStatusType::kRejected;
+  const bool consumes_cash = order.side == qtrade::sdk::trader::SideType::kBuy ||
+                             order.side == qtrade::sdk::trader::SideType::kMarginTrade ||
+                             order.side == qtrade::sdk::trader::SideType::kPurchase;
   double frozen = 0.0;
   if (!terminal && consumes_cash && std::isfinite(order.price) && order.price > 0.0) {
     frozen = order.price * static_cast<double>(std::max<std::int64_t>(0, order.left_volume));
@@ -64,12 +64,12 @@ void AccountManager::ApplyTrade(const Trade& trade) {
     return;
   }
   filled_amount_ += amount;
-  if (trade.side == qtrade_sdk::trader::SideType::kBuy || trade.side == qtrade_sdk::trader::SideType::kMarginTrade ||
-      trade.side == qtrade_sdk::trader::SideType::kPurchase) {
+  if (trade.side == qtrade::sdk::trader::SideType::kBuy || trade.side == qtrade::sdk::trader::SideType::kMarginTrade ||
+      trade.side == qtrade::sdk::trader::SideType::kPurchase) {
     net_cash_flow_ -= amount;
-  } else if (trade.side == qtrade_sdk::trader::SideType::kSell ||
-             trade.side == qtrade_sdk::trader::SideType::kShortSell ||
-             trade.side == qtrade_sdk::trader::SideType::kRedemption) {
+  } else if (trade.side == qtrade::sdk::trader::SideType::kSell ||
+             trade.side == qtrade::sdk::trader::SideType::kShortSell ||
+             trade.side == qtrade::sdk::trader::SideType::kRedemption) {
     net_cash_flow_ += amount;
   }
 }

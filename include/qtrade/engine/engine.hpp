@@ -130,11 +130,11 @@ class IEngine {
 
   /// @brief 注入行情适配器；须已 Connect。可在 Init 前后设置，但须在 Start 之前
   /// @param quote_api 所有权转入引擎
-  virtual void SetQuoteApi(std::unique_ptr<qtrade_sdk::quote::QuoteApi> quote_api) = 0;
+  virtual void SetQuoteApi(std::unique_ptr<qtrade::sdk::quote::QuoteApi> quote_api) = 0;
 
   /// @brief 注入交易适配器；须已 Connect。可在 Init 前后设置，但须在 Start 之前
   /// @param trader_api 所有权转入引擎
-  virtual void SetTraderApi(std::unique_ptr<qtrade_sdk::trader::TraderApi> trader_api) = 0;
+  virtual void SetTraderApi(std::unique_ptr<qtrade::sdk::trader::TraderApi> trader_api) = 0;
 
   // ---------------------------------------------------------------------------
   // 策略登记（须在 Start 之前；不支持运行中增删或单策略启停）

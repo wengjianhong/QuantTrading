@@ -13,7 +13,7 @@
 #include <algorithm>
 
 namespace qtrade::engine::oms {
-namespace trader = qtrade_sdk::trader;
+namespace trader = qtrade::sdk::trader;
 using qtrade::common::utils::GenerateTradeDedupKey;
 
 namespace {

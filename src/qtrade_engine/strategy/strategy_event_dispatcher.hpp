@@ -47,19 +47,19 @@ class StrategyEventDispatcher {
  private:
   /// @brief 处理 Tick：有路由则单播，否则广播
   /// @param tick 行情 tick
-  void OnTick(const qtrade_sdk::quote::MarketTick& tick);
+  void OnTick(const qtrade::sdk::quote::MarketTick& tick);
 
   /// @brief 处理 Bar：有路由则单播，否则广播
   /// @param bar K线周期柱
-  void OnBar(const qtrade_sdk::quote::Bar& bar);
+  void OnBar(const qtrade::sdk::quote::Bar& bar);
 
   /// @brief 处理委托回报：有路由则单播，否则广播
   /// @param order 委托
-  void OnOrder(const qtrade_sdk::trader::Order& order);
+  void OnOrder(const qtrade::sdk::trader::Order& order);
 
   /// @brief 处理成交回报：有路由则单播，否则广播
   /// @param trade 成交
-  void OnTrade(const qtrade_sdk::trader::Trade& trade);
+  void OnTrade(const qtrade::sdk::trader::Trade& trade);
 
   /// 保护路由快照读写
   mutable std::mutex mutex_;

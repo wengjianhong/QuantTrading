@@ -10,7 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace qtrade_sdk::constants {
+namespace qtrade::sdk::constants {
 
 /// @brief 错误信息最大长度，对应 EMT_ERR_MSG_LEN。
 inline constexpr std::size_t kErrorMessageLength = 124;
@@ -49,6 +49,6 @@ inline constexpr std::int64_t kMaxOrderVolume = 1000000;
 /// @brief 价格比较精度。
 inline constexpr double kPricePrecision = 1e-6;
 
-}  // namespace qtrade_sdk::constants
+}  // namespace qtrade::sdk::constants
 
 #endif  // QTRADE_SDK_CONSTANTS_HPP_

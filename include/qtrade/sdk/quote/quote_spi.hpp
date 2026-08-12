@@ -12,7 +12,7 @@
 #include <cstdint>
 #include <span>
 
-namespace qtrade_sdk::quote {
+namespace qtrade::sdk::quote {
 
 /// @brief 行情回调接口。
 class QuoteSpi {
@@ -117,6 +117,6 @@ class QuoteSpi {
   virtual void OnRebuildSzData(const RebuildRespData* rebuild_data, const RspInfo* error_info, bool is_last) = 0;
 };
 
-}  // namespace qtrade_sdk::quote
+}  // namespace qtrade::sdk::quote
 
 #endif  // QTRADE_SDK_QUOTE_SPI_HPP_

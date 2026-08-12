@@ -9,7 +9,7 @@
 
 #include <cstdint>
 
-namespace qtrade_sdk::quote {
+namespace qtrade::sdk::quote {
 
 /// @brief 行情侧交易所类型。
 enum class ExchangeType : std::uint8_t {
@@ -39,6 +39,6 @@ enum class TickerType : std::uint8_t {
   kUnknown = 255,
 };
 
-}  // namespace qtrade_sdk::quote
+}  // namespace qtrade::sdk::quote
 
 #endif  // QTRADE_SDK_QUOTE_TYPES_HPP_

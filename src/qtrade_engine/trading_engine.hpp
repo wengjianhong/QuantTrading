@@ -63,8 +63,8 @@ class TradingEngine final : public IEngine {
 
   void SetAccountBridge(qtrade::account::IAccountBridge* bridge) override;
   void SetAccountRiskBridge(qtrade::account_risk::IAccountRiskBridge* bridge) override;
-  void SetQuoteApi(std::unique_ptr<qtrade_sdk::quote::QuoteApi> quote_api) override;
-  void SetTraderApi(std::unique_ptr<qtrade_sdk::trader::TraderApi> trader_api) override;
+  void SetQuoteApi(std::unique_ptr<qtrade::sdk::quote::QuoteApi> quote_api) override;
+  void SetTraderApi(std::unique_ptr<qtrade::sdk::trader::TraderApi> trader_api) override;
 
   // ---------------------------------------------------------------------------
   // IEngine：策略登记（须在 Start 前）
@@ -86,10 +86,10 @@ class TradingEngine final : public IEngine {
   [[nodiscard]] EngineConfig GetRuntimeConfig() const;
 
   /// @brief 返回当前行情适配器；未设置时返回 nullptr
-  [[nodiscard]] qtrade_sdk::quote::QuoteApi* GetQuoteApi();
+  [[nodiscard]] qtrade::sdk::quote::QuoteApi* GetQuoteApi();
 
   /// @brief 返回当前交易适配器；未设置时返回 nullptr
-  [[nodiscard]] qtrade_sdk::trader::TraderApi* GetTraderApi();
+  [[nodiscard]] qtrade::sdk::trader::TraderApi* GetTraderApi();
 
   /// @brief 订阅合约行情（须已 Start）；测试与内部配置热更新使用
   void SubscribeQuote(const std::vector<std::string>& instruments);
@@ -200,7 +200,7 @@ class TradingEngine final : public IEngine {
   /// @brief 查询柜台快照并完成启动对账
   /// @param trader_api 交易适配器指针
   /// @return ErrorCode::kSuccess 表示成功
-  ErrorCode SynchronizeBrokerState(qtrade_sdk::trader::TraderApi* trader_api);
+  ErrorCode SynchronizeBrokerState(qtrade::sdk::trader::TraderApi* trader_api);
 
   // ---------------------------------------------------------------------------
   // 运行时回调（配置应用 / 行情健康 → 生命周期）
@@ -220,11 +220,11 @@ class TradingEngine final : public IEngine {
 
   /// @brief 处理 Lane-T 订单回报：更新 OMS/账户并在终态释放 account-risk 预占
   /// @param order 柜台订单回报
-  void OnTraderOrderReport(const qtrade_sdk::trader::Order& order);
+  void OnTraderOrderReport(const qtrade::sdk::trader::Order& order);
 
   /// @brief 处理 Lane-T 成交回报：更新 OMS/账户/持仓并在全成后释放 account-risk 预占
   /// @param trade 柜台成交回报
-  void OnTraderTradeReport(const qtrade_sdk::trader::Trade& trade);
+  void OnTraderTradeReport(const qtrade::sdk::trader::Trade& trade);
 
   /// @brief 尽力调用 account-risk ReleaseOrder（无本地 outbox）
   /// @param order_id 委托 ID
@@ -264,9 +264,9 @@ class TradingEngine final : public IEngine {
   /// 行情健康监控
   QuoteHealthMonitor quote_health_monitor_;
   /// 行情适配器
-  std::unique_ptr<qtrade_sdk::quote::QuoteApi> quote_api_;
+  std::unique_ptr<qtrade::sdk::quote::QuoteApi> quote_api_;
   /// 交易适配器
-  std::unique_ptr<qtrade_sdk::trader::TraderApi> trader_api_;
+  std::unique_ptr<qtrade::sdk::trader::TraderApi> trader_api_;
 
   // ---------------------------------------------------------------------------
   // 成员：交易核心内的子模块

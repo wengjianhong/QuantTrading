@@ -38,10 +38,10 @@ class ConfigurableStrategy final : public qtrade::strategy::IStrategy {
     return state_->config;
   }
 
-  void OnTick(const qtrade_sdk::quote::MarketTick&) override {}
-  void OnBar(const qtrade_sdk::quote::Bar&) override {}
-  void OnOrder(const qtrade_sdk::trader::Order&) override {}
-  void OnTrade(const qtrade_sdk::trader::Trade&) override {}
+  void OnTick(const qtrade::sdk::quote::MarketTick&) override {}
+  void OnBar(const qtrade::sdk::quote::Bar&) override {}
+  void OnOrder(const qtrade::sdk::trader::Order&) override {}
+  void OnTrade(const qtrade::sdk::trader::Trade&) override {}
 
  private:
   std::shared_ptr<StrategyState> state_;

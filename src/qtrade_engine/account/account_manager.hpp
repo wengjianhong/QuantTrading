@@ -20,9 +20,9 @@ namespace qtrade::engine::account {
 class AccountManager {
  public:
   /// 订单快照别名
-  using Order = qtrade_sdk::trader::Order;
+  using Order = qtrade::sdk::trader::Order;
   /// 成交回报别名
-  using Trade = qtrade_sdk::trader::Trade;
+  using Trade = qtrade::sdk::trader::Trade;
 
   /// @brief 构造空账户视图
   AccountManager() = default;
@@ -32,7 +32,7 @@ class AccountManager {
 
   /// @brief 应用柜台资金快照
   /// @param asset 最新账户资产
-  void ApplyAssetSnapshot(const qtrade_sdk::trader::AccountAsset& asset);
+  void ApplyAssetSnapshot(const qtrade::sdk::trader::AccountAsset& asset);
 
   /// @brief 根据订单剩余量更新本地冻结名义金额
   /// @param order 最新订单快照
@@ -66,7 +66,7 @@ class AccountManager {
   /// 已应用成交幂等键；用于避免重复应用成交
   std::unordered_set<std::string> applied_trade_ids_;
   /// 最近柜台资产快照；用于计算可用资金
-  qtrade_sdk::trader::AccountAsset asset_;
+  qtrade::sdk::trader::AccountAsset asset_;
   /// 是否已有柜台资产快照；用于避免重复应用资产快照
   bool has_asset_snapshot_ = false;
   /// 活动订单冻结合计；用于计算可用资金

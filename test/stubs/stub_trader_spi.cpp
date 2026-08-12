@@ -14,15 +14,15 @@ void StubTraderSpi::PublishConnected() {
   }
 }
 
-void StubTraderSpi::PublishOrderEvent(const qtrade_sdk::trader::Order& order_info,
-                                      const qtrade_sdk::trader::RspInfo* error_info,
+void StubTraderSpi::PublishOrderEvent(const qtrade::sdk::trader::Order& order_info,
+                                      const qtrade::sdk::trader::RspInfo* error_info,
                                       std::uint64_t session_id) {
   if (target_ != nullptr) {
     target_->OnOrderEvent(order_info, error_info, session_id);
   }
 }
 
-void StubTraderSpi::PublishTradeEvent(const qtrade_sdk::trader::Trade& trade_info, std::uint64_t session_id) {
+void StubTraderSpi::PublishTradeEvent(const qtrade::sdk::trader::Trade& trade_info, std::uint64_t session_id) {
   if (target_ != nullptr) {
     target_->OnTradeEvent(trade_info, session_id);
   }

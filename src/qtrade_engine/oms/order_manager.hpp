@@ -67,19 +67,19 @@ class OrderManager final : public OrderApi {
   /// @param request 下单请求
   /// @param order_id 已分配的全局订单 ID
   /// @return 创建成功返回订单；未 Initialize 返回 nullopt
-  std::optional<qtrade_sdk::trader::Order> CreateOrder(const qtrade_sdk::trader::OrderRequest& request,
-                                                       const std::string& order_id) override;
+  std::optional<qtrade::sdk::trader::Order> CreateOrder(const qtrade::sdk::trader::OrderRequest& request,
+                                                        const std::string& order_id) override;
 
   /// @brief 按客户端订单 ID 查询
   /// @param client_order_id 策略侧客户端订单 ID
   /// @return 存在则返回订单快照
-  [[nodiscard]] std::optional<qtrade_sdk::trader::Order> GetOrderByClientId(
+  [[nodiscard]] std::optional<qtrade::sdk::trader::Order> GetOrderByClientId(
     std::uint32_t client_order_id) const override;
 
   /// @brief 按全局订单 ID 查询
   /// @param order_id 全局订单 ID
   /// @return 存在则返回订单快照
-  [[nodiscard]] std::optional<qtrade_sdk::trader::Order> GetOrder(const std::string& order_id) const override;
+  [[nodiscard]] std::optional<qtrade::sdk::trader::Order> GetOrder(const std::string& order_id) const override;
 
   /// @brief 查询订单生命周期状态
   /// @param order_id 全局订单 ID
@@ -121,11 +121,11 @@ class OrderManager final : public OrderApi {
   /// @details 便捷入口：内部 AllocateOrderId 后写入本地表（单测等）
   /// @param request 下单请求
   /// @return 创建成功返回订单；未 Initialize 返回 nullopt
-  std::optional<qtrade_sdk::trader::Order> CreateOrder(const qtrade_sdk::trader::OrderRequest& request);
+  std::optional<qtrade::sdk::trader::Order> CreateOrder(const qtrade::sdk::trader::OrderRequest& request);
 
   /// @brief 返回仍需向柜台查询的活动/不确定订单
   /// @return SendPending、SendUnknown、Working、CancelPending 且尚未 MarkReconciled 的订单快照
-  [[nodiscard]] std::vector<qtrade_sdk::trader::Order> GetOrdersRequiringReconciliation() const;
+  [[nodiscard]] std::vector<qtrade::sdk::trader::Order> GetOrdersRequiringReconciliation() const;
 
   /// @brief 标记订单已由启动期柜台快照确认
   /// @param order_id 全局订单 ID
@@ -145,15 +145,15 @@ class OrderManager final : public OrderApi {
 
   /// @brief 应用订单回报快照
   /// @param report 订单回报
-  void ApplyOrderReport(const qtrade_sdk::trader::Order& report);
+  void ApplyOrderReport(const qtrade::sdk::trader::Order& report);
 
   /// @brief 应用成交回报
   /// @param report 成交回报
-  void ApplyTradeReport(const qtrade_sdk::trader::Trade& report);
+  void ApplyTradeReport(const qtrade::sdk::trader::Trade& report);
 
   /// @brief 柜台对账：无本地订单则按快照采纳进内存（不触发发单），有则合并更新
   /// @param report 柜台订单快照
-  void ReconcileBrokerOrder(const qtrade_sdk::trader::Order& report);
+  void ReconcileBrokerOrder(const qtrade::sdk::trader::Order& report);
 
  private:
   // ---------------------------------------------------------------------------
@@ -163,7 +163,7 @@ class OrderManager final : public OrderApi {
   /// @brief OMS 内部订单条目
   struct OrderEntry {
     /// 订单快照
-    qtrade_sdk::trader::Order order;
+    qtrade::sdk::trader::Order order;
     /// 引擎内生命周期
     OrderLifecycleState lifecycle_state = OrderLifecycleState::kPrepared;
   };
@@ -223,13 +223,13 @@ class OrderManager final : public OrderApi {
   /// @brief 将柜台/回报快照字段合并进本地条目
   /// @param entry 本地条目
   /// @param report 外部订单快照
-  static void MergeOrderSnapshot(OrderEntry& entry, const qtrade_sdk::trader::Order& report);
+  static void MergeOrderSnapshot(OrderEntry& entry, const qtrade::sdk::trader::Order& report);
 
   /// @brief 由柜台订单状态推导生命周期
   /// @param status 柜台/回报订单状态
   /// @param fallback 无法映射时的回退状态（通常为 Working）
   /// @return 对应生命周期状态
-  [[nodiscard]] static OrderLifecycleState LifecycleFromOrderStatus(qtrade_sdk::trader::OrderStatusType status,
+  [[nodiscard]] static OrderLifecycleState LifecycleFromOrderStatus(qtrade::sdk::trader::OrderStatusType status,
                                                                     OrderLifecycleState fallback);
 };
 

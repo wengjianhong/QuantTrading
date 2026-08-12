@@ -14,7 +14,7 @@
 #include <string>
 #include <vector>
 
-namespace qtrade_sdk::trader {
+namespace qtrade::sdk::trader {
 
 /// @brief 交易 API 错误响应信息，对应 EMTRI。
 struct RspInfo {
@@ -340,6 +340,6 @@ struct QueryAssetResponse {
   AccountAsset asset;
 };
 
-}  // namespace qtrade_sdk::trader
+}  // namespace qtrade::sdk::trader
 
 #endif  // QTRADE_SDK_TRADER_STRUCT_HPP_

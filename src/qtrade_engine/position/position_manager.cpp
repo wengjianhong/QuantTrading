@@ -14,7 +14,7 @@
 #include <shared_mutex>
 
 namespace qtrade::engine::position {
-namespace trader = qtrade_sdk::trader;
+namespace trader = qtrade::sdk::trader;
 using qtrade::common::utils::GenerateTradeDedupKey;
 
 namespace {

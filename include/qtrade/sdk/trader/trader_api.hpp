@@ -14,7 +14,7 @@
 #include <functional>
 #include <string>
 
-namespace qtrade_sdk::trader {
+namespace qtrade::sdk::trader {
 
 /// @brief 交易 API 抽象接口。
 class TraderApi {
@@ -278,6 +278,6 @@ using ITradeGateway = TraderApi;
 /// @brief 执行适配器接口别名。
 using IExecutionAdapter = TraderApi;
 
-}  // namespace qtrade_sdk::trader
+}  // namespace qtrade::sdk::trader
 
 #endif  // QTRADE_SDK_TRADER_API_HPP_

@@ -1,5 +1,5 @@
 /// @file      stub_quote_api.hpp
-/// @brief     Mock QuoteApi 适配器（Target: qtrade_sdk::quote::QuoteApi）
+/// @brief     Mock QuoteApi 适配器（Target: qtrade::sdk::quote::QuoteApi）
 /// @details   提供可用于演示和测试的内存行情接口实现。
 /// @author    qtrade
 /// @date      2026-07-19
@@ -24,108 +24,109 @@ namespace qtrade::test::stub {
 
 /// @brief 测试用 Stub 行情 API 适配器。
 /// @details 模拟行情连接、订阅和行情回调，实现 qtrade SDK 行情接口。
-class StubQuoteApi final : public qtrade_sdk::quote::QuoteApi {
+class StubQuoteApi final : public qtrade::sdk::quote::QuoteApi {
  public:
   /// @brief 构造 测试用 Stub 行情 API 适配器。
   StubQuoteApi();
   /// @brief 析构 测试用 Stub 行情 API 适配器。
   ~StubQuoteApi() override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::RegisterSpi
-  void RegisterSpi(qtrade_sdk::quote::QuoteSpi& quote_spi) override;
+  /// @copydoc qtrade::sdk::quote::QuoteApi::RegisterSpi
+  void RegisterSpi(qtrade::sdk::quote::QuoteSpi& quote_spi) override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::UnregisterSpi
+  /// @copydoc qtrade::sdk::quote::QuoteApi::UnregisterSpi
   void UnregisterSpi() override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::Connect
-  qtrade::ErrorCode Connect(const qtrade_sdk::quote::ConnectRequest& request) override;
+  /// @copydoc qtrade::sdk::quote::QuoteApi::Connect
+  qtrade::ErrorCode Connect(const qtrade::sdk::quote::ConnectRequest& request) override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::Disconnect
+  /// @copydoc qtrade::sdk::quote::QuoteApi::Disconnect
   void Disconnect() override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::IsConnected
+  /// @copydoc qtrade::sdk::quote::QuoteApi::IsConnected
   bool IsConnected() const override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::Login
+  /// @copydoc qtrade::sdk::quote::QuoteApi::Login
   std::int32_t Login(const std::string& ip,
                      std::uint16_t port,
                      const std::string& user,
                      const std::string& pwd) override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::Logout
+  /// @copydoc qtrade::sdk::quote::QuoteApi::Logout
   void Logout() override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::RebuildSzData
+  /// @copydoc qtrade::sdk::quote::QuoteApi::RebuildSzData
   std::int32_t RebuildSzData(std::uint32_t channel_no,
                              std::uint64_t begin_seq,
                              std::uint64_t end_seq,
                              std::uint64_t request_id) override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::SetThreadAffinity
+  /// @copydoc qtrade::sdk::quote::QuoteApi::SetThreadAffinity
   void SetThreadAffinity(std::int32_t recv_cpu_no, std::int32_t process_cpu_no) override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::SetBuffer
+  /// @copydoc qtrade::sdk::quote::QuoteApi::SetBuffer
   std::int32_t SetBuffer(std::size_t buffer_size) override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::SubscribeAllIndexData
-  int SubscribeAllIndexData(qtrade_sdk::quote::ExchangeType exchange_id) override;
+  /// @copydoc qtrade::sdk::quote::QuoteApi::SubscribeAllIndexData
+  int SubscribeAllIndexData(qtrade::sdk::quote::ExchangeType exchange_id) override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::UnSubscribeAllIndexData
-  int UnSubscribeAllIndexData(qtrade_sdk::quote::ExchangeType exchange_id) override;
+  /// @copydoc qtrade::sdk::quote::QuoteApi::UnSubscribeAllIndexData
+  int UnSubscribeAllIndexData(qtrade::sdk::quote::ExchangeType exchange_id) override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::SubscribeIndexData
-  int SubscribeIndexData(const std::vector<std::string>& tickers, qtrade_sdk::quote::ExchangeType exchange_id) override;
+  /// @copydoc qtrade::sdk::quote::QuoteApi::SubscribeIndexData
+  int SubscribeIndexData(const std::vector<std::string>& tickers,
+                         qtrade::sdk::quote::ExchangeType exchange_id) override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::UnSubscribeIndexData
+  /// @copydoc qtrade::sdk::quote::QuoteApi::UnSubscribeIndexData
   int UnSubscribeIndexData(const std::vector<std::string>& tickers,
-                           qtrade_sdk::quote::ExchangeType exchange_id) override;
+                           qtrade::sdk::quote::ExchangeType exchange_id) override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::SubscribeAllMarketData
-  int SubscribeAllMarketData(qtrade_sdk::quote::ExchangeType exchange_id) override;
+  /// @copydoc qtrade::sdk::quote::QuoteApi::SubscribeAllMarketData
+  int SubscribeAllMarketData(qtrade::sdk::quote::ExchangeType exchange_id) override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::UnSubscribeAllMarketData
-  int UnSubscribeAllMarketData(qtrade_sdk::quote::ExchangeType exchange_id) override;
+  /// @copydoc qtrade::sdk::quote::QuoteApi::UnSubscribeAllMarketData
+  int UnSubscribeAllMarketData(qtrade::sdk::quote::ExchangeType exchange_id) override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::SubscribeMarketData
+  /// @copydoc qtrade::sdk::quote::QuoteApi::SubscribeMarketData
   int SubscribeMarketData(const std::vector<std::string>& tickers,
-                          qtrade_sdk::quote::ExchangeType exchange_id) override;
+                          qtrade::sdk::quote::ExchangeType exchange_id) override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::UnSubscribeMarketData
+  /// @copydoc qtrade::sdk::quote::QuoteApi::UnSubscribeMarketData
   int UnSubscribeMarketData(const std::vector<std::string>& tickers,
-                            qtrade_sdk::quote::ExchangeType exchange_id) override;
+                            qtrade::sdk::quote::ExchangeType exchange_id) override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::Subscribe
-  qtrade::ErrorCode Subscribe(const qtrade_sdk::quote::SubscribeRequest& request) override;
+  /// @copydoc qtrade::sdk::quote::QuoteApi::Subscribe
+  qtrade::ErrorCode Subscribe(const qtrade::sdk::quote::SubscribeRequest& request) override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::Unsubscribe
-  qtrade::ErrorCode Unsubscribe(const qtrade_sdk::quote::UnsubscribeRequest& request) override;
+  /// @copydoc qtrade::sdk::quote::QuoteApi::Unsubscribe
+  qtrade::ErrorCode Unsubscribe(const qtrade::sdk::quote::UnsubscribeRequest& request) override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::QueryAllTickers
-  int QueryAllTickers(qtrade_sdk::quote::ExchangeType exchange_id) override;
+  /// @copydoc qtrade::sdk::quote::QuoteApi::QueryAllTickers
+  int QueryAllTickers(qtrade::sdk::quote::ExchangeType exchange_id) override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::QueryAllTickersFullInfo
-  int QueryAllTickersFullInfo(qtrade_sdk::quote::ExchangeType exchange_id) override;
+  /// @copydoc qtrade::sdk::quote::QuoteApi::QueryAllTickersFullInfo
+  int QueryAllTickersFullInfo(qtrade::sdk::quote::ExchangeType exchange_id) override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::QueryLatestInfo
+  /// @copydoc qtrade::sdk::quote::QuoteApi::QueryLatestInfo
   int QueryLatestInfo(const std::vector<std::string>& tickers,
-                      qtrade_sdk::quote::TickerType ticker_type,
-                      qtrade_sdk::quote::ExchangeType exchange_id) override;
+                      qtrade::sdk::quote::TickerType ticker_type,
+                      qtrade::sdk::quote::ExchangeType exchange_id) override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::QueryTickersPriceInfo
+  /// @copydoc qtrade::sdk::quote::QuoteApi::QueryTickersPriceInfo
   int QueryTickersPriceInfo(const std::vector<std::string>& tickers,
-                            qtrade_sdk::quote::ExchangeType exchange_id) override;
+                            qtrade::sdk::quote::ExchangeType exchange_id) override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::QuerySnapshot
-  qtrade::ErrorCode QuerySnapshot(const qtrade_sdk::quote::QuerySnapshotRequest& request,
-                                  qtrade_sdk::quote::QuerySnapshotResponse& response) override;
+  /// @copydoc qtrade::sdk::quote::QuoteApi::QuerySnapshot
+  qtrade::ErrorCode QuerySnapshot(const qtrade::sdk::quote::QuerySnapshotRequest& request,
+                                  qtrade::sdk::quote::QuerySnapshotResponse& response) override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::SetTickCallback
+  /// @copydoc qtrade::sdk::quote::QuoteApi::SetTickCallback
   void SetTickCallback(TickCallback cb) override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::SetBarCallback
+  /// @copydoc qtrade::sdk::quote::QuoteApi::SetBarCallback
   void SetBarCallback(BarCallback cb) override;
 
-  /// @copydoc qtrade_sdk::quote::QuoteApi::GetSupportedInstruments
+  /// @copydoc qtrade::sdk::quote::QuoteApi::GetSupportedInstruments
   std::vector<std::string> GetSupportedInstruments() const override;
 
  private:
@@ -135,13 +136,13 @@ class StubQuoteApi final : public qtrade_sdk::quote::QuoteApi {
   /// @brief 测试用 Stub 行情回调适配器。
   StubQuoteSpi mock_spi_;
   /// @brief 已注册的 qtrade 行情回调对象。
-  qtrade_sdk::quote::QuoteSpi* quote_spi_ = nullptr;
+  qtrade::sdk::quote::QuoteSpi* quote_spi_ = nullptr;
   /// @brief Tick 数据回调。
   TickCallback on_tick_ = nullptr;
   /// @brief Bar 数据回调。
   BarCallback on_bar_ = nullptr;
   /// @brief 当前连接配置。
-  qtrade_sdk::quote::ConnectRequest config_;
+  qtrade::sdk::quote::ConnectRequest config_;
   /// @brief 连接状态。
   std::atomic<bool> connected_ = false;
   /// @brief 模拟 Tick 生成线程的运行状态。
@@ -156,7 +157,7 @@ class StubQuoteApi final : public qtrade_sdk::quote::QuoteApi {
 
 /// @brief 创建 测试用 Stub 行情 API。
 /// @return 用于演示与测试的行情 API 实例。
-std::unique_ptr<qtrade_sdk::quote::QuoteApi> CreateStubQuoteApi();
+std::unique_ptr<qtrade::sdk::quote::QuoteApi> CreateStubQuoteApi();
 
 }  // namespace qtrade::test::stub
 

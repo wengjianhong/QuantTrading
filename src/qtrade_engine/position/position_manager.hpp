@@ -1,6 +1,6 @@
 /// @file      position_manager.hpp
 /// @brief     持仓管理器
-/// @details   按合约与官方持仓方向维护 qtrade_sdk::trader::Position；
+/// @details   按合约与官方持仓方向维护 qtrade::sdk::trader::Position；
 ///            支持柜台快照覆盖与成交幂等增量更新。
 /// @author    wengjianhong
 /// @date      2026-05-19
@@ -20,9 +20,9 @@
 #include <vector>
 
 namespace qtrade::engine::position {
-using qtrade_sdk::trader::Position;
-using qtrade_sdk::trader::PositionDirectionType;
-using qtrade_sdk::trader::Trade;
+using qtrade::sdk::trader::Position;
+using qtrade::sdk::trader::PositionDirectionType;
+using qtrade::sdk::trader::Trade;
 
 /// @brief 按合约与方向维护持仓的幂等管理器
 class PositionManager {

@@ -38,10 +38,10 @@ std::uint64_t RiskManager::Version() const {
   return limits_.version;
 }
 
-ErrorCode RiskManager::CheckOrder(const qtrade_sdk::trader::OrderRequest& request) const {
+ErrorCode RiskManager::CheckOrder(const qtrade::sdk::trader::OrderRequest& request) const {
   // 1. 基础字段合法性
   if (request.instrument.empty() || request.volume <= 0 || !std::isfinite(request.price) || request.price < 0.0 ||
-      (request.price_type == qtrade_sdk::trader::PriceType::kLimit && request.price <= 0.0)) {
+      (request.price_type == qtrade::sdk::trader::PriceType::kLimit && request.price <= 0.0)) {
     return ErrorCode::kSystemError;
   }
 

@@ -16,7 +16,7 @@
 #include <string>
 #include <vector>
 
-namespace qtrade_sdk::quote {
+namespace qtrade::sdk::quote {
 
 /// @brief 行情 API 抽象接口。
 class QuoteApi {
@@ -185,6 +185,6 @@ class QuoteApi {
   virtual std::vector<std::string> GetSupportedInstruments() const = 0;
 };
 
-}  // namespace qtrade_sdk::quote
+}  // namespace qtrade::sdk::quote
 
 #endif  // QTRADE_SDK_QUOTE_API_HPP_

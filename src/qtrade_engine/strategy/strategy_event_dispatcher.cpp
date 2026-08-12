@@ -32,10 +32,10 @@ void StrategyEventDispatcher::Subscribe() {
   if (subscribed_) {
     return;
   }
-  event_lanes_.Quote().SubscribeTick([this](const qtrade_sdk::quote::MarketTick& tick) { OnTick(tick); });
-  event_lanes_.Quote().SubscribeBar([this](const qtrade_sdk::quote::Bar& bar) { OnBar(bar); });
-  event_lanes_.Trader().SubscribeOrder([this](const qtrade_sdk::trader::Order& order) { OnOrder(order); });
-  event_lanes_.Trader().SubscribeTrade([this](const qtrade_sdk::trader::Trade& trade) { OnTrade(trade); });
+  event_lanes_.Quote().SubscribeTick([this](const qtrade::sdk::quote::MarketTick& tick) { OnTick(tick); });
+  event_lanes_.Quote().SubscribeBar([this](const qtrade::sdk::quote::Bar& bar) { OnBar(bar); });
+  event_lanes_.Trader().SubscribeOrder([this](const qtrade::sdk::trader::Order& order) { OnOrder(order); });
+  event_lanes_.Trader().SubscribeTrade([this](const qtrade::sdk::trader::Trade& trade) { OnTrade(trade); });
   subscribed_ = true;
 }
 
@@ -43,7 +43,7 @@ void StrategyEventDispatcher::SetActive(bool active) {
   active_.store(active);
 }
 
-void StrategyEventDispatcher::OnTick(const qtrade_sdk::quote::MarketTick& tick) {
+void StrategyEventDispatcher::OnTick(const qtrade::sdk::quote::MarketTick& tick) {
   std::lock_guard lock(mutex_);
   if (!active_.load()) {
     return;
@@ -69,7 +69,7 @@ void StrategyEventDispatcher::OnTick(const qtrade_sdk::quote::MarketTick& tick) 
   }
 }
 
-void StrategyEventDispatcher::OnBar(const qtrade_sdk::quote::Bar& bar) {
+void StrategyEventDispatcher::OnBar(const qtrade::sdk::quote::Bar& bar) {
   std::lock_guard lock(mutex_);
   if (!active_.load()) {
     return;
@@ -95,7 +95,7 @@ void StrategyEventDispatcher::OnBar(const qtrade_sdk::quote::Bar& bar) {
   }
 }
 
-void StrategyEventDispatcher::OnOrder(const qtrade_sdk::trader::Order& order) {
+void StrategyEventDispatcher::OnOrder(const qtrade::sdk::trader::Order& order) {
   std::lock_guard lock(mutex_);
   if (!active_.load()) {
     return;
@@ -121,7 +121,7 @@ void StrategyEventDispatcher::OnOrder(const qtrade_sdk::trader::Order& order) {
   }
 }
 
-void StrategyEventDispatcher::OnTrade(const qtrade_sdk::trader::Trade& trade) {
+void StrategyEventDispatcher::OnTrade(const qtrade::sdk::trader::Trade& trade) {
   std::lock_guard lock(mutex_);
   if (!active_.load()) {
     return;

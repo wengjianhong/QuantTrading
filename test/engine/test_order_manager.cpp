@@ -18,7 +18,7 @@ TEST(OrderManager, TracksLifecycleInMemory) {
   qtrade::engine::oms::OrderManager manager;
   ASSERT_EQ(manager.Initialize(MakeOptions()), qtrade::ErrorCode::kSuccess);
 
-  qtrade_sdk::trader::OrderRequest request;
+  qtrade::sdk::trader::OrderRequest request;
   request.client_order_id = 42;
   request.instrument = "IF2506";
   request.price = 100.5;
@@ -30,7 +30,7 @@ TEST(OrderManager, TracksLifecycleInMemory) {
   ASSERT_EQ(manager.MarkEmsQueued(order->order_id), qtrade::ErrorCode::kSuccess);
   ASSERT_EQ(manager.MarkSendPending(order->order_id), qtrade::ErrorCode::kSuccess);
 
-  qtrade_sdk::trader::Trade trade;
+  qtrade::sdk::trader::Trade trade;
   trade.trade_id = "trade-1";
   trade.order_id = order->order_id;
   trade.client_order_id = request.client_order_id;
@@ -48,7 +48,7 @@ TEST(OrderManager, ExposesUncertainOrdersForReconciliation) {
   qtrade::engine::oms::OrderManager manager;
   ASSERT_EQ(manager.Initialize(MakeOptions()), qtrade::ErrorCode::kSuccess);
 
-  qtrade_sdk::trader::OrderRequest request;
+  qtrade::sdk::trader::OrderRequest request;
   request.client_order_id = 43;
   request.instrument = "IF2506";
   request.price = 100.5;
@@ -70,14 +70,14 @@ TEST(OrderManager, AdoptsBrokerOrderWithoutResubmit) {
   qtrade::engine::oms::OrderManager manager;
   ASSERT_EQ(manager.Initialize(MakeOptions()), qtrade::ErrorCode::kSuccess);
 
-  qtrade_sdk::trader::Order report;
+  qtrade::sdk::trader::Order report;
   report.order_id = "broker-order-1";
   report.client_order_id = 99;
   report.instrument = "IF2506";
   report.price = 101.0;
   report.volume = 3;
   report.left_volume = 3;
-  report.status = qtrade_sdk::trader::OrderStatusType::kNotTradedQueueing;
+  report.status = qtrade::sdk::trader::OrderStatusType::kNotTradedQueueing;
   manager.ReconcileBrokerOrder(report);
 
   const auto local = manager.GetOrder("broker-order-1");
@@ -92,7 +92,7 @@ TEST(OrderManager, InitializeClearsPreviousMemory) {
   qtrade::engine::oms::OrderManager manager;
   ASSERT_EQ(manager.Initialize(MakeOptions()), qtrade::ErrorCode::kSuccess);
 
-  qtrade_sdk::trader::OrderRequest request;
+  qtrade::sdk::trader::OrderRequest request;
   request.client_order_id = 1;
   request.instrument = "IF2506";
   request.price = 1.0;

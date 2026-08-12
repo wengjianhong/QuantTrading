@@ -44,7 +44,7 @@ void ExecutionManager::Stop() {
   pending_items_.clear();
 }
 
-void ExecutionManager::SetTraderApi(qtrade_sdk::trader::TraderApi* trader_api) {
+void ExecutionManager::SetTraderApi(qtrade::sdk::trader::TraderApi* trader_api) {
   std::lock_guard lock(mutex_);
   trader_api_ = trader_api;
 }
@@ -64,7 +64,7 @@ void ExecutionManager::SetAccountRiskIdentity(std::string account_id) {
   account_id_ = std::move(account_id);
 }
 
-ErrorCode ExecutionManager::Enqueue(const qtrade_sdk::trader::Order& order) {
+ErrorCode ExecutionManager::Enqueue(const qtrade::sdk::trader::Order& order) {
   {
     std::lock_guard lock(mutex_);
     if (!running_ || !trader_api_) {
@@ -82,7 +82,7 @@ ErrorCode ExecutionManager::Enqueue(const qtrade_sdk::trader::Order& order) {
   return ErrorCode::kSuccess;
 }
 
-ErrorCode ExecutionManager::EnqueueCancel(const qtrade_sdk::trader::CancelOrderRequest& request) {
+ErrorCode ExecutionManager::EnqueueCancel(const qtrade::sdk::trader::CancelOrderRequest& request) {
   {
     std::lock_guard lock(mutex_);
     if (!running_ || !trader_api_) {
@@ -106,10 +106,13 @@ void ExecutionManager::ReleaseReservationOnSendFailure(qtrade::account_risk::IAc
   if (account_risk_bridge == nullptr || order_id.empty()) {
     return;
   }
-  const auto result = account_risk_bridge->ReleaseOrder(
-    account_id, order_id, qtrade::account_risk::ReleaseReason::kEmsEnqueueFailed, 0.0, 0.0);
+  qtrade::account_risk::ReleaseRequest request;
+  request.account_id = account_id;
+  request.order_id = order_id;
+  request.reason = qtrade::account_risk::ReleaseReason::kSendFailed;
+  const auto result = account_risk_bridge->Release(request);
   if (result.error_code != ErrorCode::kSuccess) {
-    spdlog::warn("ReleaseOrder failed: order_id={}, code={}", order_id, static_cast<int>(result.error_code));
+    spdlog::warn("Release failed: order_id={}, code={}", order_id, static_cast<int>(result.error_code));
   }
 }
 
@@ -118,7 +121,7 @@ void ExecutionManager::Run() {
   while (true) {
     // 1. 等待出队并拷贝依赖指针/身份
     WorkItem item;
-    qtrade_sdk::trader::TraderApi* trader_api = nullptr;
+    qtrade::sdk::trader::TraderApi* trader_api = nullptr;
     oms::OrderApi* order_api = nullptr;
     qtrade::account_risk::IAccountRiskBridge* account_risk_bridge = nullptr;
     std::string account_id;
@@ -157,7 +160,7 @@ void ExecutionManager::Run() {
     }
 
     // 4. 组装 OrderRequest 并调用 SendOrder，回写 OMS；失败时释放预占
-    qtrade_sdk::trader::OrderRequest request;
+    qtrade::sdk::trader::OrderRequest request;
     request.client_order_id = order.client_order_id;
     request.broker_order_id = order.broker_order_id;
     request.instrument = order.instrument;

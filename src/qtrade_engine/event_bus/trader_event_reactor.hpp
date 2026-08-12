@@ -56,11 +56,11 @@ class TraderEventReactor {
 
   /// @brief 将订单封装为 OrderEvent 并入队
   /// @param order 订单回报快照
-  void PublishOrder(const qtrade_sdk::trader::Order& order);
+  void PublishOrder(const qtrade::sdk::trader::Order& order);
 
   /// @brief 将成交封装为 TradeEvent 并入队
   /// @param trade 成交回报快照
-  void PublishTrade(const qtrade_sdk::trader::Trade& trade);
+  void PublishTrade(const qtrade::sdk::trader::Trade& trade);
 
   /// @brief 查询是否仍有待处理事件
   /// @return 队列非空时返回 true

@@ -20,7 +20,7 @@ class ComplianceApi {
   /// @brief 检查订单是否满足合规规则
   /// @param request 下单请求
   /// @return 通过返回 kSuccess
-  [[nodiscard]] virtual ErrorCode CheckOrder(const qtrade_sdk::trader::OrderRequest& request) const = 0;
+  [[nodiscard]] virtual ErrorCode CheckOrder(const qtrade::sdk::trader::OrderRequest& request) const = 0;
 };
 
 }  // namespace qtrade::engine::cms

@@ -13,7 +13,7 @@
 #include <cstdint>
 #include <string>
 
-namespace qtrade_sdk::trader {
+namespace qtrade::sdk::trader {
 
 /// @brief 两地分仓信用额度划拨请求，对应 EMTQuotaTransferReq。
 struct QuotaTransferRequest {
@@ -108,6 +108,6 @@ using FundTransferAck = FundTransferNotice;
 /// @brief 额度划拨通知确认类型。
 using QuotaTransferAck = QuotaTransferNotice;
 
-}  // namespace qtrade_sdk::trader
+}  // namespace qtrade::sdk::trader
 
 #endif  // QTRADE_SDK_TRADER_FUND_STRUCT_HPP_

@@ -24,13 +24,13 @@ ErrorCode ComplianceManager::Configure(const ComplianceRules& rules) {
   return ErrorCode::kSuccess;
 }
 
-ErrorCode ComplianceManager::CheckOrder(const qtrade_sdk::trader::OrderRequest& request) const {
+ErrorCode ComplianceManager::CheckOrder(const qtrade::sdk::trader::OrderRequest& request) const {
   // 1. 基础字段合法性
   if (request.instrument.empty() || !std::isfinite(request.price) || request.price < 0.0 ||
-      request.side == qtrade_sdk::trader::SideType::kUnknown ||
-      request.price_type == qtrade_sdk::trader::PriceType::kUnknown ||
-      request.position_effect == qtrade_sdk::trader::PositionEffectType::kUnknown ||
-      request.business_type == qtrade_sdk::trader::BusinessType::kUnknown) {
+      request.side == qtrade::sdk::trader::SideType::kUnknown ||
+      request.price_type == qtrade::sdk::trader::PriceType::kUnknown ||
+      request.position_effect == qtrade::sdk::trader::PositionEffectType::kUnknown ||
+      request.business_type == qtrade::sdk::trader::BusinessType::kUnknown) {
     return ErrorCode::kSystemError;
   }
 
@@ -45,7 +45,7 @@ ErrorCode ComplianceManager::CheckOrder(const qtrade_sdk::trader::OrderRequest& 
   }
   const double notional = request.price * static_cast<double>(request.volume);
   if (request.volume < rules.min_volume || request.volume > rules.max_volume ||
-      (request.price_type == qtrade_sdk::trader::PriceType::kLimit && request.price <= 0.0) ||
+      (request.price_type == qtrade::sdk::trader::PriceType::kLimit && request.price <= 0.0) ||
       (rules.min_price > 0.0 && request.price < rules.min_price) ||
       (rules.max_price > 0.0 && request.price > rules.max_price) || !std::isfinite(notional) ||
       (rules.max_notional > 0.0 && notional > rules.max_notional) ||

@@ -11,7 +11,7 @@
 
 #include <cstdint>
 
-namespace qtrade_sdk::trader {
+namespace qtrade::sdk::trader {
 
 /// @brief 交易回调接口。
 class TraderSpi {
@@ -168,6 +168,6 @@ class TraderSpi {
                                           std::uint64_t session_id) = 0;
 };
 
-}  // namespace qtrade_sdk::trader
+}  // namespace qtrade::sdk::trader
 
 #endif  // QTRADE_SDK_TRADER_SPI_HPP_

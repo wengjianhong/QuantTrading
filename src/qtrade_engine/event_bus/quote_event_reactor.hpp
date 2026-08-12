@@ -56,11 +56,11 @@ class QuoteEventReactor {
 
   /// @brief 将 Tick 封装为 TickEvent 并入队
   /// @param tick 行情 Tick 快照
-  void PublishTick(const qtrade_sdk::quote::MarketTick& tick);
+  void PublishTick(const qtrade::sdk::quote::MarketTick& tick);
 
   /// @brief 将 Bar 封装为 BarEvent 并入队
   /// @param bar K 线 Bar 快照
-  void PublishBar(const qtrade_sdk::quote::Bar& bar);
+  void PublishBar(const qtrade::sdk::quote::Bar& bar);
 
   /// @brief 查询是否仍有待处理事件
   /// @return 队列非空时返回 true

@@ -39,23 +39,23 @@ TEST(EventBusLane, ReturnRunsWhileMarketCallbackBlocked) {
   std::atomic<bool> market_in_callback{false};
   std::atomic<int> order_count{0};
 
-  lanes.Quote().SubscribeTick([&](const qtrade_sdk::quote::MarketTick&) {
+  lanes.Quote().SubscribeTick([&](const qtrade::sdk::quote::MarketTick&) {
     market_in_callback.store(true, std::memory_order_release);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     market_in_callback.store(false, std::memory_order_release);
   });
   lanes.Trader().SubscribeOrder(
-    [&](const qtrade_sdk::trader::Order&) { order_count.fetch_add(1, std::memory_order_relaxed); });
+    [&](const qtrade::sdk::trader::Order&) { order_count.fetch_add(1, std::memory_order_relaxed); });
 
   lanes.Start();
 
-  qtrade_sdk::quote::MarketTick tick;
+  qtrade::sdk::quote::MarketTick tick;
   tick.instrument = "IF2506";
   lanes.Quote().PublishTick(tick);
 
   WaitUntil([&] { return market_in_callback.load(std::memory_order_acquire); }, std::chrono::milliseconds(200));
 
-  qtrade_sdk::trader::Order order;
+  qtrade::sdk::trader::Order order;
   order.order_id = "ord-1";
   lanes.Trader().PublishOrder(order);
 
@@ -72,16 +72,16 @@ TEST(EventBusLane, ReturnCompletesBeforeAllMarketTicksFinished) {
   std::atomic<int> order_count{0};
   std::atomic<int> ticks_done_at_order{-1};
 
-  lanes.Quote().SubscribeTick([&](const qtrade_sdk::quote::MarketTick&) {
+  lanes.Quote().SubscribeTick([&](const qtrade::sdk::quote::MarketTick&) {
     if (ticks_finished.load(std::memory_order_relaxed) == 0) {
-      qtrade_sdk::trader::Order order;
+      qtrade::sdk::trader::Order order;
       order.order_id = "ord-inject";
       lanes.Trader().PublishOrder(order);
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(2));
     ticks_finished.fetch_add(1, std::memory_order_relaxed);
   });
-  lanes.Trader().SubscribeOrder([&](const qtrade_sdk::trader::Order&) {
+  lanes.Trader().SubscribeOrder([&](const qtrade::sdk::trader::Order&) {
     ticks_done_at_order.store(ticks_finished.load(std::memory_order_relaxed), std::memory_order_relaxed);
     order_count.fetch_add(1, std::memory_order_relaxed);
   });
@@ -89,7 +89,7 @@ TEST(EventBusLane, ReturnCompletesBeforeAllMarketTicksFinished) {
   lanes.Start();
 
   for (int i = 0; i < 3; ++i) {
-    qtrade_sdk::quote::MarketTick tick;
+    qtrade::sdk::quote::MarketTick tick;
     tick.instrument = "IC2506";
     lanes.Quote().PublishTick(tick);
   }

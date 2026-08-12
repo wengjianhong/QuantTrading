@@ -47,12 +47,12 @@ void TraderEventReactor::SubscribeTrade(TradeEventHandler handler) {
   trade_handlers_.push_back(std::move(handler));
 }
 
-void TraderEventReactor::PublishOrder(const qtrade_sdk::trader::Order& order) {
+void TraderEventReactor::PublishOrder(const qtrade::sdk::trader::Order& order) {
   // 1. 复制订单回报；队列满时由 LanePolicy 决定是否拒绝
   loop_.Publish(std::make_unique<OrderEvent>(order));
 }
 
-void TraderEventReactor::PublishTrade(const qtrade_sdk::trader::Trade& trade) {
+void TraderEventReactor::PublishTrade(const qtrade::sdk::trader::Trade& trade) {
   loop_.Publish(std::make_unique<TradeEvent>(trade));
 }
 

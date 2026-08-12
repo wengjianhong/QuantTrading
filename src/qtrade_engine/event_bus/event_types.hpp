@@ -47,51 +47,51 @@ using EventPtr = std::unique_ptr<Event>;
 /// @brief Tick 数据事件
 struct TickEvent : public Event {
   /// Tick 载荷
-  qtrade_sdk::quote::MarketTick tick;
+  qtrade::sdk::quote::MarketTick tick;
 
   /// @brief 构造 Tick 事件
   /// @param t 行情 Tick 快照
-  explicit TickEvent(const qtrade_sdk::quote::MarketTick& t);
+  explicit TickEvent(const qtrade::sdk::quote::MarketTick& t);
 };
 
 /// @brief Bar 数据事件
 struct BarEvent : public Event {
   /// Bar 载荷
-  qtrade_sdk::quote::Bar bar;
+  qtrade::sdk::quote::Bar bar;
 
   /// @brief 构造 Bar 事件
   /// @param b K 线 Bar 快照
-  explicit BarEvent(const qtrade_sdk::quote::Bar& b);
+  explicit BarEvent(const qtrade::sdk::quote::Bar& b);
 };
 
 /// @brief 订单更新事件
 struct OrderEvent : public Event {
   /// 订单回报载荷
-  qtrade_sdk::trader::Order order;
+  qtrade::sdk::trader::Order order;
 
   /// @brief 构造订单更新事件
   /// @param o 订单快照
-  explicit OrderEvent(const qtrade_sdk::trader::Order& o);
+  explicit OrderEvent(const qtrade::sdk::trader::Order& o);
 };
 
 /// @brief 成交更新事件
 struct TradeEvent : public Event {
   /// 成交回报载荷
-  qtrade_sdk::trader::Trade trade;
+  qtrade::sdk::trader::Trade trade;
 
   /// @brief 构造成交更新事件
   /// @param t 成交快照
-  explicit TradeEvent(const qtrade_sdk::trader::Trade& t);
+  explicit TradeEvent(const qtrade::sdk::trader::Trade& t);
 };
 
 /// @brief Tick 事件处理器（Lane-Q）
-using TickEventHandler = std::function<void(const qtrade_sdk::quote::MarketTick&)>;
+using TickEventHandler = std::function<void(const qtrade::sdk::quote::MarketTick&)>;
 /// @brief Bar 事件处理器（Lane-Q）
-using BarEventHandler = std::function<void(const qtrade_sdk::quote::Bar&)>;
+using BarEventHandler = std::function<void(const qtrade::sdk::quote::Bar&)>;
 /// @brief 订单回报事件处理器（Lane-T）
-using OrderEventHandler = std::function<void(const qtrade_sdk::trader::Order&)>;
+using OrderEventHandler = std::function<void(const qtrade::sdk::trader::Order&)>;
 /// @brief 成交回报事件处理器（Lane-T）
-using TradeEventHandler = std::function<void(const qtrade_sdk::trader::Trade&)>;
+using TradeEventHandler = std::function<void(const qtrade::sdk::trader::Trade&)>;
 
 }  // namespace qtrade::engine::event_bus
 

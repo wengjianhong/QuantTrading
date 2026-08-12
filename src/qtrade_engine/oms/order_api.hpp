@@ -54,19 +54,19 @@ class OrderApi {
   /// @param request 下单请求
   /// @param order_id 已分配的全局订单 ID
   /// @return 创建成功返回订单；未 Initialize 返回 nullopt
-  virtual std::optional<qtrade_sdk::trader::Order> CreateOrder(const qtrade_sdk::trader::OrderRequest& request,
-                                                               const std::string& order_id) = 0;
+  virtual std::optional<qtrade::sdk::trader::Order> CreateOrder(const qtrade::sdk::trader::OrderRequest& request,
+                                                                const std::string& order_id) = 0;
 
   /// @brief 按客户端订单 ID 查询
   /// @param client_order_id 策略侧客户端订单 ID
   /// @return 存在则返回订单快照
-  [[nodiscard]] virtual std::optional<qtrade_sdk::trader::Order> GetOrderByClientId(
+  [[nodiscard]] virtual std::optional<qtrade::sdk::trader::Order> GetOrderByClientId(
     std::uint32_t client_order_id) const = 0;
 
   /// @brief 按全局订单 ID 查询
   /// @param order_id 全局订单 ID
   /// @return 存在则返回订单快照
-  [[nodiscard]] virtual std::optional<qtrade_sdk::trader::Order> GetOrder(const std::string& order_id) const = 0;
+  [[nodiscard]] virtual std::optional<qtrade::sdk::trader::Order> GetOrder(const std::string& order_id) const = 0;
 
   /// @brief 查询订单生命周期状态
   /// @param order_id 全局订单 ID

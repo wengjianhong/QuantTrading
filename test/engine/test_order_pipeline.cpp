@@ -32,7 +32,7 @@ void WaitUntil(const std::function<bool()>& predicate) {
 
 void InstallConnectedStubQuote(qtrade::engine::TradingEngine& engine) {
   auto quote_api = qtrade::test::stub::CreateStubQuoteApi();
-  qtrade_sdk::quote::ConnectRequest request;
+  qtrade::sdk::quote::ConnectRequest request;
   request.connection_string = "stub://quote";
   EXPECT_EQ(quote_api->Connect(request), qtrade::ErrorCode::kSuccess);
   engine.SetQuoteApi(std::move(quote_api));
@@ -47,7 +47,7 @@ TEST(OrderPipeline, StubOrderFlowsThroughOmsAndTraderLane) {
 
   InstallConnectedStubQuote(engine);
   engine.SetTraderApi(qtrade::test::stub::CreateStubTraderApi());
-  qtrade_sdk::trader::ConnectRequest connect_request;
+  qtrade::sdk::trader::ConnectRequest connect_request;
   connect_request.connection_string = "stub://test";
   ASSERT_EQ(engine.GetTraderApi()->Connect(connect_request), qtrade::ErrorCode::kSuccess);
 
@@ -56,17 +56,17 @@ TEST(OrderPipeline, StubOrderFlowsThroughOmsAndTraderLane) {
   WaitUntil([&] { return engine.IsReady(); });
   ASSERT_TRUE(engine.IsReady());
 
-  qtrade_sdk::trader::OrderRequest request;
+  qtrade::sdk::trader::OrderRequest request;
   request.client_order_id = 1001;
   request.instrument = "IF2506";
   request.price = 10.5;
   request.volume = 2;
-  request.side = qtrade_sdk::trader::SideType::kBuy;
+  request.side = qtrade::sdk::trader::SideType::kBuy;
   ASSERT_EQ(engine.GetOrderPipeline().Submit(request), qtrade::ErrorCode::kSuccess);
 
   WaitUntil([&] {
     const auto order = engine.GetOrderApi().GetOrderByClientId(request.client_order_id);
-    return order.has_value() && order->status == qtrade_sdk::trader::OrderStatusType::kFilled;
+    return order.has_value() && order->status == qtrade::sdk::trader::OrderStatusType::kFilled;
   });
 
   const auto order = engine.GetOrderApi().GetOrderByClientId(request.client_order_id);
@@ -76,7 +76,7 @@ TEST(OrderPipeline, StubOrderFlowsThroughOmsAndTraderLane) {
   EXPECT_DOUBLE_EQ(engine.GetAccountManager().GetFilledAmount(), 21.0);
   EXPECT_EQ(engine.GetPositionManager().GetNetPosition("IF2506"), 2);
 
-  qtrade_sdk::trader::OrderRequest invalid_request;
+  qtrade::sdk::trader::OrderRequest invalid_request;
   invalid_request.client_order_id = 1002;
   invalid_request.volume = 1;
   EXPECT_NE(engine.GetOrderPipeline().Submit(invalid_request), qtrade::ErrorCode::kSuccess);
@@ -94,7 +94,7 @@ TEST(OrderPipeline, CancelFlowsThroughEmsAndVenueReport) {
   trader_api->SetAutoFill(false);
   auto* raw_trader_api = trader_api.get();
   engine.SetTraderApi(std::move(trader_api));
-  qtrade_sdk::trader::ConnectRequest connect_request;
+  qtrade::sdk::trader::ConnectRequest connect_request;
   connect_request.connection_string = "stub://cancel";
   ASSERT_EQ(raw_trader_api->Connect(connect_request), qtrade::ErrorCode::kSuccess);
   ASSERT_EQ(engine.Start(), qtrade::ErrorCode::kSuccess);
@@ -102,7 +102,7 @@ TEST(OrderPipeline, CancelFlowsThroughEmsAndVenueReport) {
   WaitUntil([&] { return engine.IsReady(); });
   ASSERT_TRUE(engine.IsReady());
 
-  qtrade_sdk::trader::OrderRequest request;
+  qtrade::sdk::trader::OrderRequest request;
   request.client_order_id = 2001;
   request.instrument = "IF2506";
   request.price = 10.5;

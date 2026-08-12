@@ -242,7 +242,7 @@ EngineConfig TradingEngine::GetRuntimeConfig() const {
 // 适配器与行情：注入 / 查询 / 订阅
 // =============================================================================
 
-void TradingEngine::SetQuoteApi(std::unique_ptr<qtrade_sdk::quote::QuoteApi> quote_api) {
+void TradingEngine::SetQuoteApi(std::unique_ptr<qtrade::sdk::quote::QuoteApi> quote_api) {
   if (running_) {
     return;
   }
@@ -250,7 +250,7 @@ void TradingEngine::SetQuoteApi(std::unique_ptr<qtrade_sdk::quote::QuoteApi> quo
   WireQuoteCallbacks();
 }
 
-void TradingEngine::SetTraderApi(std::unique_ptr<qtrade_sdk::trader::TraderApi> trader_api) {
+void TradingEngine::SetTraderApi(std::unique_ptr<qtrade::sdk::trader::TraderApi> trader_api) {
   if (running_) {
     return;
   }
@@ -258,11 +258,11 @@ void TradingEngine::SetTraderApi(std::unique_ptr<qtrade_sdk::trader::TraderApi> 
   WireTraderCallbacks();
 }
 
-qtrade_sdk::quote::QuoteApi* TradingEngine::GetQuoteApi() {
+qtrade::sdk::quote::QuoteApi* TradingEngine::GetQuoteApi() {
   return quote_api_.get();
 }
 
-qtrade_sdk::trader::TraderApi* TradingEngine::GetTraderApi() {
+qtrade::sdk::trader::TraderApi* TradingEngine::GetTraderApi() {
   return trader_api_.get();
 }
 
@@ -458,7 +458,7 @@ void TradingEngine::WireQuoteCallbacks() {
   if (quote_api_ == nullptr) {
     return;
   }
-  quote_api_->SetTickCallback([this](const qtrade_sdk::quote::MarketTick& tick) {
+  quote_api_->SetTickCallback([this](const qtrade::sdk::quote::MarketTick& tick) {
     if (!running_.load(std::memory_order_acquire)) {
       return;
     }
@@ -470,7 +470,7 @@ void TradingEngine::WireQuoteCallbacks() {
     quote_health_monitor_.OnValidTick();
     event_lanes_.Quote().PublishTick(tick);
   });
-  quote_api_->SetBarCallback([this](const qtrade_sdk::quote::Bar& bar) {
+  quote_api_->SetBarCallback([this](const qtrade::sdk::quote::Bar& bar) {
     if (!running_.load(std::memory_order_acquire) || !IsValidBar(bar)) {
       return;
     }
@@ -482,13 +482,13 @@ void TradingEngine::WireTraderCallbacks() {
   if (trader_api_ == nullptr) {
     return;
   }
-  trader_api_->SetOrderCallback([this](const qtrade_sdk::trader::Order& order) {
+  trader_api_->SetOrderCallback([this](const qtrade::sdk::trader::Order& order) {
     if (!running_.load(std::memory_order_acquire) || !IsValidOrder(order)) {
       return;
     }
     event_lanes_.Trader().PublishOrder(order);
   });
-  trader_api_->SetTradeCallback([this](const qtrade_sdk::trader::Trade& trade) {
+  trader_api_->SetTradeCallback([this](const qtrade::sdk::trader::Trade& trade) {
     if (!running_.load(std::memory_order_acquire) || !IsValidTrade(trade)) {
       return;
     }
@@ -498,8 +498,8 @@ void TradingEngine::WireTraderCallbacks() {
 
 void TradingEngine::WireTraderEventHandlers() {
   // Trader Lane：订单/成交回报的唯一异步入口，串联 OMS、账户、持仓与 account-risk 释放
-  event_lanes_.Trader().SubscribeOrder([this](const qtrade_sdk::trader::Order& order) { OnTraderOrderReport(order); });
-  event_lanes_.Trader().SubscribeTrade([this](const qtrade_sdk::trader::Trade& trade) { OnTraderTradeReport(trade); });
+  event_lanes_.Trader().SubscribeOrder([this](const qtrade::sdk::trader::Order& order) { OnTraderOrderReport(order); });
+  event_lanes_.Trader().SubscribeTrade([this](const qtrade::sdk::trader::Trade& trade) { OnTraderTradeReport(trade); });
 }
 
 void TradingEngine::DisconnectAdapters() {
@@ -515,22 +515,22 @@ void TradingEngine::DisconnectAdapters() {
 // 柜台对账
 // =============================================================================
 
-ErrorCode TradingEngine::SynchronizeBrokerState(qtrade_sdk::trader::TraderApi* trader_api) {
+ErrorCode TradingEngine::SynchronizeBrokerState(qtrade::sdk::trader::TraderApi* trader_api) {
   // 1. 查询柜台订单、成交、持仓与资金快照
   if (trader_api == nullptr || !trader_api->IsConnected()) {
     return ErrorCode::kConnectionError;
   }
 
-  qtrade_sdk::trader::QueryOrdersResponse orders_response;
-  qtrade_sdk::trader::QueryTradesResponse trades_response;
-  qtrade_sdk::trader::QueryPositionResponse positions_response;
-  qtrade_sdk::trader::QueryAssetResponse asset_response;
+  qtrade::sdk::trader::QueryOrdersResponse orders_response;
+  qtrade::sdk::trader::QueryTradesResponse trades_response;
+  qtrade::sdk::trader::QueryPositionResponse positions_response;
+  qtrade::sdk::trader::QueryAssetResponse asset_response;
   if (trader_api->QueryOrders({}, orders_response) != ErrorCode::kSuccess ||
       trader_api->QueryTrades({}, trades_response) != ErrorCode::kSuccess ||
       trader_api->QueryPositions({}, positions_response) != ErrorCode::kSuccess) {
     return ErrorCode::kNotSupported;
   }
-  qtrade_sdk::trader::QueryAssetRequest asset_request;
+  qtrade::sdk::trader::QueryAssetRequest asset_request;
   {
     std::lock_guard lock(runtime_config_mutex_);
     asset_request.account_id = runtime_config_.account_id;
@@ -641,7 +641,7 @@ void TradingEngine::MergeStrategyInstruments(const std::vector<std::string>& ins
   (void)compliance_.Configure(compliance_rules);
 }
 
-void TradingEngine::OnTraderOrderReport(const qtrade_sdk::trader::Order& order) {
+void TradingEngine::OnTraderOrderReport(const qtrade::sdk::trader::Order& order) {
   order_manager_.ApplyOrderReport(order);
   const auto local_order = order.order_id.empty() ? order_manager_.GetOrderByClientId(order.client_order_id)
                                                   : order_manager_.GetOrder(order.order_id);
@@ -650,20 +650,20 @@ void TradingEngine::OnTraderOrderReport(const qtrade_sdk::trader::Order& order) 
   }
 
   // 拒单/撤单完成时释放 account-risk 预占（直接 gRPC，无本地 outbox）
-  if (order.status != qtrade_sdk::trader::OrderStatusType::kRejected &&
-      order.status != qtrade_sdk::trader::OrderStatusType::kCanceled) {
+  if (order.status != qtrade::sdk::trader::OrderStatusType::kRejected &&
+      order.status != qtrade::sdk::trader::OrderStatusType::kCanceled) {
     return;
   }
   if (!local_order.has_value()) {
     return;
   }
-  const auto reason = order.status == qtrade_sdk::trader::OrderStatusType::kCanceled
+  const auto reason = order.status == qtrade::sdk::trader::OrderStatusType::kCanceled
                         ? qtrade::account_risk::ReleaseReason::kCanceled
                         : qtrade::account_risk::ReleaseReason::kRejectedByVenue;
   ReleaseAccountRiskReservation(local_order->order_id, reason);
 }
 
-void TradingEngine::OnTraderTradeReport(const qtrade_sdk::trader::Trade& trade) {
+void TradingEngine::OnTraderTradeReport(const qtrade::sdk::trader::Trade& trade) {
   order_manager_.ApplyTradeReport(trade);
   account_manager_.ApplyTrade(trade);
   position_manager_.ApplyTrade(trade);
@@ -671,7 +671,7 @@ void TradingEngine::OnTraderTradeReport(const qtrade_sdk::trader::Trade& trade) 
   // 全部成交后释放风控预占（SETTLED）
   const auto local_order = trade.order_id.empty() ? order_manager_.GetOrderByClientId(trade.client_order_id)
                                                   : order_manager_.GetOrder(trade.order_id);
-  if (local_order.has_value() && local_order->status == qtrade_sdk::trader::OrderStatusType::kFilled) {
+  if (local_order.has_value() && local_order->status == qtrade::sdk::trader::OrderStatusType::kFilled) {
     ReleaseAccountRiskReservation(local_order->order_id, qtrade::account_risk::ReleaseReason::kSettled);
   }
 }
@@ -710,9 +710,13 @@ void TradingEngine::ReleaseAccountRiskReservation(const std::string& order_id,
     std::lock_guard lock(runtime_config_mutex_);
     account_id = runtime_config_.account_id;
   }
-  const auto result = account_risk_bridge_->ReleaseOrder(account_id, order_id, reason, 0.0, 0.0);
+  qtrade::account_risk::ReleaseRequest request;
+  request.account_id = account_id;
+  request.order_id = order_id;
+  request.reason = reason;
+  const auto result = account_risk_bridge_->Release(request);
   if (result.error_code != ErrorCode::kSuccess) {
-    spdlog::warn("ReleaseOrder failed: order_id={}, code={}", order_id, static_cast<int>(result.error_code));
+    spdlog::warn("Release failed: order_id={}, code={}", order_id, static_cast<int>(result.error_code));
   }
 }
 

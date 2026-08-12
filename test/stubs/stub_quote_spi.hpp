@@ -17,23 +17,23 @@ class StubQuoteSpi {
  public:
   /// @brief 设置接收模拟行情回调的目标对象。
   /// @param target qtrade SDK 行情回调目标；可为空。
-  void SetTarget(qtrade_sdk::quote::QuoteSpi* target) {
+  void SetTarget(qtrade::sdk::quote::QuoteSpi* target) {
     target_ = target;
   }
 
   /// @brief 获取当前行情回调目标对象。
   /// @return 当前目标对象；未设置时为 nullptr。
-  qtrade_sdk::quote::QuoteSpi* Target() const {
+  qtrade::sdk::quote::QuoteSpi* Target() const {
     return target_;
   }
 
   /// @brief 发布深度行情数据。
   /// @param market_data 待发布的行情 Tick 数据。
-  void PublishDepthMarketData(const qtrade_sdk::quote::MarketTick& market_data);
+  void PublishDepthMarketData(const qtrade::sdk::quote::MarketTick& market_data);
 
  private:
   /// @brief qtrade SDK 行情回调目标对象。
-  qtrade_sdk::quote::QuoteSpi* target_ = nullptr;
+  qtrade::sdk::quote::QuoteSpi* target_ = nullptr;
 };
 
 }  // namespace qtrade::test::stub

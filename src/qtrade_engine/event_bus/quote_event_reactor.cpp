@@ -48,12 +48,12 @@ void QuoteEventReactor::SubscribeBar(BarEventHandler handler) {
   bar_handlers_.push_back(std::move(handler));
 }
 
-void QuoteEventReactor::PublishTick(const qtrade_sdk::quote::MarketTick& tick) {
+void QuoteEventReactor::PublishTick(const qtrade::sdk::quote::MarketTick& tick) {
   // 1. 复制行情快照，交由 LanePolicy 决定队列满时的处理方式
   loop_.Publish(std::make_unique<TickEvent>(tick));
 }
 
-void QuoteEventReactor::PublishBar(const qtrade_sdk::quote::Bar& bar) {
+void QuoteEventReactor::PublishBar(const qtrade::sdk::quote::Bar& bar) {
   loop_.Publish(std::make_unique<BarEvent>(bar));
 }
 

@@ -31,7 +31,7 @@ struct OrderBatch {
   /// 触发报单的Tick/Bar行情的时间戳(纳秒)
   std::int64_t trigger_tick_ns = 0;
   /// 报单批次请求列表
-  std::vector<qtrade_sdk::trader::OrderRequest> order_requests;
+  std::vector<qtrade::sdk::trader::OrderRequest> order_requests;
 };
 
 /// @brief 策略实例配置（与 config.v1.StrategyConfig 字段对齐；不依赖 protobuf）
@@ -93,19 +93,19 @@ class IStrategy {
 
   /// @brief Tick数据回调
   /// @param tick 市场Tick数据
-  virtual void OnTick(const qtrade_sdk::quote::MarketTick& tick) = 0;
+  virtual void OnTick(const qtrade::sdk::quote::MarketTick& tick) = 0;
 
   /// @brief Bar数据回调
   /// @param bar K线数据
-  virtual void OnBar(const qtrade_sdk::quote::Bar& bar) = 0;
+  virtual void OnBar(const qtrade::sdk::quote::Bar& bar) = 0;
 
   /// @brief 订单更新回调
   /// @param order 订单信息
-  virtual void OnOrder(const qtrade_sdk::trader::Order& order) = 0;
+  virtual void OnOrder(const qtrade::sdk::trader::Order& order) = 0;
 
   /// @brief 成交更新回调
   /// @param trade 成交信息
-  virtual void OnTrade(const qtrade_sdk::trader::Trade& trade) = 0;
+  virtual void OnTrade(const qtrade::sdk::trader::Trade& trade) = 0;
 };
 
 }  // namespace qtrade::strategy

@@ -19,7 +19,7 @@ namespace qtrade::common::utils {
 ///          order_id、client_order_id、broker_order_id、exchange_order_id、report_index、instrument。
 /// @param trade 成交回报
 /// @return 用于 applied_trade_ids_ 等集合去重的键
-inline std::string GenerateTradeDedupKey(const qtrade_sdk::trader::Trade& trade) {
+inline std::string GenerateTradeDedupKey(const qtrade::sdk::trader::Trade& trade) {
   if (!trade.trade_id.empty()) {
     return trade.trade_id;
   }

@@ -16,7 +16,7 @@
 #include <string>
 #include <vector>
 
-namespace qtrade_sdk::quote {
+namespace qtrade::sdk::quote {
 
 /// @brief API 错误响应信息，对应 EMTRspInfoStruct。
 struct RspInfo {
@@ -285,6 +285,6 @@ struct QuerySnapshotResponse {
   std::vector<MarketTick> ticks;
 };
 
-}  // namespace qtrade_sdk::quote
+}  // namespace qtrade::sdk::quote
 
 #endif  // QTRADE_SDK_QUOTE_STRUCT_HPP_

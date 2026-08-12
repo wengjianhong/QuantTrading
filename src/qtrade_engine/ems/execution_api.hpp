@@ -21,12 +21,12 @@ class ExecutionApi {
   /// @brief 将新单加入 EMS 有界队列
   /// @param order OMS 订单快照
   /// @return 成功返回 kSuccess，队列满返回 kResourceExhausted；未启动返回 kNotInitialized
-  virtual ErrorCode Enqueue(const qtrade_sdk::trader::Order& order) = 0;
+  virtual ErrorCode Enqueue(const qtrade::sdk::trader::Order& order) = 0;
 
   /// @brief 将撤单加入 EMS 有界队列（优先于新单）
   /// @param request 撤单请求
   /// @return 成功返回 kSuccess，队列满返回 kResourceExhausted；未启动返回 kNotInitialized
-  virtual ErrorCode EnqueueCancel(const qtrade_sdk::trader::CancelOrderRequest& request) = 0;
+  virtual ErrorCode EnqueueCancel(const qtrade::sdk::trader::CancelOrderRequest& request) = 0;
 };
 
 }  // namespace qtrade::engine::ems
