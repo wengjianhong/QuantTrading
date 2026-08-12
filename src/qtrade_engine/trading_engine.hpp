@@ -10,7 +10,6 @@
 #ifndef QTRADE_TRADING_ENGINE_TRADING_ENGINE_HPP_
 #define QTRADE_TRADING_ENGINE_TRADING_ENGINE_HPP_
 
-#include "qtrade/common/config/qtrade_engine_bootstrap_config.hpp"
 #include "qtrade/engine/account/account_manager.hpp"
 #include "qtrade/engine/cms/compliance_manager.hpp"
 #include "qtrade/engine/core/engine_lifecycle.hpp"
@@ -51,7 +50,7 @@ class TradingEngine final : public IEngine {
   // IEngine：生命周期与状态
   // ---------------------------------------------------------------------------
 
-  ErrorCode Init(const qtrade::common::config::QtradeEngineBootstrapConfig& config) override;
+  ErrorCode Init(const EngineConfig& config) override;
   ErrorCode Start() override;
   ErrorCode Stop() override;
 
@@ -59,10 +58,9 @@ class TradingEngine final : public IEngine {
   [[nodiscard]] bool IsRunning() const override;
 
   // ---------------------------------------------------------------------------
-  // IEngine：依赖注入（须在 Init 前）
+  // IEngine：依赖注入
   // ---------------------------------------------------------------------------
 
-  void SetConfigBridge(qtrade::config::IConfigBridge* bridge) override;
   void SetAccountBridge(qtrade::account::IAccountBridge* bridge) override;
   void SetAccountRiskBridge(qtrade::account_risk::IAccountRiskBridge* bridge) override;
   void SetQuoteApi(std::unique_ptr<qtrade_sdk::quote::QuoteApi> quote_api) override;
@@ -72,9 +70,7 @@ class TradingEngine final : public IEngine {
   // IEngine：策略登记（须在 Start 前）
   // ---------------------------------------------------------------------------
 
-  ErrorCode AddStrategy(const qtrade::strategy::StrategyConfig& config,
-                        std::unique_ptr<qtrade::strategy::IStrategy> strategy) override;
-  ErrorCode LoadStrategiesFromPlugins(const std::string& plugin_dir) override;
+  ErrorCode AddStrategy(const qtrade::strategy::StrategyConfig& config, const std::string& plugin_so_path) override;
 
   // ---------------------------------------------------------------------------
   // 实现侧扩展（非 IEngine；供 boot / 测试 / 内部编排）
@@ -86,11 +82,8 @@ class TradingEngine final : public IEngine {
   /// @brief 是否已通过内部 READY 门禁（可接受新单）；仅实现/测试使用
   [[nodiscard]] bool IsReady() const;
 
-  /// @brief 返回当前进程引导配置快照
-  [[nodiscard]] const qtrade::common::config::QtradeEngineBootstrapConfig& GetBootstrapConfig() const;
-
-  /// @brief 返回经配置桥接下发的引擎运行配置快照
-  [[nodiscard]] qtrade::config::EngineConfig GetRuntimeConfig() const;
+  /// @brief 返回已应用的引擎运行配置快照
+  [[nodiscard]] EngineConfig GetRuntimeConfig() const;
 
   /// @brief 返回当前行情适配器；未设置时返回 nullptr
   [[nodiscard]] qtrade_sdk::quote::QuoteApi* GetQuoteApi();
@@ -140,14 +133,9 @@ class TradingEngine final : public IEngine {
   // Init 子阶段（由 Init() 按序调用；失败时 Release）
   // ---------------------------------------------------------------------------
 
-  /// @brief 缓存引导配置、配置行情健康阈值
-  /// @param config 进程引导配置
+  /// @brief 配置行情健康阈值
   /// @return ErrorCode::kSuccess 表示成功
-  ErrorCode ApplyBootstrapConfig(const qtrade::common::config::QtradeEngineBootstrapConfig& config);
-
-  /// @brief 校验已注入的支撑桥接（config / account / account_risk）
-  /// @return ErrorCode::kSuccess 表示成功
-  ErrorCode ValidateSupportBridges();
+  ErrorCode ConfigureQuoteHealth();
 
   /// @brief 初始化引擎内模块（内存 OMS、account-risk 接线等）
   /// @return ErrorCode::kSuccess 表示成功
@@ -157,13 +145,9 @@ class TradingEngine final : public IEngine {
   /// @return ErrorCode::kSuccess 表示成功
   ErrorCode InitEventLanes();
 
-  /// @brief 按 EngineConfig 装配并连接行情/交易适配器（幂等；config 未启用时可跳过）
+  /// @brief Init 阶段适配器可延后注入；本阶段仅幂等确认
   /// @return ErrorCode::kSuccess 表示成功
   ErrorCode InitAdapters();
-
-  /// @brief 经配置桥接拉取并应用引擎运行配置
-  /// @return ErrorCode::kSuccess 表示成功
-  ErrorCode FetchRuntimeConfig();
 
   // ---------------------------------------------------------------------------
   // Start 子阶段（由 Start() 按序调用）
@@ -222,9 +206,13 @@ class TradingEngine final : public IEngine {
   // 运行时回调（配置应用 / 行情健康 → 生命周期）
   // ---------------------------------------------------------------------------
 
-  /// @brief 完整引擎配置回调：应用 EngineConfig
+  /// @brief 应用引擎运行配置（RiskBudget / 合规品种集等）
   /// @param config 引擎配置
-  void OnEngineConfig(const qtrade::config::EngineConfig& config);
+  /// @return 成功返回 kSuccess；身份非法时返回错误码
+  ErrorCode ApplyEngineConfig(const EngineConfig& config);
+
+  /// @brief 将策略合约并入订阅集与合规白名单（AddStrategy 时调用）
+  void MergeStrategyInstruments(const std::vector<std::string>& instruments);
 
   /// @brief 处理行情健康变化并更新 READY 门禁
   /// @param healthy 行情是否健康
@@ -256,14 +244,10 @@ class TradingEngine final : public IEngine {
   std::atomic<bool> running_ = false;
   /// 本进程启动世代（Init 时取 Unix 秒，写入 order_id）
   std::uint64_t engine_epoch_ = 0;
-  /// 已应用的配置快照版本
-  std::uint64_t runtime_config_version_ = 0;
   /// 引擎生命周期状态机（仅本类读写）
   EngineLifecycle lifecycle_;
-  /// 进程引导配置（qtrade_engine.json）
-  qtrade::common::config::QtradeEngineBootstrapConfig bootstrap_config_;
-  /// 经配置桥接下发的业务配置
-  qtrade::config::EngineConfig runtime_config_;
+  /// 已应用的运行配置快照（Init 注入）
+  EngineConfig runtime_config_;
   /// 保护业务配置快照
   mutable std::mutex runtime_config_mutex_;
   /// 当前已订阅行情合约集合
@@ -307,8 +291,6 @@ class TradingEngine final : public IEngine {
   // 成员：支撑服务桥接（非拥有；由进程入口持有并注入）
   // ---------------------------------------------------------------------------
 
-  /// 配置桥接
-  qtrade::config::IConfigBridge* config_bridge_ = nullptr;
   /// 账户桥接
   qtrade::account::IAccountBridge* account_bridge_ = nullptr;
   /// 账户硬风控桥接

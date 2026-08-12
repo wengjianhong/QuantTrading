@@ -1,7 +1,8 @@
-#include "qtrade/common/config/qtrade_engine_bootstrap_config.hpp"
 #include "qtrade/engine/trading_engine.hpp"
 #include "stubs/stub_quote_api.hpp"
 #include "stubs/stub_trader_api.hpp"
+
+#include <qtrade/engine/engine.hpp>
 
 #include <gtest/gtest.h>
 
@@ -22,6 +23,13 @@ void WaitUntil(const std::function<bool()>& predicate) {
   }
 }
 
+[[nodiscard]] qtrade::engine::EngineConfig MakeTestEngineConfig(const std::string& engine_id) {
+  qtrade::engine::EngineConfig config;
+  config.engine_id = engine_id;
+  config.account_id = "test-account";
+  return config;
+}
+
 void InstallConnectedStubQuote(qtrade::engine::TradingEngine& engine) {
   auto quote_api = qtrade::test::stub::CreateStubQuoteApi();
   qtrade_sdk::quote::ConnectRequest request;
@@ -35,14 +43,7 @@ void InstallConnectedStubQuote(qtrade::engine::TradingEngine& engine) {
 TEST(OrderPipeline, StubOrderFlowsThroughOmsAndTraderLane) {
   const std::string suffix = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
   qtrade::engine::TradingEngine engine;
-  qtrade::common::config::QtradeEngineBootstrapConfig config;
-  config.config.identity.tenant_id = "test";
-  config.config.identity.engine_id = "test-engine-" + suffix;
-  config.config.identity.account_id = "test-account";
-  config.support_services.config_service.enabled = false;
-  config.support_services.account_service.enabled = false;
-  config.support_services.account_risk_service.enabled = false;
-  ASSERT_EQ(engine.Init(config), qtrade::ErrorCode::kSuccess);
+  ASSERT_EQ(engine.Init(MakeTestEngineConfig("test-engine-" + suffix)), qtrade::ErrorCode::kSuccess);
 
   InstallConnectedStubQuote(engine);
   engine.SetTraderApi(qtrade::test::stub::CreateStubTraderApi());
@@ -86,14 +87,7 @@ TEST(OrderPipeline, StubOrderFlowsThroughOmsAndTraderLane) {
 TEST(OrderPipeline, CancelFlowsThroughEmsAndVenueReport) {
   const std::string suffix = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
   qtrade::engine::TradingEngine engine;
-  qtrade::common::config::QtradeEngineBootstrapConfig config;
-  config.config.identity.tenant_id = "test";
-  config.config.identity.engine_id = "cancel-engine-" + suffix;
-  config.config.identity.account_id = "test-account";
-  config.support_services.config_service.enabled = false;
-  config.support_services.account_service.enabled = false;
-  config.support_services.account_risk_service.enabled = false;
-  ASSERT_EQ(engine.Init(config), qtrade::ErrorCode::kSuccess);
+  ASSERT_EQ(engine.Init(MakeTestEngineConfig("cancel-engine-" + suffix)), qtrade::ErrorCode::kSuccess);
 
   InstallConnectedStubQuote(engine);
   auto trader_api = std::make_unique<qtrade::test::stub::StubTraderApi>();

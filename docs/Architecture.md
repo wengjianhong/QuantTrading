@@ -92,7 +92,7 @@ MVP 在单机房、生产同等级硬件下采用以下基线；客户部署可�
 | 平面 | 驱动来源 | 允许操作 | 禁止操作 |
 |---|---|---|---|
 | **数据面** | Tick/Bar/订单回报事件 | 策略逻辑、发单/撤单信号、风控拦截 | 外部 HTTP/TCP 直连触发交易 |
-| **控制面** | 启动时出站 `GetEngineConfig` 拉取快照 | 整引擎启停（进程级）、冷启动载入策略绑定与参数 | 运行中热更策略参数/单策略启停；绕过配置中心直接改引擎内存；同步阻塞热路径 |
+| **控制面** | client 出站 `GetEngineConfig` → `SetEngineConfig` | 整引擎启停（进程级）、冷启动 `AddStrategy` 载入策略 | 运行中热更策略参数/单策略启停；绕过配置中心直接改引擎内存；同步阻塞热路径 |
 | **安全控制面** | 引擎主动建立的安全控制流 | 冻结新单、按账户/策略撤销全部挂单、断开交易通道 | 人工新开仓、任意改单、绕过风控 |
 
 普通配置变更不直接产生订单。**当前实现**：业务配置与策略参数仅在冷启动/重 Init 时载入，运行中不热更新；「冻结新单」等安全动作须立即生效，不等待下一 Tick。安全控制操作必须双人复核、幂等执行并完整审计。
@@ -163,7 +163,7 @@ A 段只负责生成 `OrderIntent`，不等待远程服务或磁盘。
 
 MVP 中，一个账户只由一个 Active 引擎负责。一个引擎可以运行多个策略，但同一品种只能交给一个策略；共享品种的多个模型应由一个组合策略统一决策。
 
-config-service 按 `engine_id` 返回专属 `EngineConfig`（启动时 `GetEngineConfig`）。策略参数与绑定**不可**运行时热更新；启停粒度为整交易引擎。品种归属和账户绑定变更须停机后重 Init/Start；跨实例迁移只允许在维护窗口执行。交易凭证由 account-service 单独管理，不随业务配置下发。
+config-service 按 `engine_id` 返回专属 `EngineConfig`（client 启动时 `GetEngineConfig`，再 `SetEngineConfig`）。策略参数与绑定**不可**运行时热更新；启停粒度为整交易引擎。品种归属和账户绑定变更须停机后重 Init/Start；跨实例迁移只允许在维护窗口执行。交易凭证由 account-service 单独管理，不随业务配置下发。
 
 ### 2.6 配置与交易账户（account-service）
 
@@ -180,7 +180,7 @@ config-service 按 `engine_id` 返回专属 `EngineConfig`（启动时 `GetEngin
 
 与 config-service 的分工：**config** 管「跑什么策略」；**account** 管「用哪个账户登录」。策略插件只使用 `account_id` 发单，不接触密码。
 
-启动顺序：`qtrade_engine.json` → `GetEngineConfig` → `GetCredential`（若启用）→ 适配器 Connect → 策略登记 → 引擎 `Start`。启用账户硬限制时，`account-risk-service` 不可用则拒绝对应账户的新订单。运行中**不**订阅配置变更。
+启动顺序：`qtrade_engine.json` → client `GetEngineConfig` → `SetEngineConfig` → `GetCredential`（若启用）→ 适配器 Connect → `AddStrategy(config, so路径)` → 引擎 `Start`。启用账户硬限制时，`account-risk-service` 不可用则拒绝对应账户的新订单。运行中**不**订阅配置变更。
 
 ---
 
@@ -292,7 +292,7 @@ config-service 按 `engine_id` 返回专属 `EngineConfig`（启动时 `GetEngin
 
 1. 除 `account-risk-service` 外，所有**核心交易模块**运行在同一个交易引擎进程内，不拆分、不独立部署
 
-2. 交易引擎**不对外开放任何 TCP/HTTP/gRPC 控制服务端**；控制面仅在冷启动经出站 `GetEngineConfig` 拉取并缓存，运行中不 Subscribe/Watch
+2. 交易引擎**不对外开放任何 TCP/HTTP/gRPC 控制服务端**；控制面由 **client** 冷启动 `GetEngineConfig` 后 `SetEngineConfig` 注入，运行中不 Subscribe/Watch
 
 3. **数据面**策略**仅由**内部 Tick/Bar/回报事件驱动，不接受外部触发发单信号
 
@@ -310,7 +310,7 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
 
 |服务|功能|边界与数据所有权|接口/可扩展性|关键技术要点|
 |---|---|---|---|---|
-|**配置服务（config-service）**|管理 `EngineConfig`、实例风险预算和配置版本|业务配置唯一写入方；不保存交易密码、运行时订单或持仓|引擎启动时 `GetEngineConfig`；接入层只提交变更；proto 可保留 Subscribe 供后续，**当前引擎路径不用**|快照带 `version`；支持校验、回滚和审计|
+|**配置服务（config-service）**|管理 `EngineConfig`、实例风险预算和配置版本|业务配置唯一写入方；不保存交易密码、运行时订单或持仓|**client** `GetEngineConfig` → 引擎 `SetEngineConfig`；接入层只提交变更；proto 可保留 Subscribe 供后续，**当前引擎路径不用**|快照带 `version`；支持校验、回滚和审计|
 |**交易账户服务（account-service）**|管理账户主数据、凭证和实例授权|凭证唯一所有者；不维护实时资金、持仓或风控预占|引擎调用 `GetCredential(account_id, engine_id)`；接入层调用账户管理 RPC|KMS/AES 加密、凭证轮换和独立审计；不得向策略插件暴露凭证；账户以全局唯一 `account_id` 标识|
 |**账户风控服务（account-risk-service）**|执行账户资金、保证金、总/净敞口等硬限制|账户硬风控账簿与预占记录权威来源；不管理凭证或策略配置|引擎 E 段调用 `ReserveOrder`；`ReleaseOrder`/结算为直接 gRPC 尽力调用（失败 warn，靠 TTL/对账）|按账户单写；预占和账簿更新在同一事务；支持幂等、部分结算、恢复查询和对账|
 |**安全控制能力（MVP 可合并部署）**|冻结新单、撤销全部挂单、断开交易通道|不能产生新订单；命令和执行结果必须审计|引擎主动建立双向 gRPC 流，接收命令并返回 ACK|双人复核、短时授权、命令幂等、超时重试；与普通配置 RPC 分离|
@@ -339,7 +339,7 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
 
 1. **Production/Institutional 档位**：所有支撑服务不得与交易引擎部署在同一物理机/虚拟机；Lite 档位例外见 §8.1
 
-2. 支撑服务**禁止主动调用交易引擎**（不向引擎发起 gRPC/HTTP）；引擎启动时出站 `GetEngineConfig`，运行中不 Watch
+2. 支撑服务**禁止主动调用交易引擎**（不向引擎发起 gRPC/HTTP）；**client** 启动时出站 `GetEngineConfig` 并 `SetEngineConfig`，运行中不 Watch
 
 3. 交易引擎向支撑服务的旁路上报**经 `client/` 异步接口单向投递**，不等待响应；各服务接收端内部实现架构不约束
 
@@ -381,7 +381,7 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
 
 1. 接入层**不提供任何直连交易引擎的 API**
 
-2. 所有配置与策略生命周期变更必须经 **config-service** 写入；引擎仅在启动时 `GetEngineConfig`，运行中不热更、不单策略启停
+2. 所有配置与策略生命周期变更必须经 **config-service** 写入；client 启动时拉取并 `SetEngineConfig` / `AddStrategy`，运行中不热更、不单策略启停
 
 3. 前端禁止人工新开仓和任意改单；允许经过双人复核的冻结新单、按账户/策略撤销全部挂单和断开交易通道
 
@@ -445,8 +445,8 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
 - **交易引擎 → 支撑服务（D 段）**：经 `log_client`、`monitor_client` 等**异步上报接口**单向投递（A 段仅 `enqueue`；**Outbound 线程**调用 client）；载荷 Protobuf；**不等待响应**；client 内部传输（gRPC/HTTP/本地 Spool/no-op）**架构不规定**，MVP 允许 stub
 
 - **引擎 ↔ config-service（控制面，全程 gRPC）**：
-  - 冷启动：`GetEngineConfig` 一次性拉全量配置并缓存；失败则 Init 失败（或按里程碑允许签名未过期本地快照）
-  - 运行时：**不**调用 Subscribe/Watch；配置或策略绑定变更须停引擎后重 Init/Start
+  - 冷启动：**client** `GetEngineConfig` 一次性拉全量配置后 `SetEngineConfig`；失败则启动失败（或按里程碑允许签名未过期本地快照）
+  - 运行时：**不**调用 Subscribe/Watch；配置或策略绑定变更须停引擎后重 Init/Start；策略经 `AddStrategy(config, plugin_so_path)` 登记
   - 快照须含单调 `version`；引擎身份与本地引导配置必须一致
   - 字段策略：策略参数与绑定不可热更新；启停粒度为整交易引擎
   - **禁止**：引擎对外提供 gRPC Server；禁止 config-service 主动 RPC 调用引擎
@@ -480,7 +480,7 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
 
 | RPC | 类型 | 调用方 | 用途 |
 |---|---|---|---|
-| `GetEngineConfig` | Unary | engine → config-service | 冷启动全量 `EngineConfig`（引擎路径仅此） |
+| `GetEngineConfig` | Unary | client → config-service | 冷启动全量 `EngineConfig`（再 `SetEngineConfig` 注入引擎） |
 | `SubscribeEngineConfig` | Server Streaming | （服务端可保留） | **当前引擎不调用**；变更靠停机重拉 |
 | `GetCredential` | Unary | engine → account-service | 冷启动按需解析登录凭证 |
 | `ReserveOrder` / `GetReservation` | Unary | engine → account-risk-service | 同步预占；结果不确定时按 `order_id` 查询 |
@@ -554,9 +554,9 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
 
 ```text
 用户 → API 网关 → config-service / account-service / account-risk-service
-  ├─ 冷启动: engine ──GetEngineConfig(engine_id)──► 本地缓存 EngineConfig
-  ├─ 冷启动: engine ──GetCredential(account_id, engine_id)──► 登录材料
-  └─ 运行时: 不 Subscribe；配置/绑定变更 → 停引擎 → 重 Init/Start
+  ├─ 冷启动: client ──GetEngineConfig──► SetEngineConfig → 引擎本地缓存
+  ├─ 冷启动: client ──GetCredential──► 登录材料 → 适配器 Connect
+  └─ 冷启动: client ──AddStrategy(config, so_path)──► 引擎登记策略（运行中不 Subscribe）
 安全管理员 → API 网关 → safety-control
   └─ engine 主动建立 SafetyControl 流
        → 冻结新单 → 撤单 → 查询确认/对账 → 必要时断开 → 分阶段 ACK
@@ -588,7 +588,7 @@ A 段 enqueue → Outbound → log_client / monitor_client / …（fire-and-forg
 |交易引擎内部|内存结构体 + 有界队列|Lane-Q/Lane-T 入口隔离；订单状态由单写者统一更新|
 |交易引擎 ↔ 适配器|函数调用 + 回调|同进程插件，无网络|
 |交易引擎 → 支撑服务（D 段旁路）|`client/` 异步接口 + Protobuf|A 段仅入队；Outbound 线程 fire-and-forget；内部传输可插拔|
-|引擎 ↔ config-service（控制面）|gRPC + Protobuf|启动时 `GetEngineConfig`；引擎仅作 Client；运行中不 Subscribe|
+|引擎 ↔ config-service（控制面）|gRPC + Protobuf|**client** `GetEngineConfig` → 引擎 `SetEngineConfig`；运行中不 Subscribe|
 |引擎 ↔ account-service（凭证面）|gRPC + Protobuf|`GetCredential` 按需拉取；启动路径执行；不进 A 段|
 |引擎 ↔ account-risk-service（账户硬风控）|gRPC + Protobuf|准入线程同步 `ReserveOrder`；`ReleaseOrder`/结算为直接 gRPC 尽力调用（失败 warn）|
 |引擎 ↔ safety-control（安全控制）|引擎主动建立双向 gRPC 流|不开放引擎入站端口，同时保证冻结和撤单可确认、可重试、可审计|

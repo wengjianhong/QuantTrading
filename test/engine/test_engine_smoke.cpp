@@ -4,11 +4,11 @@
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
-#include "qtrade/common/config/qtrade_engine_bootstrap_config.hpp"
 #include "qtrade/engine/trading_engine.hpp"
 #include "stubs/stub_quote_api.hpp"
 #include "stubs/stub_trader_api.hpp"
 
+#include <qtrade/engine/engine.hpp>
 #include <qtrade/sdk/quote/quote_struct.hpp>
 
 #include <gtest/gtest.h>
@@ -30,6 +30,13 @@ void WaitUntil(const std::function<bool()>& predicate) {
   }
 }
 
+[[nodiscard]] qtrade::engine::EngineConfig MakeTestEngineConfig(const std::string& engine_id) {
+  qtrade::engine::EngineConfig config;
+  config.engine_id = engine_id;
+  config.account_id = "test-account";
+  return config;
+}
+
 void InstallStubAdapters(qtrade::engine::TradingEngine& engine) {
   auto quote_api = qtrade::test::stub::CreateStubQuoteApi();
   qtrade_sdk::quote::ConnectRequest quote_request;
@@ -47,14 +54,8 @@ void InstallStubAdapters(qtrade::engine::TradingEngine& engine) {
 }  // namespace
 
 TEST(EngineSmoke, TradingEngineStartStop) {
-  qtrade::common::config::QtradeEngineBootstrapConfig config;
-  config.config.identity.tenant_id = "test";
-  config.config.identity.engine_id =
-    "test-engine-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
-  config.config.identity.account_id = "test-account";
-  config.support_services.config_service.enabled = false;
-  config.support_services.account_service.enabled = false;
-  config.support_services.account_risk_service.enabled = false;
+  const auto config = MakeTestEngineConfig(
+    "test-engine-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
   qtrade::engine::TradingEngine engine;
   ASSERT_EQ(engine.Init(config), qtrade::ErrorCode::kSuccess);
   InstallStubAdapters(engine);
@@ -77,13 +78,7 @@ TEST(EngineSmoke, MarketTickSize) {
 
 TEST(EngineSmoke, InjectedStubAdaptersReachReady) {
   const std::string suffix = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
-  qtrade::common::config::QtradeEngineBootstrapConfig config;
-  config.config.identity.tenant_id = "test";
-  config.config.identity.engine_id = "configured-stub-" + suffix;
-  config.config.identity.account_id = "test-account";
-  config.support_services.config_service.enabled = false;
-  config.support_services.account_service.enabled = false;
-  config.support_services.account_risk_service.enabled = false;
+  const auto config = MakeTestEngineConfig("configured-stub-" + suffix);
   qtrade::engine::TradingEngine engine;
   ASSERT_EQ(engine.Init(config), qtrade::ErrorCode::kSuccess);
   InstallStubAdapters(engine);

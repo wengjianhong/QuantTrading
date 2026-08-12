@@ -160,7 +160,7 @@ qtrade/
 
 - **B/D 段（异步）**：内存快照、历史副本、指标和远程审计投递；旁路 spool（若启用）不是订单恢复源，不得另建一套订单事实
 
-- **控制面**：启动阶段出站 `GetEngineConfig` 拉全量并缓存；**不**订阅运行时推送，配置变更须停引擎后重 Init/Start（独立控制/启动路径，不在策略回调内）
+- **控制面**：进程入口（client）启动时出站 `GetEngineConfig`，经 `SetEngineConfig` 值注入引擎；**不**订阅运行时推送，配置变更须停引擎后重 Init/Start
 
 ### 3.2 E/C 段与旁路
 
@@ -182,7 +182,7 @@ qtrade/
 |交易引擎内部|内存结构体 + Lane-Q/Lane-T 内存队列|无网络、无序列化|
 |交易引擎 ↔ 适配器|函数调用 + 回调接口|同进程内|
 |交易引擎 → 支撑服务（D 段）|`client/` 异步接口 + Protobuf|Outbound 线程 fire-and-forget；内部传输可插拔，MVP 可 stub|
-|引擎 ↔ config-service|gRPC + Protobuf|引擎仅作 Client：启动时 `GetEngineConfig`（`EngineConfig`）；无运行时 Subscribe|
+|引擎 ↔ config-service|gRPC + Protobuf|**client** 出站 `GetEngineConfig` 后 `SetEngineConfig` 注入引擎；引擎不持配置 gRPC；无运行时 Subscribe|
 |引擎 ↔ account-service|gRPC + Protobuf|引擎 Client：`GetCredential(account_id, engine_id)`（启动拉取，不进 A 段）|
 |引擎 ↔ account-risk-service|gRPC + Protobuf|E 段仅同步 `ReserveOrder`；`Unknown` 查询确认；Release/Settle 为直接 gRPC 尽力调用（失败 warn，靠 TTL/对账）|
 |引擎 ↔ safety-control|引擎主动建立双向 gRPC 流|冻结 → 撤单 → 确认/对账 → 必要时断开；返回分阶段 ACK|
@@ -194,7 +194,7 @@ qtrade/
 
 - **D 段**：`log_client`、`monitor_client` 等仅定义引擎侧异步接口；是否实现远程 gRPC/HTTP、是否 no-op 由里程碑决定
 
-- **控制面（config）**：冷启动经 `GetEngineConfig` 拉取带 `version` 的快照并缓存；**不**做运行时 Subscribe/Watch。变更须停引擎后重 Init/Start
+- **控制面（config）**：client 冷启动 `GetEngineConfig` 后 `SetEngineConfig`；策略经 `AddStrategy(config, plugin_so_path)` 登记。**不**做运行时 Subscribe/Watch。变更须停引擎后重 Init/Start
 
 - **凭证面（account）**：登录凭证经 account-service `GetCredential` 按需拉取，与配置面分离（详见《架构》§2.6）；账户以全局唯一 `account_id` 标识
 
@@ -338,7 +338,7 @@ Api 适配器实现 QTrade 的稳定接口并转发调用；Spi 适配器继承�
 
 - 策略**仅由内部行情 Tick/Bar 事件驱动**，不接受任何外部触发信号
 
-- 引擎业务配置在启动时经 config-service `GetEngineConfig` 拉取；**交易凭证**经 account-service 单独管理（《架构》§2.6）；禁止外部直接修改交易引擎内存；运行中不接受配置热推
+- 引擎业务配置由 client 拉取后经 `SetEngineConfig` 注入；策略插件经 `AddStrategy(config, so路径)` 加载；**交易凭证**经 account-service 单独管理（《架构》§2.6）；禁止外部直接修改交易引擎内存；运行中不接受配置热推
 
 ### 6.3 可观测性
 
@@ -444,7 +444,7 @@ Api 适配器实现 QTrade 的稳定接口并转发调用；Spi 适配器继承�
 | account-service 与凭证、配置分离 | MVP | ❌ 服务与凭证链路待实现 |
 | 行情适配器与 READY 门禁 | MVP | ✅ 已有 `QuoteApi` + `QuoteHealthMonitor`；故障切换待实现 |
 | 交易回报标准化与 OMS 串联 | MVP | 🟡 骨架已有；语义标准化与回报链路待完善 |
-| config 启动拉取（GetEngineConfig） | MVP | ✅ client bridge 已接入；无运行时 Watch |
+| config 启动拉取（client Get + SetEngineConfig） | MVP | ✅ client bridge 已接入；引擎无配置 gRPC；无运行时 Watch |
 | D 段旁路上报与支撑微服务 | MVP | 🟡 接口或服务桩存在；远程上报与引擎集成待实现 |
 | account-risk-service（E 段） | MVP | ❌ 服务、协议与账簿待实现 |
 | 外部接入层 | 二期（非本仓库） | 由独立项目实现；本仓库提供稳定 gRPC 契约 |

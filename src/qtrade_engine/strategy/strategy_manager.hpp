@@ -1,7 +1,7 @@
 /// @file      strategy_manager.hpp
 /// @brief     策略管理器：装配插件实例、生命周期与事件分发绑定
-/// @details   Init 加载插件并注册策略；Start/Stop 对齐引擎生命周期。
-///            不支持运行中按配置增删策略；配置变更须 Stop 后重新 Init。
+/// @details   AddStrategyFromPlugin 按 .so 路径加载并注册；Start/Stop 对齐引擎生命周期。
+///            不支持运行中按配置增删策略；配置变更须 Stop 后重新登记。
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
@@ -40,24 +40,24 @@ class StrategyManager {
   StrategyManager(const StrategyManager&) = delete;
   StrategyManager& operator=(const StrategyManager&) = delete;
 
-  /// @brief 加载插件目录、按配置创建并注册已启用策略，订阅事件分发
-  /// @param plugin_dir 策略 .so 目录
-  /// @param strategies 已转换的策略运行时配置列表
+  /// @brief 按 .so 路径加载插件、创建并注册单个已启用策略
+  /// @param config 策略实例配置；strategy_name 须与插件 ABI 名一致
+  /// @param plugin_so_path 策略 .so 完整路径
   /// @param order_sender 发单回调（通常绑定 GetOrderPipeline().SubmitBatch，并做 READY 门禁）
-  /// @return 成功返回 kSuccess；已 Start / 插件加载或注册失败时返回对应错误码
-  ErrorCode Init(const std::string& plugin_dir,
-                 const std::vector<StrategyConfig>& strategies,
-                 OrderSender order_sender);
+  /// @return 成功返回 kSuccess；disabled 跳过亦返回成功；已 Start / 加载或注册失败时返回对应错误码
+  ErrorCode AddStrategyFromPlugin(const StrategyConfig& config,
+                                  const std::string& plugin_so_path,
+                                  OrderSender order_sender);
 
   /// @brief Start 全部已注册策略
   /// @return 成功返回 kSuccess；已处于运行态返回 kAlreadyStarted
   ErrorCode Start();
 
   /// @brief Stop 全部策略、清空注册表并卸载插件
-  /// @warning 须重新 Init 后才能再 Start
+  /// @warning 须重新登记策略后才能再 Start
   void Stop();
 
-  /// @brief 注册已 Init 完成的策略实例（单测注入；生产路径由 Init 内部调用）
+  /// @brief 注册已 Init 完成的策略实例（单测注入；生产路径由 AddStrategyFromPlugin 内部调用）
   /// @param strategy_id 策略实例标识，不可为空
   /// @param strategy 策略实例所有权；不可为空
   /// @param instruments 本策略独占路由的合约列表；空表示仅参与广播

@@ -32,10 +32,9 @@ void StrategyManager::PushRoutingToDispatcherLocked() {
   dispatcher_->SetRouting(instrument_routes_, BuildStrategyListLocked());
 }
 
-ErrorCode StrategyManager::Init(const std::string& plugin_dir,
-                                const std::vector<StrategyConfig>& strategies,
-                                OrderSender order_sender) {
-  // 1. 拒绝在已运行态重复 Init
+ErrorCode StrategyManager::AddStrategyFromPlugin(const StrategyConfig& config,
+                                                 const std::string& plugin_so_path,
+                                                 OrderSender order_sender) {
   {
     std::lock_guard lock(mutex_);
     if (running_.load()) {
@@ -43,53 +42,57 @@ ErrorCode StrategyManager::Init(const std::string& plugin_dir,
     }
   }
 
-  // 2. 扫描并加载策略插件目录
-  if (plugin_loader_.LoadStrategyPlugin(plugin_dir) != ErrorCode::kSuccess) {
-    spdlog::error("[StrategyManager] LoadStrategyPlugin failed dir={}", plugin_dir);
-    return ErrorCode::kDynamicLibraryLoadError;
+  if (config.strategy_id.empty() || config.strategy_name.empty()) {
+    return ErrorCode::kInvalidArgument;
+  }
+  if (!config.enabled) {
+    spdlog::info("[StrategyManager] skip disabled strategy {}", config.strategy_id);
+    return ErrorCode::kSuccess;
+  }
+  if (plugin_so_path.empty()) {
+    spdlog::error("[StrategyManager] empty plugin_so_path strategy_id={}", config.strategy_id);
+    return ErrorCode::kInvalidArgument;
   }
 
-  if (strategies.empty()) {
-    spdlog::warn("[StrategyManager] strategies is empty");
-  }
-
-  // 3. 按配置创建、Init 并注册已启用策略
-  for (const auto& config : strategies) {
-    if (!config.enabled) {
-      spdlog::info("[StrategyManager] skip disabled strategy {}", config.strategy_id);
-      continue;
+  // 同插件多实例：已加载则复用句柄，不再次 dlopen
+  if (!plugin_loader_.HasPlugin(config.strategy_name)) {
+    if (const auto rc = plugin_loader_.LoadFile(plugin_so_path); rc != ErrorCode::kSuccess) {
+      spdlog::error("[StrategyManager] LoadFile failed path={} strategy_id={}",
+                    plugin_so_path,
+                    config.strategy_id);
+      return rc;
     }
-
-    auto strategy = plugin_loader_.Create(config.strategy_name);
-    if (!strategy) {
+    if (!plugin_loader_.HasPlugin(config.strategy_name)) {
       spdlog::error(
-        "[StrategyManager] unknown strategy_name={} strategy_id={}", config.strategy_name, config.strategy_id);
+        "[StrategyManager] plugin ABI name mismatch: config.strategy_name={} path={}",
+        config.strategy_name,
+        plugin_so_path);
       return ErrorCode::kDynamicLibrarySymbolNotFound;
     }
-    strategy->SetOrderSender(order_sender);
-
-    if (strategy->Init(config) != ErrorCode::kSuccess) {
-      spdlog::error("[StrategyManager] strategy Init failed strategy_id={}", config.strategy_id);
-      return ErrorCode::kInternalError;
-    }
-
-    if (RegisterStrategy(config.strategy_id, std::move(strategy), config.instruments) != ErrorCode::kSuccess) {
-      spdlog::error("[StrategyManager] RegisterStrategy failed strategy_id={}", config.strategy_id);
-      return ErrorCode::kSystemError;
-    }
   }
 
-  // 4. 创建分发器：拷贝路由快照并订阅（尚未 SetActive，等 Start）
-  {
-    std::lock_guard lock(mutex_);
-    dispatcher_ = std::make_unique<StrategyEventDispatcher>(event_lanes_);
-    PushRoutingToDispatcherLocked();
-    dispatcher_->Subscribe();
+  auto strategy = plugin_loader_.Create(config.strategy_name);
+  if (!strategy) {
+    spdlog::error(
+      "[StrategyManager] Create failed strategy_name={} strategy_id={}", config.strategy_name, config.strategy_id);
+    return ErrorCode::kDynamicLibrarySymbolNotFound;
+  }
+  strategy->SetOrderSender(std::move(order_sender));
+
+  if (strategy->Init(config) != ErrorCode::kSuccess) {
+    spdlog::error("[StrategyManager] strategy Init failed strategy_id={}", config.strategy_id);
+    return ErrorCode::kInternalError;
   }
 
-  spdlog::info("[StrategyManager] Init registered {} strategy instance(s) from {} config(s)",
-               strategies_.size(),
-               strategies.size());
+  if (RegisterStrategy(config.strategy_id, std::move(strategy), config.instruments) != ErrorCode::kSuccess) {
+    spdlog::error("[StrategyManager] RegisterStrategy failed strategy_id={}", config.strategy_id);
+    return ErrorCode::kSystemError;
+  }
+
+  spdlog::info("[StrategyManager] registered strategy_id={} name={} path={}",
+               config.strategy_id,
+               config.strategy_name,
+               plugin_so_path);
   return ErrorCode::kSuccess;
 }
 

@@ -13,14 +13,38 @@
 
 #include <spdlog/spdlog.h>
 
-namespace qtrade::engine::boot {
+#include <filesystem>
 
-bool LoadStrategies(IEngine& engine, const std::string& plugin_dir) {
-  spdlog::info("[engine_boot] LoadStrategies plugin_dir={}", plugin_dir);
-  const ErrorCode code = engine.LoadStrategiesFromPlugins(plugin_dir);
-  if (code != ErrorCode::kSuccess) {
-    spdlog::error("[engine_boot] LoadStrategies failed, code={}", static_cast<int>(code));
+namespace qtrade::engine::boot {
+namespace {
+
+[[nodiscard]] std::string DefaultPluginSoPath(const std::string& plugin_dir, const std::string& strategy_name) {
+  return (std::filesystem::path(plugin_dir) / ("lib" + strategy_name + "_strategy.so")).string();
+}
+
+}  // namespace
+
+bool LoadStrategies(IEngine& engine,
+                    const std::string& plugin_dir,
+                    const std::vector<qtrade::strategy::StrategyConfig>& strategies) {
+  if (plugin_dir.empty()) {
+    spdlog::error("[engine_boot] LoadStrategies: plugin_dir is empty");
     return false;
+  }
+  spdlog::info("[engine_boot] LoadStrategies plugin_dir={} count={}", plugin_dir, strategies.size());
+  for (const auto& config : strategies) {
+    const std::string so_path = DefaultPluginSoPath(plugin_dir, config.strategy_name);
+    spdlog::info("[engine_boot] AddStrategy id={} name={} so={}",
+                 config.strategy_id,
+                 config.strategy_name,
+                 so_path);
+    const ErrorCode code = engine.AddStrategy(config, so_path);
+    if (code != ErrorCode::kSuccess) {
+      spdlog::error("[engine_boot] AddStrategy failed strategy_id={} code={}",
+                    config.strategy_id,
+                    static_cast<int>(code));
+      return false;
+    }
   }
   return true;
 }
