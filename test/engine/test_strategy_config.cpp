@@ -66,12 +66,12 @@ TEST(StrategyConfig, RegistersAndStartsStrategy) {
   config.strategy_name = "configurable";
   config.enabled = true;
   config.instruments = {"IF2506"};
-  config.order_volume = 1;
-  config.order_threshold = 0.02;
+  config.args.order_volume = 1;
+  config.args.order_threshold = 0.02;
   ASSERT_EQ(strategy->Init(config), qtrade::ErrorCode::kSuccess);
   ASSERT_EQ(manager.RegisterStrategy("strategy-1", std::move(strategy), {"IF2506"}), qtrade::ErrorCode::kSuccess);
   EXPECT_EQ(state->config.strategy_id, "strategy-1");
-  EXPECT_DOUBLE_EQ(state->config.order_threshold.value_or(0.0), 0.02);
+  EXPECT_DOUBLE_EQ(state->config.args.order_threshold, 0.02);
 
   manager.Start();
   EXPECT_EQ(state->starts, 1);

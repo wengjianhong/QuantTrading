@@ -49,7 +49,7 @@ TEST(OrderPipeline, StubOrderFlowsThroughOmsAndTraderLane) {
   strategy_config.enabled = true;
   strategy_config.strategy_id = "test-strategy";
   strategy_config.instruments = {"IF2506"};
-  ASSERT_EQ(engine.RegisterStrategyBindings(strategy_config), qtrade::ErrorCode::kSuccess);
+  ASSERT_EQ(engine.AddStrategy(strategy_config, ""), qtrade::ErrorCode::kSuccess);
 
   InstallConnectedStubQuote(engine);
   engine.SetTraderApi(qtrade::test::stub::CreateStubTraderApi());
@@ -101,7 +101,7 @@ TEST(OrderPipeline, CancelFlowsThroughEmsAndVenueReport) {
   strategy_config.enabled = true;
   strategy_config.strategy_id = "cancel-strategy";
   strategy_config.instruments = {"IF2506"};
-  ASSERT_EQ(engine.RegisterStrategyBindings(strategy_config), qtrade::ErrorCode::kSuccess);
+  ASSERT_EQ(engine.AddStrategy(strategy_config, ""), qtrade::ErrorCode::kSuccess);
 
   InstallConnectedStubQuote(engine);
   auto trader_api = std::make_unique<qtrade::test::stub::StubTraderApi>();

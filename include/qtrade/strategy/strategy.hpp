@@ -13,7 +13,6 @@
 
 #include <cstdint>
 #include <functional>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -34,7 +33,7 @@ struct OrderBatch {
   std::vector<qtrade::sdk::trader::OrderRequest> order_requests;
 };
 
-/// @brief 策略级风控/合规限额（由 AddStrategy 注册到 CMS；冷却/持仓由策略侧消费）
+/// @brief 策略级风控/合规限额（0 表示该项不限制；是否登记 CMS 由 StrategyConfig.enabled 决定）
 struct StrategyRiskLimits {
   /// 单笔最大名义金额；0 表示不限制
   double max_notional = 0.0;
@@ -46,6 +45,20 @@ struct StrategyRiskLimits {
   std::int32_t order_cooldown_ms = 0;
 };
 
+/// @brief 策略行为参数（策略逻辑消费；未用字段保持默认 0，策略可不读）
+struct StrategyArgs {
+  /// 单笔下单量；0 表示由策略自行决定
+  std::int64_t order_volume = 0;
+  /// 策略计算窗口(K线/Tick样本数量)；0 表示未配置
+  std::int32_t window_size = 0;
+  /// 下单信号阈值；0 表示未配置
+  double order_threshold = 0.0;
+  /// 止损比例；0 表示未配置
+  double stop_loss_percent = 0.0;
+  /// 止盈比例；0 表示未配置
+  double take_profit_percent = 0.0;
+};
+
 /// @brief 策略实例配置（与 config.v1.StrategyConfig 字段对齐；不依赖 protobuf）
 struct StrategyConfig {
   /// 是否启用
@@ -54,22 +67,12 @@ struct StrategyConfig {
   std::string strategy_id;
   /// 策略插件名
   std::string strategy_name;
-  /// 订阅合约列表（同时作为 CMS 品种白名单）
+  /// 订阅合约列表
   std::vector<std::string> instruments;
-  /// 单笔下单量（策略行为参数；亦可作为 CMS 单笔上限回退）
-  std::int64_t order_volume = 0;
+  /// 策略行为参数
+  StrategyArgs args;
   /// 策略级风控/合规限额
   StrategyRiskLimits risk;
-
-  // ========== 可选参数 ==========
-  /// 策略计算窗口(K线/Tick样本数量)
-  std::optional<std::int32_t> window_size;
-  /// 下单信号阈值（信号强度大于此值时才发单）
-  std::optional<double> order_threshold;
-  /// 止损比例（持仓亏损超过此比例时止损）
-  std::optional<double> stop_loss_percent;
-  /// 止盈比例（持仓盈利超过此比例时止盈）
-  std::optional<double> take_profit_percent;
 };
 
 /// @brief 策略发单回调（由引擎在创建实例后注入）

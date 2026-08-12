@@ -75,11 +75,6 @@ class TradingEngine final : public IEngine {
   // 实现侧扩展（非 IEngine；供 boot / 测试 / 内部编排）
   // ---------------------------------------------------------------------------
 
-  /// @brief 登记策略订阅集与 CMS 规则（须 Init 后、Start 前；测试可不经插件登记）
-  /// @param config 策略配置（含 instruments 与 risk）
-  /// @return 成功返回 kSuccess
-  ErrorCode RegisterStrategyBindings(const qtrade::strategy::StrategyConfig& config);
-
   /// @brief 释放资源（Init 失败路径与析构使用）
   void Release();
 

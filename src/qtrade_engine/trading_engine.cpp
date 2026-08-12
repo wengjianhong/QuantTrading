@@ -218,34 +218,20 @@ ErrorCode TradingEngine::AddStrategy(const qtrade::strategy::StrategyConfig& con
   if (running_.load(std::memory_order_acquire)) {
     return ErrorCode::kAlreadyStarted;
   }
-
-  const ErrorCode code =
-    strategy_manager_.AddStrategyFromPlugin(config, plugin_so_path, MakeOrderSender(config.strategy_id));
-  if (code != ErrorCode::kSuccess) {
-    return code;
-  }
-  if (config.enabled) {
-    if (const auto rc = RegisterStrategyBindings(config); rc != ErrorCode::kSuccess) {
-      return rc;
-    }
-  }
-  return ErrorCode::kSuccess;
-}
-
-// =============================================================================
-// 实现侧扩展（非 IEngine）
-// =============================================================================
-
-ErrorCode TradingEngine::RegisterStrategyBindings(const qtrade::strategy::StrategyConfig& config) {
-  if (!initialized_.load(std::memory_order_acquire)) {
-    return ErrorCode::kNotInitialized;
-  }
-  if (running_.load(std::memory_order_acquire)) {
-    spdlog::error("RegisterStrategyBindings rejected: engine already started");
-    return ErrorCode::kAlreadyStarted;
-  }
   if (config.strategy_id.empty()) {
     return ErrorCode::kInvalidArgument;
+  }
+
+  // 插件路径非空时加载实例；空路径仅登记订阅/CMS（流水线测试等）
+  if (!plugin_so_path.empty()) {
+    const ErrorCode code =
+      strategy_manager_.AddStrategyFromPlugin(config, plugin_so_path, MakeOrderSender(config.strategy_id));
+    if (code != ErrorCode::kSuccess) {
+      return code;
+    }
+  }
+  if (!config.enabled) {
+    return ErrorCode::kSuccess;
   }
 
   {
@@ -257,22 +243,21 @@ ErrorCode TradingEngine::RegisterStrategyBindings(const qtrade::strategy::Strate
     }
   }
 
-  cms::ComplianceRules rules;
-  rules.enabled = config.enabled;
-  if (config.risk.max_volume > 0) {
-    rules.max_volume = config.risk.max_volume;
-  } else if (config.order_volume > 0) {
-    rules.max_volume = config.order_volume;
+  auto risk = config.risk;
+  if (risk.max_volume <= 0 && config.args.order_volume > 0) {
+    risk.max_volume = config.args.order_volume;
   }
-  rules.max_notional = config.risk.max_notional;
-  rules.allowed_instruments.insert(config.instruments.begin(), config.instruments.end());
 
-  if (const auto rc = compliance_.UpsertStrategyRules(config.strategy_id, rules); rc != ErrorCode::kSuccess) {
+  if (const auto rc = compliance_.UpsertStrategyRules(config.strategy_id, risk); rc != ErrorCode::kSuccess) {
     lifecycle_.Transition(EngineState::kFailed, "STRATEGY_COMPLIANCE_INVALID");
     return rc;
   }
   return ErrorCode::kSuccess;
 }
+
+// =============================================================================
+// 实现侧扩展（非 IEngine）
+// =============================================================================
 
 void TradingEngine::Release() {
   // 1. 释放引擎内模块（按依赖逆序释放）
@@ -594,7 +579,7 @@ ErrorCode TradingEngine::ApplyEngineConfig(const EngineConfig& config) {
   {
     std::lock_guard lock(engine_config_mutex_);
     engine_config_ = config;
-    // 仅 Init 路径重置订阅集；策略 CMS 由后续 AddStrategy/RegisterStrategyBindings 填充
+    // 仅 Init 路径重置订阅集；策略 CMS 由后续 AddStrategy 填充
     subscribed_instruments_.clear();
   }
 
