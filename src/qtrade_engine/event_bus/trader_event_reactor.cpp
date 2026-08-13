@@ -38,13 +38,13 @@ void TraderEventReactor::Stop() {
   trade_callbacks_.clear();
 }
 
-void TraderEventReactor::SubscribeOrder(qtrade::sdk::trader::TraderApi::OrderCallback callback) {
+void TraderEventReactor::RegisterOrderCallback(qtrade::sdk::trader::TraderApi::OrderCallback callback) {
   // 注册订单回报订阅者，可在 Start 前或后调用
   std::lock_guard<std::mutex> lock(callbacks_mutex_);
   order_callbacks_.push_back(std::move(callback));
 }
 
-void TraderEventReactor::SubscribeTrade(qtrade::sdk::trader::TraderApi::TradeCallback callback) {
+void TraderEventReactor::RegisterTradeCallback(qtrade::sdk::trader::TraderApi::TradeCallback callback) {
   std::lock_guard<std::mutex> lock(callbacks_mutex_);
   trade_callbacks_.push_back(std::move(callback));
 }

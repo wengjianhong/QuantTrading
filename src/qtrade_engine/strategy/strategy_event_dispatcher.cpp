@@ -32,10 +32,10 @@ void StrategyEventDispatcher::Subscribe() {
   if (subscribed_) {
     return;
   }
-  event_lanes_.Quote().SubscribeTick([this](const qtrade::sdk::quote::MarketTick& tick) { OnTick(tick); });
-  event_lanes_.Quote().SubscribeBar([this](const qtrade::sdk::quote::Bar& bar) { OnBar(bar); });
-  event_lanes_.Trader().SubscribeOrder([this](const qtrade::sdk::trader::Order& order) { OnOrder(order); });
-  event_lanes_.Trader().SubscribeTrade([this](const qtrade::sdk::trader::Trade& trade) { OnTrade(trade); });
+  event_lanes_.Quote().RegisterTickCallback([this](const qtrade::sdk::quote::MarketTick& tick) { OnTick(tick); });
+  event_lanes_.Quote().RegisterBarCallback([this](const qtrade::sdk::quote::Bar& bar) { OnBar(bar); });
+  event_lanes_.Trader().RegisterOrderCallback([this](const qtrade::sdk::trader::Order& order) { OnOrder(order); });
+  event_lanes_.Trader().RegisterTradeCallback([this](const qtrade::sdk::trader::Trade& trade) { OnTrade(trade); });
   subscribed_ = true;
 }
 

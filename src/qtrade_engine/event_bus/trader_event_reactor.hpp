@@ -48,13 +48,13 @@ class TraderEventReactor {
   /// @brief 停止 Reactor 线程并清空已注册的回调
   void Stop();
 
-  /// @brief 订阅订单回报事件
+  /// @brief 注册订单回报事件
   /// @param callback 订单回调；在 Reactor 线程中调用
-  void SubscribeOrder(qtrade::sdk::trader::TraderApi::OrderCallback callback);
+  void RegisterOrderCallback(qtrade::sdk::trader::TraderApi::OrderCallback callback);
 
-  /// @brief 订阅成交回报事件
+  /// @brief 注册成交回报事件
   /// @param callback 成交回调；在 Reactor 线程中调用
-  void SubscribeTrade(qtrade::sdk::trader::TraderApi::TradeCallback callback);
+  void RegisterTradeCallback(qtrade::sdk::trader::TraderApi::TradeCallback callback);
 
   /// @brief 将订单封装为 OrderEvent 并入队
   /// @param order 订单回报快照

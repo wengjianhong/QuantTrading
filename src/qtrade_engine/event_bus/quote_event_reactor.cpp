@@ -39,13 +39,13 @@ void QuoteEventReactor::Stop() {
   bar_callbacks_.clear();
 }
 
-void QuoteEventReactor::SubscribeTick(qtrade::sdk::quote::QuoteApi::TickCallback callback) {
+void QuoteEventReactor::RegisterTickCallback(qtrade::sdk::quote::QuoteApi::TickCallback callback) {
   // 注册 Tick 订阅者，由 HandleEvent 在消费线程中同步回调
   std::lock_guard<std::mutex> lock(callbacks_mutex_);
   tick_callbacks_.push_back(std::move(callback));
 }
 
-void QuoteEventReactor::SubscribeBar(qtrade::sdk::quote::QuoteApi::BarCallback callback) {
+void QuoteEventReactor::RegisterBarCallback(qtrade::sdk::quote::QuoteApi::BarCallback callback) {
   std::lock_guard<std::mutex> lock(callbacks_mutex_);
   bar_callbacks_.push_back(std::move(callback));
 }

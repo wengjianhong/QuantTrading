@@ -48,13 +48,13 @@ class QuoteEventReactor {
   /// @brief 停止 Reactor 线程并清空已注册的回调
   void Stop();
 
-  /// @brief 订阅 Tick 事件
+  /// @brief 注册 Tick 回调
   /// @param callback Tick 回调；在 Reactor 线程中调用
-  void SubscribeTick(qtrade::sdk::quote::QuoteApi::TickCallback callback);
+  void RegisterTickCallback(qtrade::sdk::quote::QuoteApi::TickCallback callback);
 
-  /// @brief 订阅 Bar 事件
+  /// @brief 注册 Bar 回调
   /// @param callback Bar 回调；在 Reactor 线程中调用
-  void SubscribeBar(qtrade::sdk::quote::QuoteApi::BarCallback callback);
+  void RegisterBarCallback(qtrade::sdk::quote::QuoteApi::BarCallback callback);
 
   /// @brief 将 Tick 封装为 TickEvent 并入队
   /// @param tick 行情 Tick 快照

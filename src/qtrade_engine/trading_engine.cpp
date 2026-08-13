@@ -589,8 +589,10 @@ void TradingEngine::WireTraderCallbacks() {
 
 void TradingEngine::WireTraderEventHandlers() {
   // Trader Lane：订单/成交回报的唯一异步入口，串联 OMS、账户、持仓与 account-risk 释放
-  event_lanes_.Trader().SubscribeOrder([this](const qtrade::sdk::trader::Order& order) { OnTraderOrderReport(order); });
-  event_lanes_.Trader().SubscribeTrade([this](const qtrade::sdk::trader::Trade& trade) { OnTraderTradeReport(trade); });
+  event_lanes_.Trader().RegisterOrderCallback(
+    [this](const qtrade::sdk::trader::Order& order) { OnTraderOrderReport(order); });
+  event_lanes_.Trader().RegisterTradeCallback(
+    [this](const qtrade::sdk::trader::Trade& trade) { OnTraderTradeReport(trade); });
 }
 
 void TradingEngine::DisconnectAdapters() {
