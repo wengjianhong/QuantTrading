@@ -74,6 +74,17 @@ ErrorCode StrategyPluginLoader::LoadFile(const std::string& so_path) {
 }
 
 ErrorCode StrategyPluginLoader::LoadFileLocked(const std::string& so_path) {
+  if (so_path.empty()) {
+    return ErrorCode::kInvalidArgument;
+  }
+  {
+    std::error_code ec;
+    if (!std::filesystem::is_regular_file(so_path, ec)) {
+      spdlog::error("[StrategyPluginLoader] so not found: {} ({})", so_path, ec.message());
+      return ErrorCode::kNotSuchFileOrDirectory;
+    }
+  }
+
   void* dl_handle = dlopen(so_path.c_str(), RTLD_NOW | RTLD_LOCAL);
   if (dl_handle == nullptr) {
     spdlog::error("[StrategyPluginLoader] dlopen {}: {}", so_path, dlerror());

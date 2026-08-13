@@ -13,6 +13,7 @@
 #include <spdlog/spdlog.h>
 
 #include <ctime>
+#include <filesystem>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -221,14 +222,25 @@ ErrorCode TradingEngine::AddStrategy(const qtrade::strategy::StrategyConfig& con
   if (config.strategy_id.empty()) {
     return ErrorCode::kInvalidArgument;
   }
-
-  // 插件路径非空时加载实例；空路径仅登记订阅/CMS（流水线测试等）
-  if (!plugin_so_path.empty()) {
-    const ErrorCode code =
-      strategy_manager_.AddStrategyFromPlugin(config, plugin_so_path, MakeOrderSender(config.strategy_id));
-    if (code != ErrorCode::kSuccess) {
-      return code;
+  if (plugin_so_path.empty()) {
+    spdlog::error("AddStrategy: plugin_so_path is empty strategy_id={}", config.strategy_id);
+    return ErrorCode::kInvalidArgument;
+  }
+  {
+    std::error_code ec;
+    if (!std::filesystem::is_regular_file(plugin_so_path, ec)) {
+      spdlog::error("AddStrategy: plugin so not found path={} strategy_id={} ({})",
+                    plugin_so_path,
+                    config.strategy_id,
+                    ec.message());
+      return ErrorCode::kNotSuchFileOrDirectory;
     }
+  }
+
+  const ErrorCode code =
+    strategy_manager_.AddStrategyFromPlugin(config, plugin_so_path, MakeOrderSender(config.strategy_id));
+  if (code != ErrorCode::kSuccess) {
+    return code;
   }
   if (!config.enabled) {
     return ErrorCode::kSuccess;

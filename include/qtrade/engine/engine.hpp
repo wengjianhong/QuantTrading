@@ -126,12 +126,11 @@ class IEngine {
   // ---------------------------------------------------------------------------
 
   /// @brief 按 .so 路径加载插件并登记策略实例
-  /// @details 引擎 dlopen(plugin_so_path)，按 config.strategy_name 匹配 ABI 插件名创建实例，
-  ///          注入发单回调并 Init(config)；同时按 config 登记行情订阅与 CMS 规则。
-  ///          plugin_so_path 为部署侧本地路径，不进 StrategyConfig / proto。
-  ///          空路径时跳过插件加载，仅登记订阅与 CMS（测试用）。
+  /// @details 引擎校验 plugin_so_path 为已存在的常规文件后 dlopen，按 config.strategy_name
+  ///          匹配 ABI 插件名创建实例，注入发单回调并 Init(config)；同时按 config 登记行情订阅与 CMS 规则。
+  ///          plugin_so_path 为部署侧本地路径，不进 StrategyConfig / proto；不可为空。
   /// @param config 策略实例配置（strategy_id / instruments / risk 等）
-  /// @param plugin_so_path 策略插件 .so 完整路径；生产路径不可为空
+  /// @param plugin_so_path 策略插件 .so 完整路径；文件不存在返回 kNotSuchFileOrDirectory
   /// @return ErrorCode::kSuccess 表示成功（disabled 策略直接跳过亦返回成功）
   virtual ErrorCode AddStrategy(const qtrade::strategy::StrategyConfig& config, const std::string& plugin_so_path) = 0;
 };

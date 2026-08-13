@@ -7,6 +7,8 @@
 
 #include <spdlog/spdlog.h>
 
+#include <filesystem>
+
 namespace qtrade::engine::strategy {
 
 StrategyManager::StrategyManager(event_bus::EventLanes& event_lanes) : event_lanes_(event_lanes) {}
@@ -52,6 +54,16 @@ ErrorCode StrategyManager::AddStrategyFromPlugin(const StrategyConfig& config,
   if (plugin_so_path.empty()) {
     spdlog::error("[StrategyManager] empty plugin_so_path strategy_id={}", config.strategy_id);
     return ErrorCode::kInvalidArgument;
+  }
+  {
+    std::error_code ec;
+    if (!std::filesystem::is_regular_file(plugin_so_path, ec)) {
+      spdlog::error("[StrategyManager] plugin so not found path={} strategy_id={} ({})",
+                    plugin_so_path,
+                    config.strategy_id,
+                    ec.message());
+      return ErrorCode::kNotSuchFileOrDirectory;
+    }
   }
 
   // 同插件多实例：已加载则复用句柄，不再次 dlopen
