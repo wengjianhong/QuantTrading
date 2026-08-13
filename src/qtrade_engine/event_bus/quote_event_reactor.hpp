@@ -11,13 +11,15 @@
 #include "qtrade/engine/event_bus/event_reactor_loop.hpp"
 #include "qtrade/engine/event_bus/event_types.hpp"
 
+#include <qtrade/sdk/quote/quote_api.hpp>
+
 #include <cstddef>
 #include <mutex>
 #include <vector>
 
 namespace qtrade::engine::event_bus {
 
-/// @brief Lane-Q EventReactor：`EventPtr` FIFO 入队，按 `EventType` 调用 EventHandler
+/// @brief Lane-Q EventReactor：`EventPtr` FIFO 入队，按 `EventType` 调用订阅回调
 class QuoteEventReactor {
  public:
   /// @brief 构造行情 EventReactor
@@ -43,16 +45,16 @@ class QuoteEventReactor {
   /// @brief 启动 Reactor 线程并开始消费队列
   void Start();
 
-  /// @brief 停止 Reactor 线程并清空已注册的 EventHandler
+  /// @brief 停止 Reactor 线程并清空已注册的回调
   void Stop();
 
   /// @brief 订阅 Tick 事件
-  /// @param handler Tick 回调；在 Reactor 线程中调用
-  void SubscribeTick(TickEventHandler handler);
+  /// @param callback Tick 回调；在 Reactor 线程中调用
+  void SubscribeTick(qtrade::sdk::quote::QuoteApi::TickCallback callback);
 
   /// @brief 订阅 Bar 事件
-  /// @param handler Bar 回调；在 Reactor 线程中调用
-  void SubscribeBar(BarEventHandler handler);
+  /// @param callback Bar 回调；在 Reactor 线程中调用
+  void SubscribeBar(qtrade::sdk::quote::QuoteApi::BarCallback callback);
 
   /// @brief 将 Tick 封装为 TickEvent 并入队
   /// @param tick 行情 Tick 快照
@@ -71,18 +73,18 @@ class QuoteEventReactor {
   [[nodiscard]] std::size_t PendingCount() const;
 
  private:
-  /// @brief 按 EventType 分发给已订阅的 EventHandler
+  /// @brief 按 EventType 分发给已订阅的回调
   /// @param event 出队后的事件基类引用
   void HandleEvent(const Event& event);
 
   /// Lane-Q FIFO Reactor 循环
   EventReactorLoop<EventPtr> loop_;
   /// Tick 事件订阅列表
-  std::vector<TickEventHandler> tick_handlers_;
+  std::vector<qtrade::sdk::quote::QuoteApi::TickCallback> tick_callbacks_;
   /// Bar 事件订阅列表
-  std::vector<BarEventHandler> bar_handlers_;
+  std::vector<qtrade::sdk::quote::QuoteApi::BarCallback> bar_callbacks_;
   /// 保护订阅列表的互斥锁
-  mutable std::mutex handlers_mutex_;
+  mutable std::mutex callbacks_mutex_;
 };
 
 }  // namespace qtrade::engine::event_bus
