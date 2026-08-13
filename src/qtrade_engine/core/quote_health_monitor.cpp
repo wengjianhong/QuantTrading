@@ -1,6 +1,6 @@
 /// @file      quote_health_monitor.cpp
 /// @brief     行情健康监控实现
-/// @details   有效/无效 Tick 更新健康态；WatchHealth 线程检测 max_stale_age 静默超时。
+/// @details   有效/无效 Tick 更新健康态；WatchHealth 线程检测 quote_max_stale_ms 静默超时。
 /// @author    wengjianhong
 /// @date      2026-07-27
 /// @copyright CC BY-NC-SA 4.0
@@ -8,6 +8,8 @@
 #include "qtrade/engine/core/quote_health_monitor.hpp"
 
 #include "qtrade/common/system/time.hpp"
+
+#include <chrono>
 
 namespace qtrade::engine {
 
@@ -47,7 +49,7 @@ void QuoteHealthMonitor::Stop() {
 }
 
 ErrorCode QuoteHealthMonitor::Configure(const QuoteHealthOptions& options) {
-  if (options.max_stale_age <= std::chrono::milliseconds::zero()) {
+  if (options.quote_max_stale_ms <= 0) {
     return ErrorCode::kSystemError;
   }
   std::lock_guard lock(mutex_);
@@ -97,7 +99,8 @@ void QuoteHealthMonitor::WatchHealth() {
     {
       std::unique_lock lock(mutex_);
       // 1. 周期性等待；Stop/Configure 时提前唤醒
-      const auto interval = std::min(options_.max_stale_age, std::chrono::milliseconds(100));
+      const auto stale_ms = std::chrono::milliseconds(options_.quote_max_stale_ms);
+      const auto interval = std::min(stale_ms, std::chrono::milliseconds(100));
       health_cv_.wait_for(lock, interval, [this] { return !running_.load(std::memory_order_acquire); });
       if (!running_.load(std::memory_order_acquire)) {
         return;
@@ -106,7 +109,7 @@ void QuoteHealthMonitor::WatchHealth() {
       // 2. 检测静默超时
       const auto last_tick = last_valid_tick_ms_.load(std::memory_order_acquire);
       if (!healthy_.load(std::memory_order_acquire) || last_tick == 0 ||
-          qtrade::common::system::SteadyMillisNow() - last_tick <= options_.max_stale_age.count()) {
+          qtrade::common::system::SteadyMillisNow() - last_tick <= options_.quote_max_stale_ms) {
         continue;
       }
       healthy_.store(false, std::memory_order_release);

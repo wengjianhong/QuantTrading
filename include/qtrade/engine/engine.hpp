@@ -31,6 +31,7 @@
 #include <qtrade/sdk/trader/trader_api.hpp>
 #include <qtrade/strategy/strategy.hpp>
 
+#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -48,6 +49,8 @@ struct EngineConfig {
   std::string quote_source;
   /// 备用行情源；空表示不启用自动切换
   std::string quote_failover;
+  /// 最后一笔有效 Tick 允许的最大静默时间（毫秒）；须 > 0
+  std::int32_t quote_max_stale_ms = 3000;
 };
 
 /// @brief 引擎生命周期状态（IEngine::State 与 EngineLifecycle 共用）

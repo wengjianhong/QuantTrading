@@ -47,16 +47,16 @@ ErrorCode TradingEngine::Init(const EngineConfig& config) {
   // 1. 本进程启动世代（写入 order_id；须在 OMS Initialize 前赋值）
   engine_epoch_ = static_cast<std::uint64_t>(time(nullptr));
 
-  // 2. 行情健康阈值
-  if (const ErrorCode code = ConfigureQuoteHealth(); code != ErrorCode::kSuccess) {
-    spdlog::error("ConfigureQuoteHealth failed, code={}", static_cast<int>(code));
+  // 2. 应用运行配置（身份 + 行情源 / 静默阈值）
+  if (const ErrorCode code = ApplyEngineConfig(config); code != ErrorCode::kSuccess) {
+    spdlog::error("ApplyEngineConfig failed, code={}", static_cast<int>(code));
     Release();
     return code;
   }
 
-  // 3. 应用运行配置（身份 + 风控/合规）
-  if (const ErrorCode code = ApplyEngineConfig(config); code != ErrorCode::kSuccess) {
-    spdlog::error("ApplyEngineConfig failed, code={}", static_cast<int>(code));
+  // 3. 行情健康阈值（取自 EngineConfig.quote_max_stale_ms）
+  if (const ErrorCode code = ConfigureQuoteHealth(); code != ErrorCode::kSuccess) {
+    spdlog::error("ConfigureQuoteHealth failed, code={}", static_cast<int>(code));
     Release();
     return code;
   }
@@ -327,9 +327,40 @@ EngineConfig TradingEngine::GetRuntimeConfig() const {
 // Init 子阶段
 // =============================================================================
 
+ErrorCode TradingEngine::ApplyEngineConfig(const EngineConfig& config) {
+  if (config.engine_id.empty() || config.account_id.empty()) {
+    spdlog::warn("invalid engine config: empty engine_id/account_id");
+    lifecycle_.Transition(EngineState::kFailed, "CONFIG_SNAPSHOT_INVALID");
+    return ErrorCode::kInvalidArgument;
+  }
+
+  if (running_.load(std::memory_order_acquire)) {
+    lifecycle_.Transition(EngineState::kFrozen, "CONFIG_RESTART_REQUIRED");
+    spdlog::error("engine config cannot be applied while running; stop and re-init required");
+    return ErrorCode::kAlreadyStarted;
+  }
+
+  {
+    std::lock_guard lock(engine_config_mutex_);
+    engine_config_ = config;
+    // 仅 Init 路径重置订阅集；策略 CMS 由后续 AddStrategy 填充
+    subscribed_instruments_.clear();
+  }
+
+  spdlog::info("applied engine config engine_id={}, account={}, quote_source={}",
+               config.engine_id,
+               config.account_id,
+               config.quote_source);
+  return ErrorCode::kSuccess;
+}
+
 ErrorCode TradingEngine::ConfigureQuoteHealth() {
-  spdlog::info("ConfigureQuoteHealth");
   QuoteHealthOptions quote_health_options;
+  {
+    std::lock_guard lock(engine_config_mutex_);
+    quote_health_options.quote_max_stale_ms = engine_config_.quote_max_stale_ms;
+  }
+  spdlog::info("ConfigureQuoteHealth quote_max_stale_ms={}", quote_health_options.quote_max_stale_ms);
   if (quote_health_monitor_.Configure(quote_health_options) != ErrorCode::kSuccess) {
     lifecycle_.Transition(EngineState::kFailed, "QUOTE_HEALTH_CONFIG_INVALID");
     return ErrorCode::kSystemError;
@@ -574,33 +605,6 @@ void TradingEngine::DisconnectAdapters() {
 // =============================================================================
 // 运行时回调（配置应用 / 行情健康 → 生命周期）
 // =============================================================================
-
-ErrorCode TradingEngine::ApplyEngineConfig(const EngineConfig& config) {
-  if (config.engine_id.empty() || config.account_id.empty()) {
-    spdlog::warn("invalid engine config: empty engine_id/account_id");
-    lifecycle_.Transition(EngineState::kFailed, "CONFIG_SNAPSHOT_INVALID");
-    return ErrorCode::kInvalidArgument;
-  }
-
-  if (running_.load(std::memory_order_acquire)) {
-    lifecycle_.Transition(EngineState::kFrozen, "CONFIG_RESTART_REQUIRED");
-    spdlog::error("engine config cannot be applied while running; stop and re-init required");
-    return ErrorCode::kAlreadyStarted;
-  }
-
-  {
-    std::lock_guard lock(engine_config_mutex_);
-    engine_config_ = config;
-    // 仅 Init 路径重置订阅集；策略 CMS 由后续 AddStrategy 填充
-    subscribed_instruments_.clear();
-  }
-
-  spdlog::info("applied engine config engine_id={}, account={}, quote_source={}",
-               config.engine_id,
-               config.account_id,
-               config.quote_source);
-  return ErrorCode::kSuccess;
-}
 
 void TradingEngine::OnMarketHealthChanged(bool healthy) {
   const auto state = lifecycle_.State();

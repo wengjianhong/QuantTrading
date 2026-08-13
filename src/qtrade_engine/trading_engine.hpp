@@ -142,6 +142,11 @@ class TradingEngine final : public IEngine {
   // Init 子阶段（由 Init() 按序调用；失败时 Release）
   // ---------------------------------------------------------------------------
 
+  /// @brief 应用引擎运行配置（身份 / 行情源）
+  /// @param config 引擎配置
+  /// @return 成功返回 kSuccess；身份非法时返回错误码
+  ErrorCode ApplyEngineConfig(const EngineConfig& config);
+
   /// @brief 配置行情健康阈值
   /// @return ErrorCode::kSuccess 表示成功
   ErrorCode ConfigureQuoteHealth();
@@ -206,11 +211,6 @@ class TradingEngine final : public IEngine {
   // 运行时回调（配置应用 / 行情健康 → 生命周期）
   // ---------------------------------------------------------------------------
 
-  /// @brief 应用引擎运行配置（身份 / 行情源）
-  /// @param config 引擎配置
-  /// @return 成功返回 kSuccess；身份非法时返回错误码
-  ErrorCode ApplyEngineConfig(const EngineConfig& config);
-
   /// @brief 处理行情健康变化并更新 READY 门禁
   /// @param healthy 行情是否健康
   void OnMarketHealthChanged(bool healthy);
@@ -251,7 +251,7 @@ class TradingEngine final : public IEngine {
   std::unordered_set<std::string> subscribed_instruments_;
 
   // ---------------------------------------------------------------------------
-  // 成员：事件通道 / 策略 / 行情健康 / 适配器
+  // 成员：事件通道 / 策略 / 行情健康
   // ---------------------------------------------------------------------------
 
   /// Lane-Q / Lane-T 事件通道
@@ -260,10 +260,6 @@ class TradingEngine final : public IEngine {
   strategy::StrategyManager strategy_manager_;
   /// 行情健康监控
   QuoteHealthMonitor quote_health_monitor_;
-  /// 行情适配器
-  std::unique_ptr<qtrade::sdk::quote::QuoteApi> quote_api_;
-  /// 交易适配器
-  std::unique_ptr<qtrade::sdk::trader::TraderApi> trader_api_;
 
   // ---------------------------------------------------------------------------
   // 成员：交易核心内的子模块
@@ -281,6 +277,15 @@ class TradingEngine final : public IEngine {
   position::PositionManager position_manager_;
   /// 发单流水线（须在 compliance/order/execution 之后）
   OrderPipeline order_pipeline_{compliance_, order_manager_, execution_manager_};
+
+  // ---------------------------------------------------------------------------
+  // 成员：适配器
+  // ---------------------------------------------------------------------------
+
+  /// 行情适配器
+  std::unique_ptr<qtrade::sdk::quote::QuoteApi> quote_api_;
+  /// 交易适配器
+  std::unique_ptr<qtrade::sdk::trader::TraderApi> trader_api_;
 
   // ---------------------------------------------------------------------------
   // 成员：支撑服务桥接（非拥有；由进程入口持有并注入）

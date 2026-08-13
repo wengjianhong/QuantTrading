@@ -11,7 +11,6 @@
 #include <qtrade/error_code/error_codes.hpp>
 
 #include <atomic>
-#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <functional>
@@ -22,8 +21,8 @@ namespace qtrade::engine {
 
 /// @brief 行情健康检查参数
 struct QuoteHealthOptions {
-  /// 最后一笔有效行情允许的最大静默时间
-  std::chrono::milliseconds max_stale_age = std::chrono::milliseconds(3000);
+  /// 最后一笔有效 Tick 允许的最大静默时间（毫秒）；须 > 0
+  std::int32_t quote_max_stale_ms = 3000;
 };
 
 /// @brief 行情健康状态监控器
@@ -50,7 +49,7 @@ class QuoteHealthMonitor {
 
   /// @brief 配置健康检查参数
   /// @param options 健康检查参数
-  /// @return 参数有效返回 kSuccess；max_stale_age 非正返回 kSystemError
+  /// @return 参数有效返回 kSuccess；quote_max_stale_ms 非正返回 kSystemError
   ErrorCode Configure(const QuoteHealthOptions& options);
 
   /// @brief 设置健康状态变化回调
