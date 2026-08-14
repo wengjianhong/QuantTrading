@@ -538,50 +538,50 @@ void TradingEngine::RegisterQuoteCallbacks() {
   if (quote_api_ == nullptr) {
     return;
   }
-
-  /// 注册行情 Tick 回调
-  quote_api_->SetTickCallback([this](const qtrade::sdk::quote::MarketTick& tick) {
-    if (!running_.load(std::memory_order_acquire)) {
-      return;
-    }
-    if (!IsValidTick(tick)) {
-      quote_health_monitor_.OnInvalidTick();
-      spdlog::warn("rejected invalid tick: instrument={}", tick.instrument);
-      return;
-    }
-    quote_health_monitor_.OnValidTick();
-    event_lanes_.Quote().PublishTick(tick);
-  });
-
-  /// 注册行情 Bar 回调
-  quote_api_->SetBarCallback([this](const qtrade::sdk::quote::Bar& bar) {
-    if (!running_.load(std::memory_order_acquire) || !IsValidBar(bar)) {
-      return;
-    }
-    event_lanes_.Quote().PublishBar(bar);
-  });
+  quote_api_->SetTickCallback([this](const qtrade::sdk::quote::MarketTick& tick) { OnAdapterTick(tick); });
+  quote_api_->SetBarCallback([this](const qtrade::sdk::quote::Bar& bar) { OnAdapterBar(bar); });
 }
 
 void TradingEngine::RegisterTraderCallbacks() {
   if (trader_api_ == nullptr) {
     return;
   }
+  trader_api_->SetOrderCallback([this](const qtrade::sdk::trader::Order& order) { OnAdapterOrder(order); });
+  trader_api_->SetTradeCallback([this](const qtrade::sdk::trader::Trade& trade) { OnAdapterTrade(trade); });
+}
 
-  /// 注册订单回报回调
-  trader_api_->SetOrderCallback([this](const qtrade::sdk::trader::Order& order) {
-    if (!running_.load(std::memory_order_acquire) || !IsValidOrder(order)) {
-      return;
-    }
-    event_lanes_.Trader().PublishOrder(order);
-  });
+void TradingEngine::OnAdapterTick(const qtrade::sdk::quote::MarketTick& tick) {
+  if (!running_.load(std::memory_order_acquire)) {
+    return;
+  }
+  if (!IsValidTick(tick)) {
+    quote_health_monitor_.OnInvalidTick();
+    spdlog::warn("rejected invalid tick: instrument={}", tick.instrument);
+    return;
+  }
+  quote_health_monitor_.OnValidTick();
+  event_lanes_.Quote().PublishTick(tick);
+}
 
-  /// 注册成交回报回调
-  trader_api_->SetTradeCallback([this](const qtrade::sdk::trader::Trade& trade) {
-    if (!running_.load(std::memory_order_acquire) || !IsValidTrade(trade)) {
-      return;
-    }
-    event_lanes_.Trader().PublishTrade(trade);
-  });
+void TradingEngine::OnAdapterBar(const qtrade::sdk::quote::Bar& bar) {
+  if (!running_.load(std::memory_order_acquire) || !IsValidBar(bar)) {
+    return;
+  }
+  event_lanes_.Quote().PublishBar(bar);
+}
+
+void TradingEngine::OnAdapterOrder(const qtrade::sdk::trader::Order& order) {
+  if (!running_.load(std::memory_order_acquire) || !IsValidOrder(order)) {
+    return;
+  }
+  event_lanes_.Trader().PublishOrder(order);
+}
+
+void TradingEngine::OnAdapterTrade(const qtrade::sdk::trader::Trade& trade) {
+  if (!running_.load(std::memory_order_acquire) || !IsValidTrade(trade)) {
+    return;
+  }
+  event_lanes_.Trader().PublishTrade(trade);
 }
 
 void TradingEngine::DisconnectAdapters() {

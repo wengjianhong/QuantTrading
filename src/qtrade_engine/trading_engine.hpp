@@ -159,6 +159,18 @@ class TradingEngine final : public IEngine {
   /// @brief 断开并释放行情/交易适配器
   void DisconnectAdapters();
 
+  /// @brief 适配器 Tick 入口：运行门禁、校验、健康计数后写入 Lane-Q
+  void OnAdapterTick(const qtrade::sdk::quote::MarketTick& tick);
+
+  /// @brief 适配器 Bar 入口：运行门禁、校验后写入 Lane-Q
+  void OnAdapterBar(const qtrade::sdk::quote::Bar& bar);
+
+  /// @brief 适配器订单回报入口：运行门禁、校验后写入 Lane-T
+  void OnAdapterOrder(const qtrade::sdk::trader::Order& order);
+
+  /// @brief 适配器成交回报入口：运行门禁、校验后写入 Lane-T
+  void OnAdapterTrade(const qtrade::sdk::trader::Trade& trade);
+
   // ---------------------------------------------------------------------------
   // 运行时回调（配置应用 / 行情健康 → 生命周期）
   // ---------------------------------------------------------------------------
