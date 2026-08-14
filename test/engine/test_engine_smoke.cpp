@@ -86,7 +86,5 @@ TEST(EngineSmoke, InjectedStubAdaptersReachReady) {
   engine.SubscribeQuote({"IF2506"});
   WaitUntil([&] { return engine.IsReady(); });
   EXPECT_TRUE(engine.IsReady());
-  ASSERT_NE(engine.GetTraderApi(), nullptr);
-  EXPECT_TRUE(engine.GetTraderApi()->IsConnected());
   EXPECT_EQ(engine.Stop(), qtrade::ErrorCode::kSuccess);
 }

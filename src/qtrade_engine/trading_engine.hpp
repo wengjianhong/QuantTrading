@@ -39,7 +39,7 @@
 namespace qtrade::engine {
 
 /// @brief 交易引擎实现：单进程封闭运行，整合行情、策略、OMS、EMS 等模块
-/// @details 对外稳定契约见 IEngine；本类额外提供内部模块访问器供 boot/测试使用。
+/// @details 对外稳定契约见 IEngine。子模块由本类装配，不对外暴露访问器。
 class TradingEngine final : public IEngine {
  public:
   TradingEngine();
@@ -91,53 +91,6 @@ class TradingEngine final : public IEngine {
 
   /// @brief 取消订阅合约行情
   void UnsubscribeQuote(const std::vector<std::string>& instruments);
-
-  // ---------------------------------------------------------------------------
-  // 模块访问器
-  // ---------------------------------------------------------------------------
-
-  /// @brief 返回已应用的引擎运行配置快照（Init 写入后只读）
-  [[nodiscard]] EngineConfig GetRuntimeConfig() const;
-
-  /// @brief 返回当前行情适配器；未设置时返回 nullptr
-  [[nodiscard]] qtrade::sdk::quote::QuoteApi* GetQuoteApi() {
-    return quote_api_.get();
-  }
-
-  /// @brief 返回当前交易适配器；未设置时返回 nullptr
-  [[nodiscard]] qtrade::sdk::trader::TraderApi* GetTraderApi() {
-    return trader_api_.get();
-  }
-
-  /// @brief 获取事件通道门面（Lane-Q + Lane-T）
-  [[nodiscard]] event_bus::EventLanes& GetEventLanes() {
-    return event_lanes_;
-  }
-
-  /// @brief 获取 OMS 模块间稳定接口
-  [[nodiscard]] oms::OrderApi& GetOrderApi() {
-    return order_manager_;
-  }
-
-  /// @brief 获取策略管理器
-  [[nodiscard]] strategy::StrategyManager& GetStrategyManager() {
-    return strategy_manager_;
-  }
-
-  /// @brief 获取账户资金模块间稳定接口
-  [[nodiscard]] account::AccountApi& GetAccountApi() {
-    return account_manager_;
-  }
-
-  /// @brief 获取持仓模块间稳定接口
-  [[nodiscard]] position::PositionApi& GetPositionApi() {
-    return position_manager_;
-  }
-
-  /// @brief 获取发单流水线
-  [[nodiscard]] OrderPipeline& GetOrderPipeline() {
-    return order_pipeline_;
-  }
 
  private:
   // ---------------------------------------------------------------------------
@@ -232,7 +185,7 @@ class TradingEngine final : public IEngine {
   /// 已应用的运行配置快照（Init 注入）
   EngineConfig engine_config_;
   /// 保护业务配置快照
-  mutable std::mutex engine_config_mutex_;
+  std::mutex engine_config_mutex_;
   /// 当前已订阅行情合约集合
   std::unordered_set<std::string> subscribed_instruments_;
 

@@ -43,7 +43,7 @@ class StrategyManager {
   /// @brief 按 .so 路径加载插件、创建并注册单个已启用策略
   /// @param config 策略实例配置；strategy_name 须与插件 ABI 名一致
   /// @param plugin_so_path 策略 .so 完整路径
-  /// @param order_sender 发单回调（通常绑定 GetOrderPipeline().SubmitBatch，并做 READY 门禁）
+  /// @param order_sender 发单回调（由组合根注入；通常绑定流水线 SubmitBatch 并做 READY 门禁）
   /// @return 成功返回 kSuccess；disabled 跳过亦返回成功；已 Start / 加载或注册失败时返回对应错误码
   ErrorCode AddStrategyFromPlugin(const StrategyConfig& config,
                                   const std::string& plugin_so_path,

@@ -316,15 +316,6 @@ void TradingEngine::UnsubscribeQuote(const std::vector<std::string>& instruments
 }
 
 // =============================================================================
-// 模块访问器
-// =============================================================================
-
-EngineConfig TradingEngine::GetRuntimeConfig() const {
-  std::lock_guard lock(engine_config_mutex_);
-  return engine_config_;
-}
-
-// =============================================================================
 // Init 子阶段
 // =============================================================================
 
