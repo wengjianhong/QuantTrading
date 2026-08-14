@@ -1,6 +1,6 @@
 /// @file      order_api.hpp
 /// @brief     OMS 对引擎内其他模块提供的稳定接口
-/// @details   Pipeline / EMS 等兄弟模块只依赖本接口，不依赖 OrderManager。
+/// @details   Pipeline / EMS / TraderEventHandler 等兄弟模块只依赖本接口，不依赖 OrderManager。
 ///            生命周期初始化、柜台对账等由组合根通过 OrderManager 调用。
 /// @author    wengjianhong
 /// @date      2026-07-29
@@ -99,6 +99,14 @@ class OrderApi {
   /// @param result 交易通道返回码
   /// @return 状态更新结果
   virtual ErrorCode RecordCancelResult(const std::string& order_id, ErrorCode result) = 0;
+
+  /// @brief 应用柜台订单回报快照
+  /// @param report 订单回报
+  virtual void ApplyOrderReport(const qtrade::sdk::trader::Order& report) = 0;
+
+  /// @brief 应用柜台成交回报
+  /// @param report 成交回报
+  virtual void ApplyTradeReport(const qtrade::sdk::trader::Trade& report) = 0;
 };
 
 }  // namespace qtrade::engine::oms

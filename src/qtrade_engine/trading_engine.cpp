@@ -195,7 +195,7 @@ void TradingEngine::SetQuoteApi(std::unique_ptr<qtrade::sdk::quote::QuoteApi> qu
     return;
   }
   quote_api_ = std::move(quote_api);
-  WireQuoteCallbacks();
+  RegisterQuoteCallbacks();
 }
 
 void TradingEngine::SetTraderApi(std::unique_ptr<qtrade::sdk::trader::TraderApi> trader_api) {
@@ -203,7 +203,7 @@ void TradingEngine::SetTraderApi(std::unique_ptr<qtrade::sdk::trader::TraderApi>
     return;
   }
   trader_api_ = std::move(trader_api);
-  WireTraderCallbacks();
+  RegisterTraderCallbacks();
 }
 
 // =============================================================================
@@ -391,9 +391,11 @@ ErrorCode TradingEngine::InitEngineModules() {
 
   // 2. EMS 注入 OMS；发送失败释放预占所需的 account-risk（与 Pipeline 对称）
   execution_manager_.SetOrderApi(&order_manager_);
+  trader_event_handler_.SetAccountRiskIdentity(runtime.account_id);
   if (account_risk_bridge_ != nullptr) {
     order_pipeline_.SetAccountRiskBridge(account_risk_bridge_);
     order_pipeline_.SetAccountRiskIdentity(runtime.account_id, runtime.engine_id);
+    trader_event_handler_.SetAccountRiskBridge(account_risk_bridge_);
     execution_manager_.SetAccountRiskBridge(account_risk_bridge_);
     execution_manager_.SetAccountRiskIdentity(runtime.account_id);
   }
@@ -422,8 +424,8 @@ ErrorCode TradingEngine::InitAdapters() {
 
 ErrorCode TradingEngine::StartEventLanes() {
   spdlog::info("StartEventLanes");
-  // Stop() 会清空 Lane-T 订阅；每次 Start 前重新注册引擎级回报处理
-  WireTraderEventHandlers();
+  // Stop() 会清空 Lane-T 订阅；须先于策略 Dispatcher 注册引擎侧回报回调
+  trader_event_handler_.Register(event_lanes_);
   event_lanes_.Start();
   quote_health_monitor_.Start();
   return ErrorCode::kSuccess;
@@ -545,10 +547,12 @@ ErrorCode TradingEngine::AdvanceReadyGates() {
 // 适配器接线 / 断开
 // =============================================================================
 
-void TradingEngine::WireQuoteCallbacks() {
+void TradingEngine::RegisterQuoteCallbacks() {
   if (quote_api_ == nullptr) {
     return;
   }
+
+  /// 注册行情 Tick 回调
   quote_api_->SetTickCallback([this](const qtrade::sdk::quote::MarketTick& tick) {
     if (!running_.load(std::memory_order_acquire)) {
       return;
@@ -561,6 +565,8 @@ void TradingEngine::WireQuoteCallbacks() {
     quote_health_monitor_.OnValidTick();
     event_lanes_.Quote().PublishTick(tick);
   });
+
+  /// 注册行情 Bar 回调
   quote_api_->SetBarCallback([this](const qtrade::sdk::quote::Bar& bar) {
     if (!running_.load(std::memory_order_acquire) || !IsValidBar(bar)) {
       return;
@@ -569,30 +575,26 @@ void TradingEngine::WireQuoteCallbacks() {
   });
 }
 
-void TradingEngine::WireTraderCallbacks() {
+void TradingEngine::RegisterTraderCallbacks() {
   if (trader_api_ == nullptr) {
     return;
   }
+
+  /// 注册订单回报回调
   trader_api_->SetOrderCallback([this](const qtrade::sdk::trader::Order& order) {
     if (!running_.load(std::memory_order_acquire) || !IsValidOrder(order)) {
       return;
     }
     event_lanes_.Trader().PublishOrder(order);
   });
+
+  /// 注册成交回报回调
   trader_api_->SetTradeCallback([this](const qtrade::sdk::trader::Trade& trade) {
     if (!running_.load(std::memory_order_acquire) || !IsValidTrade(trade)) {
       return;
     }
     event_lanes_.Trader().PublishTrade(trade);
   });
-}
-
-void TradingEngine::WireTraderEventHandlers() {
-  // Trader Lane：订单/成交回报的唯一异步入口，串联 OMS、账户、持仓与 account-risk 释放
-  event_lanes_.Trader().RegisterOrderCallback(
-    [this](const qtrade::sdk::trader::Order& order) { OnTraderOrderReport(order); });
-  event_lanes_.Trader().RegisterTradeCallback(
-    [this](const qtrade::sdk::trader::Trade& trade) { OnTraderTradeReport(trade); });
 }
 
 void TradingEngine::DisconnectAdapters() {
@@ -629,61 +631,6 @@ void TradingEngine::OnMarketHealthChanged(bool healthy) {
     if (lifecycle_.Transition(EngineState::kReady) == ErrorCode::kSuccess) {
       spdlog::info("trading engine resumed after market recovery");
     }
-  }
-}
-
-void TradingEngine::OnTraderOrderReport(const qtrade::sdk::trader::Order& order) {
-  order_manager_.ApplyOrderReport(order);
-  const auto local_order = order.order_id.empty() ? order_manager_.GetOrderByClientId(order.client_order_id)
-                                                  : order_manager_.GetOrder(order.order_id);
-  if (local_order.has_value()) {
-    account_manager_.ApplyOrder(*local_order);
-  }
-
-  // 拒单/撤单完成时释放 account-risk 预占（直接 gRPC，无本地 outbox）
-  if (order.status != qtrade::sdk::trader::OrderStatusType::kRejected &&
-      order.status != qtrade::sdk::trader::OrderStatusType::kCanceled) {
-    return;
-  }
-  if (!local_order.has_value()) {
-    return;
-  }
-  const auto reason = order.status == qtrade::sdk::trader::OrderStatusType::kCanceled
-                        ? qtrade::account_risk::ReleaseReason::kCanceled
-                        : qtrade::account_risk::ReleaseReason::kRejectedByVenue;
-  ReleaseAccountRiskReservation(local_order->order_id, reason);
-}
-
-void TradingEngine::OnTraderTradeReport(const qtrade::sdk::trader::Trade& trade) {
-  order_manager_.ApplyTradeReport(trade);
-  account_manager_.ApplyTrade(trade);
-  position_manager_.ApplyTrade(trade);
-
-  // 全部成交后释放风控预占（SETTLED）
-  const auto local_order = trade.order_id.empty() ? order_manager_.GetOrderByClientId(trade.client_order_id)
-                                                  : order_manager_.GetOrder(trade.order_id);
-  if (local_order.has_value() && local_order->status == qtrade::sdk::trader::OrderStatusType::kFilled) {
-    ReleaseAccountRiskReservation(local_order->order_id, qtrade::account_risk::ReleaseReason::kSettled);
-  }
-}
-
-void TradingEngine::ReleaseAccountRiskReservation(const std::string& order_id,
-                                                  qtrade::account_risk::ReleaseReason reason) {
-  if (account_risk_bridge_ == nullptr || order_id.empty()) {
-    return;
-  }
-  std::string account_id;
-  {
-    std::lock_guard lock(engine_config_mutex_);
-    account_id = engine_config_.account_id;
-  }
-  qtrade::account_risk::ReleaseRequest request;
-  request.account_id = account_id;
-  request.order_id = order_id;
-  request.reason = reason;
-  const auto result = account_risk_bridge_->Release(request);
-  if (result.error_code != ErrorCode::kSuccess) {
-    spdlog::warn("Release failed: order_id={}, code={}", order_id, static_cast<int>(result.error_code));
   }
 }
 
