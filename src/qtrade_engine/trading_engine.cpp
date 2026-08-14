@@ -187,7 +187,7 @@ void TradingEngine::SetAccountBridge(qtrade::account::IAccountBridge* bridge) {
 }
 
 void TradingEngine::SetAccountRiskBridge(qtrade::account_risk::IAccountRiskBridge* bridge) {
-  account_risk_bridge_ = bridge;
+  account_risk_.SetBridge(bridge);
 }
 
 void TradingEngine::SetQuoteApi(std::unique_ptr<qtrade::sdk::quote::QuoteApi> quote_api) {
@@ -278,6 +278,7 @@ void TradingEngine::Release() {
   execution_manager_.Stop();
   DisconnectAdapters();
   event_lanes_.Stop();
+  account_risk_.Stop();
   order_manager_.Shutdown();
 
   // 2. 释放适配器（桥接生命周期由进程入口持有）
@@ -389,16 +390,10 @@ ErrorCode TradingEngine::InitEngineModules() {
     return rc;
   }
 
-  // 2. EMS 注入 OMS；发送失败释放预占所需的 account-risk（与 Pipeline 对称）
+  // 2. EMS 绑定 OMS；硬风控身份交给 AccountRiskManager（桥仅该模块持有）
   execution_manager_.SetOrderApi(&order_manager_);
-  trader_event_handler_.SetAccountRiskIdentity(runtime.account_id);
-  if (account_risk_bridge_ != nullptr) {
-    order_pipeline_.SetAccountRiskBridge(account_risk_bridge_);
-    order_pipeline_.SetAccountRiskIdentity(runtime.account_id, runtime.engine_id);
-    trader_event_handler_.SetAccountRiskBridge(account_risk_bridge_);
-    execution_manager_.SetAccountRiskBridge(account_risk_bridge_);
-    execution_manager_.SetAccountRiskIdentity(runtime.account_id);
-  }
+  execution_manager_.SetAccountRiskApi(&account_risk_);
+  account_risk_.SetIdentity(runtime.account_id, runtime.engine_id);
 
   return ErrorCode::kSuccess;
 }
@@ -424,6 +419,7 @@ ErrorCode TradingEngine::InitAdapters() {
 
 ErrorCode TradingEngine::StartEventLanes() {
   spdlog::info("StartEventLanes");
+  account_risk_.Start();
   // Stop() 会清空 Lane-T 订阅；须先于策略 Dispatcher 注册引擎侧回报回调
   trader_event_handler_.Register(event_lanes_);
   event_lanes_.Start();

@@ -12,6 +12,7 @@
 
 #include "qtrade/engine/account/account_manager.hpp"
 #include "qtrade/engine/cms/compliance_manager.hpp"
+#include "qtrade/engine/account_risk/account_risk_manager.hpp"
 #include "qtrade/engine/core/engine_lifecycle.hpp"
 #include "qtrade/engine/core/order_pipeline.hpp"
 #include "qtrade/engine/core/quote_health_monitor.hpp"
@@ -123,13 +124,13 @@ class TradingEngine final : public IEngine {
     return strategy_manager_;
   }
 
-  /// @brief 获取账户管理模块
-  [[nodiscard]] account::AccountManager& GetAccountManager() {
+  /// @brief 获取账户资金模块间稳定接口
+  [[nodiscard]] account::AccountApi& GetAccountApi() {
     return account_manager_;
   }
 
-  /// @brief 获取持仓管理模块
-  [[nodiscard]] position::PositionManager& GetPositionManager() {
+  /// @brief 获取持仓模块间稳定接口
+  [[nodiscard]] position::PositionApi& GetPositionApi() {
     return position_manager_;
   }
 
@@ -260,10 +261,12 @@ class TradingEngine final : public IEngine {
   account::AccountManager account_manager_;
   /// 持仓
   position::PositionManager position_manager_;
-  /// 发单流水线（须在 compliance/order/execution 之后）
-  OrderPipeline order_pipeline_{compliance_, order_manager_, execution_manager_};
-  /// Lane-T 引擎侧回报处理（须在 order/account/position 之后；Start 时先于策略 Dispatcher 注册）
-  TraderEventHandler trader_event_handler_{order_manager_, account_manager_, position_manager_};
+  /// 账户硬风控（须在 pipeline / handler 之前；唯一持有 IAccountRiskBridge）
+  account_risk::AccountRiskManager account_risk_;
+  /// 发单流水线（须在 compliance/order/execution/account_risk 之后）
+  OrderPipeline order_pipeline_{compliance_, order_manager_, execution_manager_, account_risk_};
+  /// Lane-T 引擎侧回报处理（须在 order/account/position/account_risk 之后；Start 时先于策略 Dispatcher 注册）
+  TraderEventHandler trader_event_handler_{order_manager_, account_manager_, position_manager_, account_risk_};
 
   // ---------------------------------------------------------------------------
   // 成员：适配器
@@ -280,8 +283,6 @@ class TradingEngine final : public IEngine {
 
   /// 账户桥接
   qtrade::account::IAccountBridge* account_bridge_ = nullptr;
-  /// 账户硬风控桥接
-  qtrade::account_risk::IAccountRiskBridge* account_risk_bridge_ = nullptr;
 };
 
 }  // namespace qtrade::engine

@@ -1,7 +1,8 @@
 /// @file      position_manager.hpp
-/// @brief     持仓管理器
+/// @brief     持仓管理器（实现 PositionApi）
 /// @details   按合约与官方持仓方向维护 qtrade::sdk::trader::Position；
 ///            支持柜台快照覆盖与成交幂等增量更新。
+///            兄弟模块只依赖 PositionApi；柜台快照由组合根调用本类。
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
@@ -9,7 +10,7 @@
 #ifndef QTRADE_TRADING_ENGINE_POSITION_MANAGER_HPP_
 #define QTRADE_TRADING_ENGINE_POSITION_MANAGER_HPP_
 
-#include <qtrade/sdk/trader/trader_struct.hpp>
+#include "qtrade/engine/position/position_api.hpp"
 
 #include <cstdint>
 #include <map>
@@ -25,43 +26,24 @@ using qtrade::sdk::trader::PositionDirectionType;
 using qtrade::sdk::trader::Trade;
 
 /// @brief 按合约与方向维护持仓的幂等管理器
-class PositionManager {
+class PositionManager final : public PositionApi {
  public:
   /// @brief 构造空持仓视图
   PositionManager() = default;
 
   /// @brief 析构持仓管理器
-  ~PositionManager() = default;
+  ~PositionManager() override = default;
 
-  /// @brief 幂等应用成交回报
-  /// @param trade 成交回报
-  void ApplyTrade(const Trade& trade);
-
-  /// @brief 应用柜台持仓快照
+  /// @brief 应用柜台持仓快照（组合根）
   /// @param positions 全量持仓列表（每条对应官方一个方向）
   void ApplyPositionSnapshot(const std::vector<Position>& positions);
 
-  /// @brief 返回指定合约的净持仓
-  /// @param instrument 合约 ID
-  /// @return 净持仓 = 多头数量 - 空头数量
-  [[nodiscard]] std::int64_t GetNetPosition(const std::string& instrument) const;
-
-  /// @brief 返回指定合约的总持仓
-  /// @param instrument 合约 ID
-  /// @return 总持仓 = 多头数量 + 空头数量
-  [[nodiscard]] std::int64_t GetGrossPosition(const std::string& instrument) const;
-
-  /// @brief 返回指定合约、指定方向的持仓
-  /// @param instrument 合约 ID
-  /// @param direction 官方持仓方向
-  /// @return 存在则返回持仓快照
+  void ApplyTrade(const Trade& trade) override;
+  [[nodiscard]] std::int64_t GetNetPosition(const std::string& instrument) const override;
+  [[nodiscard]] std::int64_t GetGrossPosition(const std::string& instrument) const override;
   [[nodiscard]] std::optional<Position> GetPosition(const std::string& instrument,
-                                                    PositionDirectionType direction) const;
-
-  /// @brief 返回指定合约下各方向持仓
-  /// @param instrument 合约 ID
-  /// @return 未跟踪合约返回空 map
-  [[nodiscard]] std::map<PositionDirectionType, Position> GetPositions(const std::string& instrument) const;
+                                                    PositionDirectionType direction) const override;
+  [[nodiscard]] std::map<PositionDirectionType, Position> GetPositions(const std::string& instrument) const override;
 
  private:
   /// 保护持仓表与幂等集合的读写锁

@@ -7,10 +7,10 @@
 #define QTRADE_TRADING_ENGINE_ORDER_PIPELINE_HPP_
 
 #include "qtrade/engine/cms/compliance_api.hpp"
+#include "qtrade/engine/account_risk/account_risk_api.hpp"
 #include "qtrade/engine/ems/execution_api.hpp"
 #include "qtrade/engine/oms/order_api.hpp"
 
-#include <qtrade/bridge/account_risk_bridge.hpp>
 #include <qtrade/error_code/error_codes.hpp>
 #include <qtrade/sdk/trader/trader_struct.hpp>
 #include <qtrade/strategy/strategy.hpp>
@@ -25,11 +25,7 @@ class OrderPipeline {
   OrderPipeline(cms::ComplianceApi& compliance,
                 oms::OrderApi& orders,
                 ems::ExecutionApi& execution,
-                qtrade::account_risk::IAccountRiskBridge* account_risk_bridge = nullptr);
-
-  void SetAccountRiskBridge(qtrade::account_risk::IAccountRiskBridge* account_risk_bridge);
-
-  void SetAccountRiskIdentity(std::string account_id, std::string engine_id);
+                account_risk::AccountRiskApi& account_risk);
 
   ErrorCode Submit(const qtrade::sdk::trader::OrderRequest& request);
 
@@ -38,14 +34,10 @@ class OrderPipeline {
   ErrorCode Cancel(const std::string& order_id);
 
  private:
-  void ReleaseReservation(const std::string& order_id, qtrade::account_risk::ReleaseReason reason);
-
   cms::ComplianceApi& compliance_;
   oms::OrderApi& orders_;
   ems::ExecutionApi& execution_;
-  qtrade::account_risk::IAccountRiskBridge* account_risk_bridge_ = nullptr;
-  std::string account_id_;
-  std::string engine_id_;
+  account_risk::AccountRiskApi& account_risk_;
 };
 
 }  // namespace qtrade::engine

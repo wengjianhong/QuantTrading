@@ -1,45 +1,31 @@
 /// @file      trader_event_handler.hpp
-/// @brief     Lane-T 引擎侧回报处理：订单/成交写入 OMS、账户、持仓并释放终态预占
+/// @brief     Lane-T 引擎侧回报处理：订单/成交写入 OMS、账户、持仓
 /// @details   须在 StrategyEventDispatcher 之前 Register，保证策略读到已更新状态。
-///            不看 READY；Frozen 仍处理回报。发送失败释放预占仍由 OrderPipeline 负责。
+///            不看 READY；Frozen 仍处理回报。终态预占释放经 AccountRiskApi 发出。
 /// @author    wengjianhong
 /// @date      2026-08-13
 /// @copyright CC BY-NC-SA 4.0
 #ifndef QTRADE_ENGINE_TRADER_EVENT_HANDLER_HPP_
 #define QTRADE_ENGINE_TRADER_EVENT_HANDLER_HPP_
 
-#include "qtrade/engine/account/account_manager.hpp"
+#include "qtrade/engine/account/account_api.hpp"
+#include "qtrade/engine/account_risk/account_risk_api.hpp"
 #include "qtrade/engine/event_bus/event_lanes.hpp"
 #include "qtrade/engine/oms/order_api.hpp"
-#include "qtrade/engine/position/position_manager.hpp"
+#include "qtrade/engine/position/position_api.hpp"
 
-#include <qtrade/bridge/account_risk_bridge.hpp>
 #include <qtrade/sdk/trader/trader_struct.hpp>
-
-#include <string>
 
 namespace qtrade::engine {
 
 /// @brief Lane-T 上的引擎侧 Order / Trade 订阅者
 class TraderEventHandler {
  public:
-  /// @brief 绑定 OMS / 账户 / 持仓依赖（不拥有）
-  /// @param orders OMS 模块间接口
-  /// @param account 账户资金视图
-  /// @param position 持仓视图
-  /// @param account_risk_bridge 账户硬风控桥；可空
+  /// @brief 绑定 OMS / 账户 / 持仓 / 硬风控接口（不拥有）
   TraderEventHandler(oms::OrderApi& orders,
-                    account::AccountManager& account,
-                    position::PositionManager& position,
-                    qtrade::account_risk::IAccountRiskBridge* account_risk_bridge = nullptr);
-
-  /// @brief 注入或清除账户硬风控桥
-  /// @param account_risk_bridge 桥接指针；可空
-  void SetAccountRiskBridge(qtrade::account_risk::IAccountRiskBridge* account_risk_bridge);
-
-  /// @brief 设置 Release 所用账户标识
-  /// @param account_id 交易账户号
-  void SetAccountRiskIdentity(std::string account_id);
+                     account::AccountApi& account,
+                     position::PositionApi& position,
+                     account_risk::AccountRiskApi& account_risk);
 
   /// @brief 向 Lane-T 注册 Order/Trade 回调（Stop 清空后每次 Start 须再调）
   /// @param event_lanes 事件通道
@@ -54,21 +40,14 @@ class TraderEventHandler {
   void OnTrade(const qtrade::sdk::trader::Trade& trade);
 
  private:
-  /// @brief 尽力调用 account-risk Release（无本地 outbox）
-  /// @param order_id 委托 ID
-  /// @param reason 释放原因
-  void ReleaseReservation(const std::string& order_id, qtrade::account_risk::ReleaseReason reason);
-
   /// OMS
   oms::OrderApi& orders_;
-  /// 账户
-  account::AccountManager& account_;
-  /// 持仓
-  position::PositionManager& position_;
-  /// 账户硬风控桥（非拥有）
-  qtrade::account_risk::IAccountRiskBridge* account_risk_bridge_ = nullptr;
-  /// Release 用账户号
-  std::string account_id_;
+  /// 账户资金视图
+  account::AccountApi& account_;
+  /// 持仓视图
+  position::PositionApi& position_;
+  /// 账户硬风控模块间接口
+  account_risk::AccountRiskApi& account_risk_;
 };
 
 }  // namespace qtrade::engine

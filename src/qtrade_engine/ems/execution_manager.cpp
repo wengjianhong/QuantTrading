@@ -1,14 +1,13 @@
 /// @file      execution_manager.cpp
 /// @brief     交易执行管理器实现
-/// @details   工作线程出队后调用 TraderApi 报单/撤单，并直接回写 OMS；发送失败时释放预占
+/// @details   工作线程出队后调用 TraderApi 报单/撤单，并直接回写 OMS；发送失败时经 AccountRiskApi 释放预占
 /// @author    wengjianhong
 /// @date      2026-05-19
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/engine/ems/execution_manager.hpp"
 
+#include "qtrade/engine/account_risk/account_risk_api.hpp"
 #include "qtrade/engine/oms/order_api.hpp"
-
-#include <spdlog/spdlog.h>
 
 namespace qtrade::engine::ems {
 
@@ -21,7 +20,6 @@ void ExecutionManager::Start() {
   if (running_) {
     return;
   }
-  // 启动单线程工作队列，串行调用 TraderApi 避免通道并发写
   running_ = true;
   worker_ = std::thread([this] { Run(); });
 }
@@ -34,12 +32,10 @@ void ExecutionManager::Stop() {
     }
     running_ = false;
   }
-  // 1. 唤醒工作线程并等待排空
   cv_.notify_all();
   if (worker_.joinable()) {
     worker_.join();
   }
-  // 2. 丢弃未发送的待发队列
   std::lock_guard lock(mutex_);
   pending_items_.clear();
 }
@@ -54,14 +50,9 @@ void ExecutionManager::SetOrderApi(oms::OrderApi* order_api) {
   order_api_ = order_api;
 }
 
-void ExecutionManager::SetAccountRiskBridge(qtrade::account_risk::IAccountRiskBridge* account_risk_bridge) {
+void ExecutionManager::SetAccountRiskApi(account_risk::AccountRiskApi* account_risk) {
   std::lock_guard lock(mutex_);
-  account_risk_bridge_ = account_risk_bridge;
-}
-
-void ExecutionManager::SetAccountRiskIdentity(std::string account_id) {
-  std::lock_guard lock(mutex_);
-  account_id_ = std::move(account_id);
+  account_risk_ = account_risk;
 }
 
 ErrorCode ExecutionManager::Enqueue(const qtrade::sdk::trader::Order& order) {
@@ -100,31 +91,12 @@ ErrorCode ExecutionManager::EnqueueCancel(const qtrade::sdk::trader::CancelOrder
   return ErrorCode::kSuccess;
 }
 
-void ExecutionManager::ReleaseReservationOnSendFailure(qtrade::account_risk::IAccountRiskBridge* account_risk_bridge,
-                                                       const std::string& account_id,
-                                                       const std::string& order_id) {
-  if (account_risk_bridge == nullptr || order_id.empty()) {
-    return;
-  }
-  qtrade::account_risk::ReleaseRequest request;
-  request.account_id = account_id;
-  request.order_id = order_id;
-  request.reason = qtrade::account_risk::ReleaseReason::kSendFailed;
-  const auto result = account_risk_bridge->Release(request);
-  if (result.error_code != ErrorCode::kSuccess) {
-    spdlog::warn("Release failed: order_id={}, code={}", order_id, static_cast<int>(result.error_code));
-  }
-}
-
-// 工作线程主循环：出队 → MarkSendPending → SendOrder / CancelOrder → 回写 OMS
 void ExecutionManager::Run() {
   while (true) {
-    // 1. 等待出队并拷贝依赖指针/身份
     WorkItem item;
     qtrade::sdk::trader::TraderApi* trader_api = nullptr;
     oms::OrderApi* order_api = nullptr;
-    qtrade::account_risk::IAccountRiskBridge* account_risk_bridge = nullptr;
-    std::string account_id;
+    account_risk::AccountRiskApi* account_risk = nullptr;
     {
       std::unique_lock lock(mutex_);
       cv_.wait(lock, [this] { return !running_ || !pending_items_.empty(); });
@@ -135,11 +107,9 @@ void ExecutionManager::Run() {
       pending_items_.pop_front();
       trader_api = trader_api_;
       order_api = order_api_;
-      account_risk_bridge = account_risk_bridge_;
-      account_id = account_id_;
+      account_risk = account_risk_;
     }
 
-    // 2. 撤单：调通道并回写 OMS
     if (item.type == WorkItem::Type::kCancel) {
       const auto result = trader_api != nullptr ? trader_api->CancelOrder(item.cancel) : ErrorCode::kNotInitialized;
       if (order_api != nullptr) {
@@ -148,18 +118,18 @@ void ExecutionManager::Run() {
       continue;
     }
 
-    // 3. 新单：发送前标记；失败则回写并释放预占，不调用通道
     const auto& order = item.order;
     if (order_api != nullptr) {
       const auto pending_rc = order_api->MarkSendPending(order.order_id);
       if (pending_rc != ErrorCode::kSuccess) {
         (void)order_api->RecordSendResult(order.order_id, pending_rc);
-        ReleaseReservationOnSendFailure(account_risk_bridge, account_id, order.order_id);
+        if (account_risk != nullptr) {
+          account_risk->Release(order.order_id, qtrade::account_risk::ReleaseReason::kSendFailed);
+        }
         continue;
       }
     }
 
-    // 4. 组装 OrderRequest 并调用 SendOrder，回写 OMS；失败时释放预占
     qtrade::sdk::trader::OrderRequest request;
     request.client_order_id = order.client_order_id;
     request.broker_order_id = order.broker_order_id;
@@ -175,8 +145,8 @@ void ExecutionManager::Run() {
     if (order_api != nullptr) {
       (void)order_api->RecordSendResult(order.order_id, result);
     }
-    if (result != ErrorCode::kSuccess) {
-      ReleaseReservationOnSendFailure(account_risk_bridge, account_id, order.order_id);
+    if (result != ErrorCode::kSuccess && account_risk != nullptr) {
+      account_risk->Release(order.order_id, qtrade::account_risk::ReleaseReason::kSendFailed);
     }
   }
 }
