@@ -12,17 +12,18 @@
 
 #include "qtrade/engine/account/account_manager.hpp"
 #include "qtrade/engine/account_risk/account_risk_manager.hpp"
-#include "qtrade/engine/strategy_risk/strategy_risk_manager.hpp"
 #include "qtrade/engine/core/engine_lifecycle.hpp"
 #include "qtrade/engine/core/lane_event_handler.hpp"
 #include "qtrade/engine/core/order_pipeline.hpp"
 #include "qtrade/engine/core/quote_health_monitor.hpp"
 #include "qtrade/engine/core/sdk_event_handler.hpp"
-#include "qtrade/engine/execution/execution_manager.hpp"
 #include "qtrade/engine/events/event_lanes.hpp"
+#include "qtrade/engine/execution/execution_manager.hpp"
+#include "qtrade/engine/instance_risk/instance_risk_manager.hpp"
 #include "qtrade/engine/orders/order_manager.hpp"
 #include "qtrade/engine/positions/position_manager.hpp"
 #include "qtrade/engine/strategies/strategy_manager.hpp"
+#include "qtrade/engine/strategy_risk/strategy_risk_manager.hpp"
 
 #include <qtrade/engine/engine.hpp>
 #include <qtrade/error_code/error_codes.hpp>
@@ -203,10 +204,13 @@ class TradingEngine final : public IEngine {
   account::AccountManager account_manager_;
   /// 持仓
   positions::PositionManager position_manager_;
+  /// 实例级共享风控
+  instance_risk::InstanceRiskManager instance_risk_manager_;
   /// 账户硬风控（须在 pipeline / handler 之前；唯一持有 IAccountRiskBridge）
   account_risk::AccountRiskManager account_risk_manager_;
   /// 发单流水线（须在 compliance/order/execution/account_risk 之后）
-  OrderPipeline order_pipeline_{compliance_, order_manager_, execution_manager_, account_risk_manager_};
+  OrderPipeline order_pipeline_{
+    compliance_, instance_risk_manager_, order_manager_, execution_manager_, account_risk_manager_};
   /// Lane-T 引擎侧回报处理（须在 order/account/position/account_risk 之后；Start 时先于策略 Dispatcher 注册）
   LaneEventHandler lane_event_handler_{order_manager_, account_manager_, position_manager_, account_risk_manager_};
 

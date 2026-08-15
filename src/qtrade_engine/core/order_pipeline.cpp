@@ -8,14 +8,22 @@
 namespace qtrade::engine {
 
 OrderPipeline::OrderPipeline(strategy_risk::StrategyRiskApi& compliance,
+                             instance_risk::InstanceRiskApi& instance_risk,
                              orders::OrderApi& orders,
                              execution::ExecutionApi& execution,
                              account_risk::AccountRiskApi& account_risk)
-  : compliance_(compliance), orders_(orders), execution_(execution), account_risk_(account_risk) {}
+  : compliance_(compliance),
+    instance_risk_(instance_risk),
+    orders_(orders),
+    execution_(execution),
+    account_risk_(account_risk) {}
 
 ErrorCode OrderPipeline::Submit(const qtrade::sdk::trader::OrderRequest& request) {
   // 1. 策略级 CMS
   if (const auto rc = compliance_.CheckOrder(request); rc != ErrorCode::kSuccess) {
+    return rc;
+  }
+  if (const auto rc = instance_risk_.CheckOrder(request); rc != ErrorCode::kSuccess) {
     return rc;
   }
   if (request.client_order_id != 0 && orders_.GetOrderByClientId(request.client_order_id).has_value()) {

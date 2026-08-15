@@ -37,8 +37,24 @@
 
 namespace qtrade::engine {
 
+/// @brief 引擎实例共享风控配置（0 表示该项不限制）
+/// @details 作用域为一个 engine_id 下的所有策略；账户级硬限制由 AccountRiskPolicy 在 E 段裁决。
+struct InstanceRiskConfig {
+  /// 配置中心单调递增版本；0 表示未版本化的默认配置
+  std::uint64_t version = 0;
+  /// 全实例单笔最大数量
+  std::int64_t max_order_volume = 0;
+  /// 全实例单笔最大名义金额
+  double max_order_notional = 0.0;
+  /// 全实例活动订单数上限
+  std::uint64_t max_open_orders = 0;
+  /// 全实例待成交订单名义金额上限
+  double max_pending_notional = 0.0;
+};
+
 /// @brief 引擎运行配置（经 Init 注入；不含策略绑定、风控与适配器选型）
-/// @details 策略由 AddStrategy 登记（含策略级风控）；行情/交易适配器由 SetQuoteApi / SetTraderApi 注入。
+/// @details 策略由 AddStrategy 登记（含策略级风控）；实例风控由 instance_risk 注入；
+///          行情/交易适配器由 SetQuoteApi / SetTraderApi 注入。
 ///          账户硬风控由 IAccountRiskBridge 裁决。本地引导配置不进入本结构。
 struct EngineConfig {
   /// 引擎实例标识
@@ -51,6 +67,8 @@ struct EngineConfig {
   std::string quote_failover;
   /// 最后一笔有效 Tick 允许的最大静默时间（毫秒）；须 > 0
   std::int32_t quote_max_stale_ms = 3000;
+  /// 引擎实例共享风控配置
+  InstanceRiskConfig instance_risk;
 };
 
 /// @brief 引擎生命周期状态（IEngine::State 与 EngineLifecycle 共用）

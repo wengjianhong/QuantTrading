@@ -11,25 +11,22 @@
 #include "qtrade/engine/instance_risk/instance_risk_api.hpp"
 
 #include <functional>
-#include <limits>
 #include <mutex>
 
 namespace qtrade::engine::instance_risk {
 
-/// @brief 实例级风险预算
+/// @brief InstanceRiskConfig 的内部校验快照
 struct InstanceRiskLimits {
   /// 配置版本
   std::uint64_t version = 0;
   /// 单笔最大数量
-  std::int64_t max_order_volume = std::numeric_limits<std::int64_t>::max();
+  std::int64_t max_order_volume = 0;
   /// 单笔最大名义金额；0 表示不限制
   double max_order_notional = 0.0;
-  /// 实例累计最大名义敞口；0 表示不限制
-  double max_total_notional = 0.0;
+  /// 实例待成交订单最大名义金额；0 表示不限制
+  double max_pending_notional = 0.0;
   /// 最大活动订单数；0 表示不限制
   std::uint64_t max_open_orders = 0;
-  /// 从名义金额上限中预留的安全缓冲
-  double safety_buffer = 0.0;
 };
 
 /// @brief 订单参数、活动订单与名义敞口风控
@@ -46,7 +43,7 @@ class InstanceRiskManager final : public InstanceRiskApi {
   /// @return 版本回退或非法参数返回 kSystemError
   ErrorCode Configure(const InstanceRiskLimits& limits);
 
-  /// @brief 设置活动订单数与名义敞口读取器
+  /// @brief 设置活动订单数与待成交名义金额读取器
   /// @param open_orders_provider 活动订单数读取器
   /// @param notional_provider 当前名义敞口读取器
   void SetStateProviders(std::function<std::uint64_t()> open_orders_provider,

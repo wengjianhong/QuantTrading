@@ -20,10 +20,11 @@
 
 namespace qtrade::engine {
 
-/// @brief A 段后准入编排：策略合规、账户预占、OMS 落单与 EMS 报送
+/// @brief 发单准入编排：策略风控、实例风控、账户预占、OMS 与 EMS
 class OrderPipeline {
  public:
   OrderPipeline(strategy_risk::StrategyRiskApi& compliance,
+                instance_risk::InstanceRiskApi& instance_risk,
                 orders::OrderApi& orders,
                 execution::ExecutionApi& execution,
                 account_risk::AccountRiskApi& account_risk);
@@ -36,6 +37,7 @@ class OrderPipeline {
 
  private:
   strategy_risk::StrategyRiskApi& compliance_;
+  instance_risk::InstanceRiskApi& instance_risk_;
   orders::OrderApi& orders_;
   execution::ExecutionApi& execution_;
   account_risk::AccountRiskApi& account_risk_;

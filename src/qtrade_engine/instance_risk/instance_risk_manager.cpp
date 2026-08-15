@@ -12,9 +12,7 @@ namespace qtrade::engine::instance_risk {
 
 ErrorCode InstanceRiskManager::Configure(const InstanceRiskLimits& limits) {
   // 1. 校验预算参数
-  if (limits.max_order_volume <= 0 || limits.max_order_notional < 0.0 || limits.max_total_notional < 0.0 ||
-      limits.safety_buffer < 0.0 ||
-      (limits.max_total_notional > 0.0 && limits.safety_buffer >= limits.max_total_notional)) {
+  if (limits.max_order_volume < 0 || limits.max_order_notional < 0.0 || limits.max_pending_notional < 0.0) {
     return ErrorCode::kSystemError;
   }
   // 2. 拒绝版本回退后原子替换
@@ -58,15 +56,16 @@ ErrorCode InstanceRiskManager::CheckOrder(const qtrade::sdk::trader::OrderReques
 
   // 3. 单笔与累计敞口预算检查
   const double order_notional = request.price * static_cast<double>(request.volume);
-  if (!std::isfinite(order_notional) || request.volume > limits.max_order_volume ||
+  if (!std::isfinite(order_notional) ||
+      (limits.max_order_volume > 0 && request.volume > limits.max_order_volume) ||
       (limits.max_order_notional > 0.0 && order_notional > limits.max_order_notional)) {
     return ErrorCode::kResourceExhausted;
   }
   if (limits.max_open_orders > 0 && open_orders_provider && open_orders_provider() >= limits.max_open_orders) {
     return ErrorCode::kResourceExhausted;
   }
-  if (limits.max_total_notional > 0.0 && notional_provider &&
-      notional_provider() + order_notional > limits.max_total_notional - limits.safety_buffer) {
+  if (limits.max_pending_notional > 0.0 && notional_provider &&
+      notional_provider() + order_notional > limits.max_pending_notional) {
     return ErrorCode::kResourceExhausted;
   }
   return ErrorCode::kSuccess;

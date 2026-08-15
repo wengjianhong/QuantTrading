@@ -342,7 +342,22 @@ ErrorCode TradingEngine::InitEngineModules() {
     return rc;
   }
 
-  // 2. EMS 绑定 OMS；硬风控身份交给 AccountRiskManager（桥仅该模块持有）
+  // 2. 配置实例共享风控，并绑定 OMS 提供的活动订单状态。
+  instance_risk::InstanceRiskLimits instance_limits;
+  instance_limits.version = runtime.instance_risk.version;
+  instance_limits.max_order_volume = runtime.instance_risk.max_order_volume;
+  instance_limits.max_order_notional = runtime.instance_risk.max_order_notional;
+  instance_limits.max_open_orders = runtime.instance_risk.max_open_orders;
+  instance_limits.max_pending_notional = runtime.instance_risk.max_pending_notional;
+  if (const auto rc = instance_risk_manager_.Configure(instance_limits); rc != ErrorCode::kSuccess) {
+    lifecycle_.Transition(EngineState::kFailed, "INSTANCE_RISK_CONFIG_INVALID");
+    return rc;
+  }
+  instance_risk_manager_.SetStateProviders(
+    [this] { return order_manager_.GetActiveOrderCount(); },
+    [this] { return order_manager_.GetOpenNotional(); });
+
+  // 3. EMS 绑定 OMS；硬风控身份交给 AccountRiskManager（桥仅该模块持有）
   execution_manager_.SetOrderApi(&order_manager_);
   execution_manager_.SetAccountRiskApi(&account_risk_manager_);
   account_risk_manager_.SetIdentity(runtime.account_id, runtime.engine_id);
