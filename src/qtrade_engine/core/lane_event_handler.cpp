@@ -11,13 +11,13 @@ using qtrade::sdk::trader::Order;
 using qtrade::sdk::trader::OrderStatusType;
 using qtrade::sdk::trader::Trade;
 
-LaneEventHandler::LaneEventHandler(oms::OrderApi& orders,
+LaneEventHandler::LaneEventHandler(orders::OrderApi& orders,
                                    account::AccountApi& account,
-                                   position::PositionApi& position,
+                                   positions::PositionApi& position,
                                    account_risk::AccountRiskApi& account_risk)
   : orders_api_(orders), account_api_(account), position_api_(position), account_risk_api_(account_risk) {}
 
-void LaneEventHandler::Register(event_bus::EventLanes& event_lanes) {
+void LaneEventHandler::Register(events::EventLanes& event_lanes) {
   event_lanes.Trader().RegisterOrderCallback([this](const Order& order) { OnOrder(order); });
   event_lanes.Trader().RegisterTradeCallback([this](const Trade& trade) { OnTrade(trade); });
 }

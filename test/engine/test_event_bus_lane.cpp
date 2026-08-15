@@ -4,7 +4,7 @@
 /// @date      2026-06-25
 /// @copyright CC BY-NC-SA 4.0
 
-#include "qtrade/engine/event_bus/event_lanes.hpp"
+#include "qtrade/engine/events/event_lanes.hpp"
 
 #include <qtrade/sdk/quote/quote_struct.hpp>
 #include <qtrade/sdk/trader/trader_struct.hpp>
@@ -20,7 +20,7 @@
 
 namespace {
 
-using qtrade::engine::event_bus::EventLanes;
+using qtrade::engine::events::EventLanes;
 
 void WaitUntil(const std::function<bool()>& pred, std::chrono::milliseconds timeout) {
   const auto deadline = std::chrono::steady_clock::now() + timeout;

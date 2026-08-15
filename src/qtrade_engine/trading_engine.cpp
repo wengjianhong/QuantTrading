@@ -332,7 +332,7 @@ ErrorCode TradingEngine::InitEngineModules() {
   }
 
   // 1. OMS：仅内存状态机；冷启动不回放本地订单，Working 态由柜台快照对账重建
-  oms::OrderManagerOptions order_options;
+  orders::OrderManagerOptions order_options;
   order_options.engine_epoch = engine_epoch_;
   order_options.account_id = runtime.account_id;
   order_options.engine_id = runtime.engine_id;

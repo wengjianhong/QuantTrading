@@ -1,11 +1,11 @@
-#include "qtrade/engine/oms/order_manager.hpp"
+#include "qtrade/engine/orders/order_manager.hpp"
 
 #include <gtest/gtest.h>
 
 namespace {
 
-qtrade::engine::oms::OrderManagerOptions MakeOptions() {
-  qtrade::engine::oms::OrderManagerOptions options;
+qtrade::engine::orders::OrderManagerOptions MakeOptions() {
+  qtrade::engine::orders::OrderManagerOptions options;
   options.account_id = "acct";
   options.engine_id = "engine";
   options.engine_epoch = 7;
@@ -15,7 +15,7 @@ qtrade::engine::oms::OrderManagerOptions MakeOptions() {
 }  // namespace
 
 TEST(OrderManager, TracksLifecycleInMemory) {
-  qtrade::engine::oms::OrderManager manager;
+  qtrade::engine::orders::OrderManager manager;
   ASSERT_EQ(manager.Initialize(MakeOptions()), qtrade::ErrorCode::kSuccess);
 
   qtrade::sdk::trader::OrderRequest request;
@@ -40,12 +40,12 @@ TEST(OrderManager, TracksLifecycleInMemory) {
   trade.trade_amount = request.price * static_cast<double>(request.volume);
   manager.ApplyTradeReport(trade);
 
-  EXPECT_EQ(manager.GetLifecycleState(order->order_id), qtrade::engine::oms::OrderLifecycleState::kFilled);
+  EXPECT_EQ(manager.GetLifecycleState(order->order_id), qtrade::engine::orders::OrderLifecycleState::kFilled);
   manager.Shutdown();
 }
 
 TEST(OrderManager, ExposesUncertainOrdersForReconciliation) {
-  qtrade::engine::oms::OrderManager manager;
+  qtrade::engine::orders::OrderManager manager;
   ASSERT_EQ(manager.Initialize(MakeOptions()), qtrade::ErrorCode::kSuccess);
 
   qtrade::sdk::trader::OrderRequest request;
@@ -58,7 +58,7 @@ TEST(OrderManager, ExposesUncertainOrdersForReconciliation) {
   ASSERT_EQ(manager.MarkEmsQueued(order->order_id), qtrade::ErrorCode::kSuccess);
   ASSERT_EQ(manager.MarkSendPending(order->order_id), qtrade::ErrorCode::kSuccess);
   ASSERT_EQ(manager.RecordSendResult(order->order_id, qtrade::ErrorCode::kTimeout), qtrade::ErrorCode::kSuccess);
-  EXPECT_EQ(manager.GetLifecycleState(order->order_id), qtrade::engine::oms::OrderLifecycleState::kSendUnknown);
+  EXPECT_EQ(manager.GetLifecycleState(order->order_id), qtrade::engine::orders::OrderLifecycleState::kSendUnknown);
 
   const auto uncertain = manager.GetOrdersRequiringReconciliation();
   ASSERT_EQ(uncertain.size(), 1U);
@@ -67,7 +67,7 @@ TEST(OrderManager, ExposesUncertainOrdersForReconciliation) {
 }
 
 TEST(OrderManager, AdoptsBrokerOrderWithoutResubmit) {
-  qtrade::engine::oms::OrderManager manager;
+  qtrade::engine::orders::OrderManager manager;
   ASSERT_EQ(manager.Initialize(MakeOptions()), qtrade::ErrorCode::kSuccess);
 
   qtrade::sdk::trader::Order report;
@@ -83,13 +83,13 @@ TEST(OrderManager, AdoptsBrokerOrderWithoutResubmit) {
   const auto local = manager.GetOrder("broker-order-1");
   ASSERT_TRUE(local.has_value());
   EXPECT_EQ(local->left_volume, 3);
-  EXPECT_EQ(manager.GetLifecycleState("broker-order-1"), qtrade::engine::oms::OrderLifecycleState::kWorking);
+  EXPECT_EQ(manager.GetLifecycleState("broker-order-1"), qtrade::engine::orders::OrderLifecycleState::kWorking);
   EXPECT_TRUE(manager.GetOrdersRequiringReconciliation().empty());
   manager.Shutdown();
 }
 
 TEST(OrderManager, InitializeClearsPreviousMemory) {
-  qtrade::engine::oms::OrderManager manager;
+  qtrade::engine::orders::OrderManager manager;
   ASSERT_EQ(manager.Initialize(MakeOptions()), qtrade::ErrorCode::kSuccess);
 
   qtrade::sdk::trader::OrderRequest request;

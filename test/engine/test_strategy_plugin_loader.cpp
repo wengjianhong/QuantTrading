@@ -1,4 +1,4 @@
-#include "qtrade/engine/strategy/strategy_plugin_loader.hpp"
+#include "qtrade/engine/strategies/strategy_plugin_loader.hpp"
 #include "qtrade/strategy/strategy_plugin_abi.h"
 
 #include <gtest/gtest.h>
@@ -35,7 +35,7 @@ TEST(StrategyPluginLoader, LoadsExamplePluginAndCreatesInstance) {
     GTEST_SKIP() << "strategy plugin directory not found; set QTRADE_STRATEGY_PLUGIN_DIR";
   }
 
-  qtrade::engine::strategy::StrategyPluginLoader loader;
+  qtrade::engine::strategies::StrategyPluginLoader loader;
   ASSERT_EQ(loader.LoadStrategyPlugin(dir), qtrade::ErrorCode::kSuccess);
   EXPECT_TRUE(loader.HasPlugin("example"));
   EXPECT_FALSE(loader.HasPlugin("example_strategy"));

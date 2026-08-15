@@ -1,5 +1,5 @@
 #include "qtrade/engine/account/account_manager.hpp"
-#include "qtrade/engine/position/position_manager.hpp"
+#include "qtrade/engine/positions/position_manager.hpp"
 
 #include <gtest/gtest.h>
 
@@ -44,7 +44,7 @@ TEST(AccountManager, TracksFrozenFundsAndDeduplicatesTrades) {
 }
 
 TEST(PositionManager, TracksLongShortAndTodayYesterday) {
-  qtrade::engine::position::PositionManager manager;
+  qtrade::engine::positions::PositionManager manager;
 
   qtrade::sdk::trader::Position initial;
   initial.instrument = "IF2506";

@@ -1,5 +1,5 @@
-#include "qtrade/engine/event_bus/event_lanes.hpp"
-#include "qtrade/engine/strategy/strategy_manager.hpp"
+#include "qtrade/engine/events/event_lanes.hpp"
+#include "qtrade/engine/strategies/strategy_manager.hpp"
 
 #include <gtest/gtest.h>
 
@@ -48,16 +48,16 @@ class ConfigurableStrategy final : public qtrade::strategy::IStrategy {
 };
 
 /// 单测用：非插件路径，删除器用 delete
-[[nodiscard]] qtrade::engine::strategy::StrategyPtr MakeTestStrategyPtr(
+[[nodiscard]] qtrade::engine::strategies::StrategyPtr MakeTestStrategyPtr(
   std::unique_ptr<qtrade::strategy::IStrategy> strategy) {
-  return qtrade::engine::strategy::StrategyPtr{strategy.release(), [](qtrade::strategy::IStrategy* p) { delete p; }};
+  return qtrade::engine::strategies::StrategyPtr{strategy.release(), [](qtrade::strategy::IStrategy* p) { delete p; }};
 }
 
 }  // namespace
 
 TEST(StrategyConfig, RegistersAndStartsStrategy) {
-  qtrade::engine::event_bus::EventLanes lanes;
-  qtrade::engine::strategy::StrategyManager manager(lanes);
+  qtrade::engine::events::EventLanes lanes;
+  qtrade::engine::strategies::StrategyManager manager(lanes);
   const auto state = std::make_shared<StrategyState>();
   auto strategy = MakeTestStrategyPtr(std::make_unique<ConfigurableStrategy>(state));
 
@@ -81,8 +81,8 @@ TEST(StrategyConfig, RegistersAndStartsStrategy) {
 }
 
 TEST(StrategyConfig, RejectsDuplicateInstrumentRoutes) {
-  qtrade::engine::event_bus::EventLanes lanes;
-  qtrade::engine::strategy::StrategyManager manager(lanes);
+  qtrade::engine::events::EventLanes lanes;
+  qtrade::engine::strategies::StrategyManager manager(lanes);
   ASSERT_EQ(manager.RegisterStrategy(
               "strategy-1",
               MakeTestStrategyPtr(std::make_unique<ConfigurableStrategy>(std::make_shared<StrategyState>())),
@@ -96,8 +96,8 @@ TEST(StrategyConfig, RejectsDuplicateInstrumentRoutes) {
 }
 
 TEST(StrategyConfig, RejectsRegisterWhileRunning) {
-  qtrade::engine::event_bus::EventLanes lanes;
-  qtrade::engine::strategy::StrategyManager manager(lanes);
+  qtrade::engine::events::EventLanes lanes;
+  qtrade::engine::strategies::StrategyManager manager(lanes);
   ASSERT_EQ(manager.RegisterStrategy(
               "strategy-1",
               MakeTestStrategyPtr(std::make_unique<ConfigurableStrategy>(std::make_shared<StrategyState>())),

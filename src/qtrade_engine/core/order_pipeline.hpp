@@ -6,10 +6,11 @@
 #ifndef QTRADE_TRADING_ENGINE_ORDER_PIPELINE_HPP_
 #define QTRADE_TRADING_ENGINE_ORDER_PIPELINE_HPP_
 
-#include "qtrade/engine/cms/compliance_api.hpp"
 #include "qtrade/engine/account_risk/account_risk_api.hpp"
-#include "qtrade/engine/ems/execution_api.hpp"
-#include "qtrade/engine/oms/order_api.hpp"
+#include "qtrade/engine/execution/execution_api.hpp"
+#include "qtrade/engine/instance_risk/instance_risk_api.hpp"
+#include "qtrade/engine/orders/order_api.hpp"
+#include "qtrade/engine/strategy_risk/strategy_risk_api.hpp"
 
 #include <qtrade/error_code/error_codes.hpp>
 #include <qtrade/sdk/trader/trader_struct.hpp>
@@ -22,9 +23,9 @@ namespace qtrade::engine {
 /// @brief A 段后准入编排：策略合规、账户预占、OMS 落单与 EMS 报送
 class OrderPipeline {
  public:
-  OrderPipeline(cms::ComplianceApi& compliance,
-                oms::OrderApi& orders,
-                ems::ExecutionApi& execution,
+  OrderPipeline(strategy_risk::StrategyRiskApi& compliance,
+                orders::OrderApi& orders,
+                execution::ExecutionApi& execution,
                 account_risk::AccountRiskApi& account_risk);
 
   ErrorCode Submit(const qtrade::sdk::trader::OrderRequest& request);
@@ -34,9 +35,9 @@ class OrderPipeline {
   ErrorCode Cancel(const std::string& order_id);
 
  private:
-  cms::ComplianceApi& compliance_;
-  oms::OrderApi& orders_;
-  ems::ExecutionApi& execution_;
+  strategy_risk::StrategyRiskApi& compliance_;
+  orders::OrderApi& orders_;
+  execution::ExecutionApi& execution_;
   account_risk::AccountRiskApi& account_risk_;
 };
 

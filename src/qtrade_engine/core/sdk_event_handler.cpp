@@ -17,7 +17,7 @@ using qtrade::common::utils::IsValidTick;
 using qtrade::common::utils::IsValidTrade;
 
 SdkEventHandler::SdkEventHandler(std::atomic<bool>& running,
-                                 event_bus::EventLanes& event_lanes,
+                                 events::EventLanes& event_lanes,
                                  QuoteHealthMonitor& quote_health_monitor)
   : running_(running), event_lanes_(event_lanes), quote_health_monitor_(quote_health_monitor) {}
 

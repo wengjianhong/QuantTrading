@@ -1,8 +1,8 @@
 #include "qtrade/engine/account/account_manager.hpp"
 #include "qtrade/engine/account_risk/account_risk_manager.hpp"
 #include "qtrade/engine/core/lane_event_handler.hpp"
-#include "qtrade/engine/oms/order_manager.hpp"
-#include "qtrade/engine/position/position_manager.hpp"
+#include "qtrade/engine/orders/order_manager.hpp"
+#include "qtrade/engine/positions/position_manager.hpp"
 
 #include <gtest/gtest.h>
 
@@ -63,8 +63,8 @@ class RecordingAccountRiskBridge final : public qtrade::account_risk::IAccountRi
   std::vector<qtrade::account_risk::ReleaseRequest> releases_;
 };
 
-qtrade::engine::oms::OrderManagerOptions MakeOptions() {
-  qtrade::engine::oms::OrderManagerOptions options;
+qtrade::engine::orders::OrderManagerOptions MakeOptions() {
+  qtrade::engine::orders::OrderManagerOptions options;
   options.account_id = "acct";
   options.engine_id = "engine";
   options.engine_epoch = 7;
@@ -74,10 +74,10 @@ qtrade::engine::oms::OrderManagerOptions MakeOptions() {
 }  // namespace
 
 TEST(LaneEventHandler, RejectedOrderReleasesViaAccountRiskApi) {
-  qtrade::engine::oms::OrderManager orders;
+  qtrade::engine::orders::OrderManager orders;
   ASSERT_EQ(orders.Initialize(MakeOptions()), qtrade::ErrorCode::kSuccess);
   qtrade::engine::account::AccountManager account;
-  qtrade::engine::position::PositionManager position;
+  qtrade::engine::positions::PositionManager position;
   RecordingAccountRiskBridge bridge;
   qtrade::engine::account_risk::AccountRiskManager account_risk;
   account_risk.SetBridge(&bridge);
@@ -104,10 +104,10 @@ TEST(LaneEventHandler, RejectedOrderReleasesViaAccountRiskApi) {
 }
 
 TEST(LaneEventHandler, NoBridgeStillAppliesOrder) {
-  qtrade::engine::oms::OrderManager orders;
+  qtrade::engine::orders::OrderManager orders;
   ASSERT_EQ(orders.Initialize(MakeOptions()), qtrade::ErrorCode::kSuccess);
   qtrade::engine::account::AccountManager account;
-  qtrade::engine::position::PositionManager position;
+  qtrade::engine::positions::PositionManager position;
   qtrade::engine::account_risk::AccountRiskManager account_risk;
   qtrade::engine::LaneEventHandler handler(orders, account, position, account_risk);
 

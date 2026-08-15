@@ -1,6 +1,6 @@
 #include "qtrade/engine/core/quote_health_monitor.hpp"
 #include "qtrade/engine/core/sdk_event_handler.hpp"
-#include "qtrade/engine/event_bus/event_lanes.hpp"
+#include "qtrade/engine/events/event_lanes.hpp"
 
 #include <qtrade/sdk/trader/trader_struct.hpp>
 
@@ -27,7 +27,7 @@ void WaitUntil(const std::function<bool()>& pred, std::chrono::milliseconds time
 
 TEST(SdkEventHandler, PublishesValidOrderWhenRunning) {
   std::atomic<bool> running{true};
-  qtrade::engine::event_bus::EventLanes lanes;
+  qtrade::engine::events::EventLanes lanes;
   qtrade::engine::QuoteHealthMonitor health;
   qtrade::engine::SdkEventHandler handler(running, lanes, health);
 
@@ -48,7 +48,7 @@ TEST(SdkEventHandler, PublishesValidOrderWhenRunning) {
 
 TEST(SdkEventHandler, DropsWhenNotRunning) {
   std::atomic<bool> running{false};
-  qtrade::engine::event_bus::EventLanes lanes;
+  qtrade::engine::events::EventLanes lanes;
   qtrade::engine::QuoteHealthMonitor health;
   qtrade::engine::SdkEventHandler handler(running, lanes, health);
 

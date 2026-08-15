@@ -7,9 +7,9 @@
 
 namespace qtrade::engine {
 
-OrderPipeline::OrderPipeline(cms::ComplianceApi& compliance,
-                             oms::OrderApi& orders,
-                             ems::ExecutionApi& execution,
+OrderPipeline::OrderPipeline(strategy_risk::StrategyRiskApi& compliance,
+                             orders::OrderApi& orders,
+                             execution::ExecutionApi& execution,
                              account_risk::AccountRiskApi& account_risk)
   : compliance_(compliance), orders_(orders), execution_(execution), account_risk_(account_risk) {}
 
@@ -36,7 +36,7 @@ ErrorCode OrderPipeline::Submit(const qtrade::sdk::trader::OrderRequest& request
   }
   const std::string& created_order_id = order->order_id;
   const auto lifecycle = orders_.GetLifecycleState(created_order_id);
-  if (lifecycle.has_value() && *lifecycle != oms::OrderLifecycleState::kPrepared) {
+  if (lifecycle.has_value() && *lifecycle != orders::OrderLifecycleState::kPrepared) {
     return ErrorCode::kSuccess;
   }
 

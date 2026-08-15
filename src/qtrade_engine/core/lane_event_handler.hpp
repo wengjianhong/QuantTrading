@@ -11,9 +11,9 @@
 
 #include "qtrade/engine/account/account_api.hpp"
 #include "qtrade/engine/account_risk/account_risk_api.hpp"
-#include "qtrade/engine/event_bus/event_lanes.hpp"
-#include "qtrade/engine/oms/order_api.hpp"
-#include "qtrade/engine/position/position_api.hpp"
+#include "qtrade/engine/events/event_lanes.hpp"
+#include "qtrade/engine/orders/order_api.hpp"
+#include "qtrade/engine/positions/position_api.hpp"
 
 #include <qtrade/sdk/trader/trader_struct.hpp>
 
@@ -23,14 +23,14 @@ namespace qtrade::engine {
 class LaneEventHandler {
  public:
   /// @brief 绑定 OMS / 账户 / 持仓 / 硬风控接口（不拥有）
-  LaneEventHandler(oms::OrderApi& orders,
+  LaneEventHandler(orders::OrderApi& orders,
                    account::AccountApi& account,
-                   position::PositionApi& position,
+                   positions::PositionApi& position,
                    account_risk::AccountRiskApi& account_risk);
 
   /// @brief 向 Lane-T 注册 Order/Trade 回调（Stop 清空后每次 Start 须再调）
   /// @param event_lanes 事件通道
-  void Register(event_bus::EventLanes& event_lanes);
+  void Register(events::EventLanes& event_lanes);
 
   /// @brief 处理订单回报：OMS → 本地快照更新账户冻结 → 拒单/撤单释放预占
   /// @param order 柜台订单回报
@@ -42,11 +42,11 @@ class LaneEventHandler {
 
  private:
   /// OMS
-  oms::OrderApi& orders_api_;
+  orders::OrderApi& orders_api_;
   /// 账户资金视图
   account::AccountApi& account_api_;
   /// 持仓视图
-  position::PositionApi& position_api_;
+  positions::PositionApi& position_api_;
   /// 账户硬风控模块间接口
   account_risk::AccountRiskApi& account_risk_api_;
 };

@@ -12,17 +12,17 @@
 
 #include "qtrade/engine/account/account_manager.hpp"
 #include "qtrade/engine/account_risk/account_risk_manager.hpp"
-#include "qtrade/engine/cms/compliance_manager.hpp"
+#include "qtrade/engine/strategy_risk/strategy_risk_manager.hpp"
 #include "qtrade/engine/core/engine_lifecycle.hpp"
 #include "qtrade/engine/core/lane_event_handler.hpp"
 #include "qtrade/engine/core/order_pipeline.hpp"
 #include "qtrade/engine/core/quote_health_monitor.hpp"
 #include "qtrade/engine/core/sdk_event_handler.hpp"
-#include "qtrade/engine/ems/execution_manager.hpp"
-#include "qtrade/engine/event_bus/event_lanes.hpp"
-#include "qtrade/engine/oms/order_manager.hpp"
-#include "qtrade/engine/position/position_manager.hpp"
-#include "qtrade/engine/strategy/strategy_manager.hpp"
+#include "qtrade/engine/execution/execution_manager.hpp"
+#include "qtrade/engine/events/event_lanes.hpp"
+#include "qtrade/engine/orders/order_manager.hpp"
+#include "qtrade/engine/positions/position_manager.hpp"
+#include "qtrade/engine/strategies/strategy_manager.hpp"
 
 #include <qtrade/engine/engine.hpp>
 #include <qtrade/error_code/error_codes.hpp>
@@ -181,9 +181,9 @@ class TradingEngine final : public IEngine {
   // ---------------------------------------------------------------------------
 
   /// Lane-Q / Lane-T 事件通道
-  event_bus::EventLanes event_lanes_;
+  events::EventLanes event_lanes_;
   /// 策略管理器（内部持有插件加载器）
-  strategy::StrategyManager strategy_manager_;
+  strategies::StrategyManager strategy_manager_;
   /// 行情健康监控
   QuoteHealthMonitor quote_health_monitor_;
   /// SDK 回调入站（须在 event_lanes / quote_health 之后）
@@ -194,15 +194,15 @@ class TradingEngine final : public IEngine {
   // ---------------------------------------------------------------------------
 
   /// 合规模块（按 strategy_id 管理）
-  cms::ComplianceManager compliance_;
+  strategy_risk::StrategyRiskManager compliance_;
   /// 订单管理
-  oms::OrderManager order_manager_;
+  orders::OrderManager order_manager_;
   /// 执行管理
-  ems::ExecutionManager execution_manager_;
+  execution::ExecutionManager execution_manager_;
   /// 账户资金
   account::AccountManager account_manager_;
   /// 持仓
-  position::PositionManager position_manager_;
+  positions::PositionManager position_manager_;
   /// 账户硬风控（须在 pipeline / handler 之前；唯一持有 IAccountRiskBridge）
   account_risk::AccountRiskManager account_risk_manager_;
   /// 发单流水线（须在 compliance/order/execution/account_risk 之后）

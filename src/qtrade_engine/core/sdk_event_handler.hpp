@@ -8,7 +8,7 @@
 #define QTRADE_ENGINE_SDK_EVENT_HANDLER_HPP_
 
 #include "qtrade/engine/core/quote_health_monitor.hpp"
-#include "qtrade/engine/event_bus/event_lanes.hpp"
+#include "qtrade/engine/events/event_lanes.hpp"
 
 #include <qtrade/sdk/quote/quote_api.hpp>
 #include <qtrade/sdk/trader/trader_api.hpp>
@@ -24,7 +24,7 @@ class SdkEventHandler {
   /// @param running 引擎是否已 Start
   /// @param event_lanes Lane-Q / Lane-T
   /// @param quote_health 有效/无效 Tick 健康计数
-  SdkEventHandler(std::atomic<bool>& running, event_bus::EventLanes& event_lanes, QuoteHealthMonitor& quote_health);
+  SdkEventHandler(std::atomic<bool>& running, events::EventLanes& event_lanes, QuoteHealthMonitor& quote_health);
 
   /// @brief Tick 入站：运行门禁、校验、健康计数后写入 Lane-Q
   /// @param tick 行情 Tick
@@ -46,7 +46,7 @@ class SdkEventHandler {
   /// 引擎 running_（非拥有）
   std::atomic<bool>& running_;
   /// 事件通道（非拥有）
-  event_bus::EventLanes& event_lanes_;
+  events::EventLanes& event_lanes_;
   /// 行情健康监控（非拥有）
   QuoteHealthMonitor& quote_health_monitor_;
 };
