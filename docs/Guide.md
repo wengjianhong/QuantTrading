@@ -9,7 +9,7 @@
 |《[Architecture.md](Architecture.md)》层次|代码侧落到何处|
 |---|---|
 |适配层|见 **qtrade_client** 仓库 `src/adapters/`（厂商行情/交易通道适配）|
-|交易引擎层|`src/qtrade_engine/`（`events`、`orders`、`execution`、`strategies`、三层风控、账户与持仓等私有实现）|
+|交易引擎层|`src/qtrade_engine/`（`events`、`orders`、`execution`、`strategies`、`compliance`、三层风控、账户与持仓等私有实现）|
 |支撑服务客户端|见 **qtrade_client** 仓库 `src/client/` 与 `src/bridge/`|
 |支撑服务层|见 **qtrade_service** 仓库 `src/qtrade_service/service/<名称>/`|
 |内部框架基建|见 **qtrade_service** 仓库 `src/qtrade_service/framework/`|
@@ -44,6 +44,7 @@ qtrade/
 │   ├── core/                       # 生命周期、订单流水线、SDK 回调、行情健康
 │   ├── events/                     # Lane-Q / Lane-T reactor
 │   ├── strategies/                 # 策略插件加载、生命周期与事件分发
+│   ├── compliance/                 # 交易所硬规则执行器（仅实现流程，未实现具体规则）
 │   ├── strategy_risk/              # 策略级数值风控
 │   ├── instance_risk/              # engine_id 内共享风控预算
 │   ├── account_risk/               # 账户级预占桥接与释放
@@ -88,7 +89,7 @@ qtrade/
 
 ### 3.1 A 段热路径（强制约束）
 
-- **定义**（§2.1.1）：Lane-Q → 策略 → CMS → Risk → `OrderIntent` 入队
+- **定义**（§2.1.1）：Lane-Q → 策略 → ComplianceManager → StrategyRiskManager → InstanceRiskManager → `OrderIntent` 入队
 
 - **发单主链**（§2.1.4）：A → [E] → OMS(内存) → C。Production/Institutional 强制执行 E 段；发单前不做订单主日志落盘；无独立 J 段提交门槛
 
@@ -377,7 +378,8 @@ Api 适配器实现 QTrade 的稳定接口并转发调用；Spi 适配器继承�
 | 架构能力 | 目标阶段 | 当前实现状态 |
 |---|---|---|
 | EventBus 与双 EventReactor 事件通道 | MVP | ✅ 已有引擎骨架、EventReactorLoop 与事件类型 |
-| CMS / OMS / EMS / 风控 / 持仓 | MVP | 🟡 模块骨架已有；内存 OMS 状态机与幂等语义仍待完善；订单主日志后续可选 |
+| 合规（ComplianceManager） | MVP | 🟡 准入位置与执行器已建立；交易所规则数据源及具体规则待接入 |
+| OMS / EMS / 策略风控 / 实例风控 / 持仓 | MVP | 🟡 模块骨架已有；内存 OMS 状态机与幂等语义仍待完善；订单主日志后续可选 |
 | 配置驱动分片与一品种一策略校验 | MVP | 🟡 `EngineConfig` 模型已对齐；配置校验和策略一对一分发待实现 |
 | account-service 与凭证、配置分离 | MVP | ❌ 服务与凭证链路待实现 |
 | 行情适配器与 READY 门禁 | MVP | ✅ 已有 `QuoteApi` + `QuoteHealthMonitor`；故障切换待实现 |

@@ -53,7 +53,7 @@
 
 | 分段 | 是否计入 50μs 目标 | 说明 |
 |---|---|---|
-| **A. 本地决策** | **是** | 行情出队 → 策略 → CMS → 实例风控 → `OrderIntent` 入队 |
+| **A. 本地决策** | **是** | 行情出队 → 策略 → ComplianceManager → StrategyRiskManager → InstanceRiskManager → `OrderIntent` 入队 |
 | **E. 账户风控** | **否** | `OrderIntent` 出队 → `account-risk-service` 原子预占。由独立准入线程执行，不占用 Lane-Q；Production/Institutional 强制启用，Lite 可选 |
 | **C. 出站发单** | **单独 SLA** | OMS（内存）接受后 → EMS 出队 → 执行适配器 → 交易所/券商 |
 | **B. 异步副本** | **否** | 内存快照、历史副本、报表和普通运行日志；失败不影响发单主链 |
@@ -71,7 +71,7 @@
 | 场景 | 延迟目标（P99） | 说明 |
 |---|---|---|
 | 空策略 passthrough | < 20μs | 只验证 Lane-Q、策略调度和 `OrderIntent` 入队 |
-| 1 策略 + CMS + 全量本地风控 | < 50μs | MVP 默认验收；A 段统一止于 `OrderIntent` 入队 |
+| 1 策略 + 合规 + 策略风控 + 实例风控 | < 50μs | MVP 默认验收；A 段统一止于 `OrderIntent` 入队 |
 | N 策略并行 + M 品种 | 单独指标 | 按客户部署压测报告交付 |
 | A → [E] → C 完整链路 | 按部署档位填写 | 必须覆盖账户风控、OMS 内存受理、EMS 排队和适配器调用 |
 
@@ -113,7 +113,7 @@ A 段只负责生成 `OrderIntent`，不等待远程服务或磁盘。
 
 ### 2.2 热路径与非热路径职责
 
-- **分段与时序以 §2.1、§7.2 为准**：A 段在 Lane-Q 执行策略、CMS 与实例风控；订单准入线程执行 E 段；订单状态协调器在 OMS 内存中应用状态并交给 EMS；C 段负责出站。订单/成交回报直接由订单状态协调器更新内存状态并通知策略（当前无订单主日志 commit 门槛）。
+- **分段与时序以 §2.1、§7.2 为准**：A 段在 Lane-Q 执行策略、`ComplianceManager`、策略风控与实例风控；订单准入线程执行 E 段；订单状态协调器在 OMS 内存中应用状态并交给 EMS；C 段负责出站。订单/成交回报直接由订单状态协调器更新内存状态并通知策略（当前无订单主日志 commit 门槛）。
 - **控制面**：配置与风控阈值在启动时拉取为本地快照；引擎不暴露 gRPC Server，**不**做运行时配置 Watch。具体 RPC 见 §7.1。
 - **模块职责**：适配器将厂商 API/结构体映射为 `qtrade/sdk`；`TradingEngine` 将 SDK 回调接线至 EventBus；队列由 Lane-Q/Lane-T 承担；行情健康由 `QuoteHealthMonitor` 监控。
 - **账户标识**：账户/账户风控桥接与跨服务账户 API 以全局唯一 `account_id` 为键；`tenant_id` 仅用于配置身份等控制面概念（若启用），不进入账户热路径。
@@ -195,28 +195,29 @@ config-service 按 `engine_id` 返回专属 `EngineConfig`（client 启动时 `G
 |**事件总线（EventLanes）**|分发 Tick/Bar 与订单/成交回报|只负责事件排队；不做业务校验、账簿更新或持久化|否，核心基础设施|Lane-Q 与 Lane-T 各自使用有界队列；队列满时按 §7.1 处理|
 |**行情健康监控（QuoteHealthMonitor）**|检测行情陈旧并驱动 READY 门禁|不做策略调度、订阅编排或二次排队|模块固定；`QuoteApi` 可替换|由 `TradingEngine` 持有 `QuoteApi` 并编排订阅；断线重连/切源在启动编排层执行|
 |**交易回报入站（TradingEngine）**|将 SDK 订单/成交回调发布到 Lane-T|不直接调用 OMS，也不发送订单|模块固定；`TraderApi` 可替换|OMS 更新由订单状态协调器负责|
-|**策略管理器（StrategyManager）**|加载策略、分发事件、接收交易信号、管理生命周期|策略只能产生 `OrderIntent`，不能绕过 CMS、Risk、OMS；同一策略的 Tick/Bar/回报回调必须串行|是，`IStrategy` 动态插件|每个策略使用串行 mailbox；配置在事件边界原子生效|
-|**合规（CMS）**|校验监管与静态硬规则，如禁交易名单、限购、日内频次|不维护实时资金/持仓账簿；规则变更必须审计|规则可配置，流程不可替换|位于策略信号后的首个准入关口；拦截原因进入 B/D 段留痕|
+|**策略管理器（StrategyManager）**|加载策略、分发事件、接收交易信号、管理生命周期|策略只能产生 `OrderIntent`，不能绕过合规、策略风控、实例风控与 OMS；同一策略的 Tick/Bar/回报回调必须串行|是，`IStrategy` 动态插件|每个策略使用串行 mailbox；配置在事件边界原子生效|
+|**合规（ComplianceManager）**|执行交易所硬规则，如交易时段、合约状态、最小价格与数量单位、涨跌停及订单类型约束|不维护实时资金/持仓账簿；私有模块，不安装至 `include/qtrade/`；不接受外部规则配置|执行器固定；规则数据由交易所日历、合约参考数据或适配器内部提供|位于策略信号后的首个准入关口；当前为占位执行器，规则数据源接入前不拒单|
+|**策略风控（StrategyRiskManager）**|校验策略级限额（仓位、冷却、止损止盈等 `StrategyRiskLimits`）|只处理已登记策略的本地规则；不裁决账户级硬限制|规则可配置，执行器固定|A 段第二个准入关口；位于合规之后、实例风控之前|
 |**实例风控（InstanceRiskManager）**|校验实例预算、策略/品种限制、PnL、行情健康和频率|只处理本实例内存状态；不裁决账户级资金/总敞口硬限制|规则可配置，执行器固定|A 段本地原子扣减预算；账户硬限制转交 E 段 `account-risk-service`|
 |**订单状态协调器 + OMS**|统一处理新订单、撤单、订单回报和成交回报|是 OMS、Account、PMS 的单写者；不执行策略、磁盘 I/O 或厂商协议|核心流程固定；订单类型可扩展|OMS 为进程内内存状态机；发单前不做订单主日志落盘；按订单顺序更新内存态|
 |**交易执行（EMS）**|将 OMS 已接受订单路由、拆分并发送到交易通道|不决定策略、合规或风险放行|是，基于 `TraderApi` 适配器|C 段开始；处理通道限流、连接健康和执行回报关联|
 |**运行时账户（AccountManager）**|维护本实例资金、冻结和可用额度副本|不保存开户资料或登录凭证；不是跨实例账户硬限制的权威账簿|否，进程内状态|OMS/回报路径同步更新；快照异步刷盘；凭证职责见 §2.6|
-|**持仓（PMS）**|维护逐标的持仓、今昨仓、冻结和盈亏|不处理订单路由或外部账户凭证|否，进程内状态|由成交回报同步更新；为本地 CMS/Risk 提供查询|
+|**持仓（PMS）**|维护逐标的持仓、今昨仓、冻结和盈亏|不处理订单路由或外部账户凭证|否，进程内状态|由成交回报同步更新；为本地合规/风控提供查询|
 
-### 3.1 CMS 与 InstanceRiskManager 边界
+### 3.1 合规、策略风控与实例风控边界
 
-- **调用顺序**：策略信号 → **CMS**（合规硬规则）→ **InstanceRiskManager**（实例实时风险）→ `OrderIntent` → E 段账户预占（Production/Institutional 强制）→ OMS 内存受理 → EMS；任一环节失败都终止并记录原因。
-- **CMS**：偏监管与静态规则，变更频率低，需留痕；**InstanceRiskManager**：偏实时 PnL/波动/熔断，阈值可高频调整。
-- CMS 与实例级 InstanceRiskManager 均只读本地内存快照，**不同步调用**外部服务。账户级资金、保证金、总敞口、账户持仓及未完成订单等硬限制由 `account-risk-service` 在 E 段执行原子预占；明确拒绝才终止，超时或连接中断进入 `Unknown` 查询流程。
+- **调用顺序**：策略信号 → **ComplianceManager**（合规硬规则）→ **StrategyRiskManager**（策略级限额）→ **InstanceRiskManager**（实例实时风险）→ `OrderIntent` → E 段账户预占（Production/Institutional 强制）→ OMS 内存受理 → EMS；任一环节失败都终止并记录原因。
+- **ComplianceManager**：执行交易所硬规则；规则由交易所日历、合约参考数据或适配器内部提供，调用方不能放宽或修改。当前为无状态占位执行器。**StrategyRiskManager**：偏策略级数值限额（仓位、冷却等）。**InstanceRiskManager**：偏实时 PnL/波动/熔断，阈值可高频调整。
+- 合规、策略风控与实例级 InstanceRiskManager 均只读本地内存快照，**不同步调用**外部服务。账户级资金、保证金、总敞口、账户持仓及未完成订单等硬限制由 `account-risk-service` 在 E 段执行原子预占；明确拒绝才终止，超时或连接中断进入 `Unknown` 查询流程。
 
 规则只能有一个最终裁决者和一个配置源：
 
-| 规则类型 | 最终裁决者 |
-|---|---|
-| 禁交易名单、监管限购、允许的订单类型 | CMS |
-| 实例/策略预算、PnL、订单频率、行情健康 | InstanceRiskManager |
-| 账户资金、保证金、总敞口、账户未完成订单 | account-risk-service |
-| 单笔字段合法性 | CMS；InstanceRiskManager 不重复判断 |
+| 规则类型 | 最终裁决者 | 当前版本 |
+|---|---|---|
+| 交易时段、合约状态、最小价格/数量单位、涨跌停、订单类型约束 | ComplianceManager | 准入位置已建立；规则数据源与具体规则待接入 |
+| 策略级仓位、冷却、止损止盈等限额 | StrategyRiskManager | 骨架已有 |
+| 实例/策略预算、PnL、订单频率、行情健康 | InstanceRiskManager | 骨架已有 |
+| 账户资金、保证金、总敞口、账户未完成订单 | account-risk-service | 待实现 |
 
 ### 3.2 风控层级、指标与计量口径
 
@@ -225,9 +226,9 @@ config-service 按 `engine_id` 返回专属 `EngineConfig`（client 启动时 `G
 | **租户级** | 总名义敞口、总日内损失、总订单速率、策略/实例资源配额 | 按 `tenant_id` 聚合；超限拒绝新订单或降频 | 本地快照；需要全局硬限制时经 E 段 |
 | **账户级（硬限制）** | 可用资金、保证金占用、总/净敞口、账户持仓、未完成订单数、日内损失 | 以账户权威账簿的「已成交 + 已预占」计算；`Reserve` 成功才允许发单，撤单/拒单/成交后 `Release` 或结算 | **E 段 `account-risk-service`** |
 | **实例级（弱一致预算）** | 资金/保证金预算、名义敞口预算、最大持仓预算、未完成订单数、订单速率 | `engine_id` 独占预算，本地原子扣减；预算耗尽即拒绝，不向其他实例借用 | **A 段 InstanceRiskManager** |
-| **策略级** | 策略资金预算、最大仓位、单日损失、订单/撤单频率、允许账户和品种 | 按 `strategy_id` 统计；超限暂停该策略的新订单 | **A 段 InstanceRiskManager** |
-| **品种级** | 单品种净/总仓、单笔数量与名义金额、价格偏离、涨跌停、流动性限制 | 按 `instrument_id` 和方向统计；超限拒绝该笔订单 | **A 段 CMS/InstanceRiskManager** |
-| **订单级** | 数量、价格、方向、订单类型、重复单、有效期、拆单子单累计量 | 对单笔 `OrderIntent` 校验；不合法直接拒绝并留痕 | **A 段 CMS/InstanceRiskManager** |
+| **策略级** | 策略资金预算、最大仓位、单日损失、订单/撤单频率、允许账户和品种 | 按 `strategy_id` 统计；超限暂停该策略的新订单 | **A 段 StrategyRiskManager / InstanceRiskManager** |
+| **品种级** | 单品种净/总仓、单笔数量与名义金额、价格偏离、涨跌停、流动性限制 | 按 `instrument_id` 和方向统计；超限拒绝该笔订单 | **A 段 ComplianceManager（交易所硬规则）/ InstanceRiskManager** |
+| **订单级** | 数量、价格、方向、订单类型、重复单、有效期、拆单子单累计量 | 对单笔 `OrderIntent` 校验；不合法直接拒绝并留痕 | **A 段 StrategyRiskManager / InstanceRiskManager** |
 | **行情健康级** | 行情延迟、时间戳陈旧、序号缺口、源切换状态、涨跌停状态 | 不健康时拒绝受影响品种的新开仓订单；具体处置策略由风险配置决定 | **A 段 InstanceRiskManager** |
 
 - **弱一致预算的配置规则**：config-service 为每个 `(account_id, engine_id)` 下发带 `version` 的预算；同一账户所有实例预算之和必须小于等于账户硬上限减安全缓冲。预算只可由控制面调整，不允许实例间运行时借用或广播资金余额。
@@ -320,7 +321,7 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
 |**监控服务（observability-service）**|采集指标、告警和性能分析数据|不参与订单准入；只消费监控副本|引擎经 monitor client 上报；告警通道可插拔|关注 A/E/C 延迟、队列深度、拒绝率、账簿偏差与行情切换；支持告警分级|
 |**回测服务（backtest-service）**|调度回测、模拟滑点/手续费、生成绩效报告|不加载或控制实盘策略，不访问实盘凭证|调用历史服务；回测执行器可水平扩展|作业队列、并发配额、参数/数据版本记录和结果可复现|
 |**策略管理服务（strategy-service）**|管理策略源码、编译、测试、签名和发布版本|不在交易引擎内编译；不直接改写引擎内存中的策略状态|接入层提交发布；通过 config-service 下发已批准版本|沙箱编译、静态扫描、签名校验、审批和灰度；插件 ABI 兼容检查|
-|**审计服务（audit-service）**|盘后合规复盘、风险分析和监管报表|不作为实时 CMS 执行器；消费订单、成交、配置和日志副本|定时任务及受控查询接口；报表模板可扩展|留存周期、不可篡改归档、数据血缘、报表计划和异常闭环|
+|**审计服务（audit-service）**|盘后合规复盘、风险分析和监管报表|不作为实时合规执行器；消费订单、成交、配置和日志副本|定时任务及受控查询接口；报表模板可扩展|留存周期、不可篡改归档、数据血缘、报表计划和异常闭环|
 |**服务注册发现服务（registry-service）**|服务注册、发现和健康检查|不保存业务配置或交易状态|可采用 etcd 或静态后端；为支撑服务提供发现能力|租约、健康检查、优雅下线；MVP 可使用静态 endpoint|
 |**备份服务（backup-service，后续）**|备份与恢复演练|当前不参与交易引擎故障切换，不承诺 RTO/RPO|实现与存储目标待主备方案确定后选择|先定义备份范围、加密、保留期、恢复校验与演练记录|
 
@@ -333,7 +334,7 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
 |**统一认证授权中心**|接入层和支撑服务验证身份、获取角色/权限；不由交易引擎直接调用|Keycloak、企业 IdP，支持 RBAC/ABAC|SSO、最小权限、令牌吊销、MFA，以及实例分片与行情源配置的细粒度授权|
 |**数据安全服务**|提供密钥、加密、脱敏与访问审计能力；QTrade 不自建企业数据安全平台|KMS、透明加密、动态脱敏、水印服务|敏感账户/资金/交易记录加密，按角色脱敏和等保三级支持|
 |**自动化运维平台**|部署、监控、告警、回滚和资源编排；QTrade 提供健康检查与运行指标|机构 CI/CD、Kubernetes 或裸机运维平台|生产推荐裸机或专用 VM（isolcpus、hugepages、NUMA）；发布验证与运维审计|
-|**企业合规管理平台**|接收审计副本、生成报表和监管报送；不取代引擎内 CMS|机构规则引擎、报表/报送平台|监管报送、整改闭环和行情切换审计；实时交易硬规则仍由 CMS 执行|
+|**企业合规管理平台**|接收审计副本、生成报表和监管报送；不取代引擎内 ComplianceManager|机构规则引擎、报表/报送平台|监管报送、整改闭环和行情切换审计；实时交易硬规则仍由引擎内 ComplianceManager 执行|
 
 ### 4.2 核心约束（强制）
 
@@ -456,14 +457,14 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
   - 固定执行顺序：`FreezeNewOrders` → `CancelAll` → 查询确认/对账 → 必要时 `DisconnectTrading`
   - 命令带唯一 ID、有效期、审批信息和目标范围；重复命令不得重复产生副作用
   - ACK 分为“已持久化”“已提交柜台”“柜台已确认”三个阶段，不能用收到命令代替撤单成功
-  - 安全控制能力不能下新单，也不能绕过 CMS、Risk 或 OMS
+  - 安全控制能力不能下新单，也不能绕过合规、风控或 OMS
 
 - **引擎 ↔ account-service（凭证面，启动阶段 gRPC）**：
   - 冷启动：`GetCredential(account_id, engine_id)` 按需拉取登录材料；结果**仅驻留进程内存**，供适配器 `Connect`/`Login`
   - **禁止**：密码/token 进入 `EngineConfig`；禁止策略插件直接调用 account-service
 
 - **引擎 ↔ account-risk-service（E 段，账户级硬风控）**：
-  - 发单前：A 段完成 CMS 与实例预算校验后，以 `order_id` 幂等调用 `ReserveOrder(account_id, OrderIntent, release_id)`；仅 `Approved` 才进入 OMS 内存受理与 C 段
+  - 发单前：A 段完成合规、策略风控与实例预算校验后，以 `order_id` 幂等调用 `ReserveOrder(account_id, OrderIntent, release_id)`；仅 `Approved` 才进入 OMS 内存受理与 C 段
   - 结果语义：`Rejected` 明确拒单；超时、断连或响应无法确认时为 `Unknown`。引擎使用同一 `order_id` 调用 `QueryReservation`，在确认结果前不得发单或释放本地预算
   - 单写规则：MVP 以账户为分区键，使用数据库串行化事务和账簿版本 CAS 形成唯一写入顺序；服务进程内存不能作为权威账簿。预占、账簿更新和幂等记录在同一事务中提交
   - 回报后：订单状态协调器更新本地 OMS/Account/PMS；`ReleaseOrder`/结算为直接 gRPC 尽力调用，失败只 warn，不阻塞 Lane-T；孤儿预占靠 TTL/对账
@@ -526,14 +527,14 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
 
 | 通道 | 适配器 → TradingEngine → `Publish*` | 出队后 Handler |
 |---|---|---|
-| **Lane-Q** | 行情适配器 → `TradingEngine` | `StrategyManager` → CMS → 实例 Risk → `OrderIntent` |
+| **Lane-Q** | 行情适配器 → `TradingEngine` | `StrategyManager` → ComplianceManager → StrategyRiskManager → InstanceRiskManager → `OrderIntent` |
 | **Lane-T** | 交易适配器 → `TradingEngine` | 订单状态协调器 → OMS/Account/PMS → 策略 mailbox |
 
 **1. 行情 → 发单（A → [E] → OMS(内存) → C）**
 
 ```text
 外部行情 → 适配器 → TradingEngine → Lane-Q
-  → StrategyManager → CMS → 实例 Risk → OrderIntent 入队          [A 段]
+  → StrategyManager → ComplianceManager → StrategyRiskManager → InstanceRiskManager → OrderIntent 入队  [A 段]
   → 订单准入线程 → EMS admission token
   → account-risk-service ReserveOrder（Production 强制）         [E 段]
   → 订单状态协调器 → OMS 内存受理                                 [无 J 段]

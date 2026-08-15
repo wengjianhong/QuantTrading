@@ -265,7 +265,8 @@ ErrorCode TradingEngine::AddStrategy(const qtrade::strategy::StrategyConfig& con
     risk.max_volume = config.args.order_volume;
   }
 
-  if (const auto rc = compliance_.UpsertStrategyRules(config.strategy_id, risk); rc != ErrorCode::kSuccess) {
+  if (const auto rc = strategy_risk_manager_.UpsertStrategyRules(config.strategy_id, risk);
+      rc != ErrorCode::kSuccess) {
     lifecycle_.Transition(EngineState::kFailed, "STRATEGY_COMPLIANCE_INVALID");
     return rc;
   }
