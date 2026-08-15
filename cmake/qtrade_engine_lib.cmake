@@ -1,18 +1,14 @@
 # ---------------------------------------------------------------------------
-# qtrade_engine: shared library (common + engine modules)
+# qtrade_engine: shared library (engine modules only)
 # ---------------------------------------------------------------------------
 
 file(GLOB_RECURSE QTRADE_ENGINE_ALL_SRC CONFIGURE_DEPENDS
   ${QTRADE_ENGINE_SRC_QTRADE_DIR}/*.cpp)
 
-set(QTRADE_ENGINE_COMMON_SRC ${QTRADE_ENGINE_ALL_SRC})
-list(FILTER QTRADE_ENGINE_COMMON_SRC INCLUDE REGEX "/common/")
-
 set(QTRADE_ENGINE_ENGINE_SRC ${QTRADE_ENGINE_ALL_SRC})
 list(FILTER QTRADE_ENGINE_ENGINE_SRC EXCLUDE REGEX "/common/")
 
 add_library(qtrade_engine SHARED
-  ${QTRADE_ENGINE_COMMON_SRC}
   ${QTRADE_ENGINE_ENGINE_SRC}
 )
 
@@ -35,5 +31,6 @@ target_link_libraries(qtrade_engine PUBLIC
   spdlog::spdlog
   nlohmann_json::nlohmann_json
   cpputils::cpputils
+  qtrade_common::qtrade_common
   ${CMAKE_DL_LIBS}
 )

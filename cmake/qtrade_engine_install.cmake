@@ -4,13 +4,11 @@
 # Default prefix: /usr/local (override with -DCMAKE_INSTALL_PREFIX=).
 # Installed layout:
 #   lib/libqtrade_engine.so
-#   include/qtrade/...（公开契约 + 实现头，路径仍为 qtrade/engine、qtrade/common）
+#   include/qtrade/...（仅稳定公开契约）
 #   config/qtrade_engine.json
 #   lib/cmake/qtrade_engine/...
 #
-# 物理源已扁平到 src/qtrade_engine/{common,oms,...}；安装时映射回公开 include 路径，
-# 使 #include "qtrade/engine/..." / "qtrade/common/..." 在安装树中仍成立。
-# （长期应仅安装 include/ 下的对外头；client 依赖的实现头需先迁入 include/。）
+# 实现头永不安装；common、错误码与 Result 由 qtrade_common 单独发布。
 # ---------------------------------------------------------------------------
 
 include(CMakePackageConfigHelpers)
@@ -30,36 +28,8 @@ install(TARGETS qtrade_engine
 
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/qtrade/
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/qtrade
-)
-
-# common → include/qtrade/common
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/qtrade_engine/common/
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/qtrade/common
-  FILES_MATCHING
-    PATTERN "*.hpp"
-    PATTERN "*.h"
-)
-
-# Flattened engine modules → include/qtrade/engine/<module>
-set(_qtrade_engine_install_modules
-  account bridge cms core ems event_bus oms position risk strategy
-)
-foreach(_mod IN LISTS _qtrade_engine_install_modules)
-  install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/qtrade_engine/${_mod}/
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/qtrade/engine/${_mod}
-    FILES_MATCHING
-      PATTERN "*.hpp"
-      PATTERN "*.h"
-  )
-endforeach()
-unset(_qtrade_engine_install_modules)
-
-# Top-level engine headers → include/qtrade/engine/
-install(FILES
-  ${CMAKE_SOURCE_DIR}/src/qtrade_engine/trading_engine.hpp
-  ${CMAKE_SOURCE_DIR}/src/qtrade_engine/trading_engine_define.hpp
-  ${CMAKE_SOURCE_DIR}/src/qtrade_engine/trading_engine_struct.hpp
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/qtrade/engine
+  PATTERN "error_code" EXCLUDE
+  PATTERN "structs" EXCLUDE
 )
 
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/config/
