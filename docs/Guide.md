@@ -8,9 +8,9 @@
 
 |《[Architecture.md](Architecture.md)》层次|代码侧落到何处|
 |---|---|
-|适配层|`src/qtrade/sdk/`（可插拔动态库：行情源、交易通道协议转换；按厂商分子目录 mock/、emt/）|
-|交易引擎层|`src/qtrade_engine/`（与 `common/` 同级的扁平模块：事件总线、OMS、EMS、账户、持仓、风控、合规等；`#include` 仍为 `qtrade/engine/...`）|
-|支撑服务客户端|见 **qtrade_service** 仓库 `src/qtrade_service/client/`|
+|适配层|见 **qtrade_client** 仓库 `src/adapters/`（厂商行情/交易通道适配）|
+|交易引擎层|`src/qtrade_engine/`（`events`、`orders`、`execution`、`strategies`、三层风控、账户与持仓等私有实现）|
+|支撑服务客户端|见 **qtrade_client** 仓库 `src/client/` 与 `src/bridge/`|
 |支撑服务层|见 **qtrade_service** 仓库 `src/qtrade_service/service/<名称>/`|
 |内部框架基建|见 **qtrade_service** 仓库 `src/qtrade_service/framework/`|
 |表级 DAO|见 **qtrade_service** 仓库 `src/qtrade_service/dao/<service>/`|
@@ -34,89 +34,27 @@ qtrade/
 │   ├── qtrade_engine_install.cmake # install / find_package 导出
 │   └── qtrade_engine-config.cmake  # 包配置入口
 
-├── docs/
-│   ├── architecture.md             # 系统架构权威文档：架构总览、模块设计、交互方式、容灾方案、安全合规
-│   ├── guide.md                    # 开发指南：编码规范、插件开发流程、部署步骤、调试方法、协作规则
-│   └── deploy.md                   # 部署文档：各模块部署要求、机器配置、网络拓扑、监控告警、容灾切换
-├── include/
-│   ├── qtrade/                 # 【对外公共头文件】插件接口、共享数据结构、错误码
-│   │   ├── structs/            # 框架通用结构（如 result.hpp）
-│   │   ├── error_code/         # 错误码：error_codes.hpp、code_segment.hpp、code_message.hpp
-│   │   ├── grpc/               # gRPC Handler 与状态映射工具
-│   │   ├── strategy/           # 策略基类接口：IStrategy
-│   │   ├── support/            # 支撑服务生命周期接口（ISupportService）
-│   │   └── dao/                # DAO 接口声明（实现见 qtrade_service）
-│   ├── qtrade/sdk/             # 插件 Target 接口：quote/、trader/（Api + Spi）
-├── src/
-│   ├── qtrade/                     # 【交易平台产品实现】
-│   │   ├── apps/                   # 【可部署二进制入口】仅含 main，目录名 = 产物名
-│   │   │   ├── qtrade_engine/main.cpp
-│   │   │   ├── qtrade_config_service/main.cpp
-│   │   │   └── ...
-│   │   ├── engine/                 # 【核心交易引擎层】库代码，无 main
-│   │   │   ├── core/               # 启动编排、生命周期与订单流水线
-│   │   │   ├── event_bus/
-│   │   │   │   ├── quote_event_reactor.*   # Lane-Q：Tick/Bar 事件
-│   │   │   │   └── trader_event_reactor.*  # Lane-T：Order/Trade 回报事件
-│   │   │   ├── core/               # 启动编排、生命周期、订单流水线、行情健康监控
-│   │   │   ├── strategy/
-│   │   │   ├── cms/
-│   │   │   ├── ems/
-│   │   │   ├── oms/
-│   │   │   ├── account/
-│   │   │   ├── position/
-│   │   │   └── risk/
-│   │   ├── client/                 # 【引擎内部】支撑服务出站客户端
-│   │   │   ├── common/
-│   │   │   ├── log_client/
-│   │   │   ├── config_client/
-│   │   │   ├── account_client/
-│   │   │   ├── monitor_client/
-│   │   │   └── registry_client/
-│   │   ├── service/                # 【支撑服务层】业务实现（无 main；入口在 apps/）
-│   │   │   ├── config_service/     # gRPC（引擎路径：GetEngineConfig；Subscribe 可保留未用）
-│   │   │   │   ├── grpc/           # Async + CQ 接入、CallTag 调度
-│   │   │   │   └── ...
-│   │   │   ├── account_service/    # 同步 gRPC（Unary RPC）
-│   │   │   │   ├── grpc/           # 薄路由层：DatabaseReady → handler.Run()
-│   │   │   │   ├── handler/        # 每 RPC 一个 Handler（继承 GrpcHandlerInterface）
-│   │   │   │   └── logic/          # 可复用业务工具（converter、codec）
-│   │   │   └── ...
-│   │   ├── dao/                    # 【表级 DAO 实现】按服务分子目录（命名空间 qtrade::framework::dao）
-│   │   │   ├── account_service/    # trading_account、account_credential
-│   │   │   ├── config_service/
-│   │   │   │   ├── engine/          # engine_config
-│   │   │   │   └── risk/            # A 段风险策略（含 instance_risk_policy）
-│   │   │   ├── account_risk_service/ # E 段账户硬限制 policy/ledger/reservation
-│   │   │   └── risk_tables.hpp     # 风控表总览 include
-│   │   ├── framework/              # 【内部框架实现】实现头在 src；公开接口头在 include/qtrade/
-│   │   │   ├── support/            # SupportSyncServiceImpl / SupportAsyncServiceImpl
-│   │   │   ├── database/           # 连接选项、DbConnectionHolder、bootstrap
-│   │   │   ├── dao/                # dml_utils、ddl_utils、sql_utils（DAO 基建，非表级 DAO）
-│   │   │   ├── grpc/               # gRPC 传输层
-│   │   │   │   ├── sync/           # GrpcSyncServer
-│   │   │   │   └── async/          # GrpcAsyncServer、CallTag、CQ 循环
-│   │   │   └── error_code/         # include/qtrade/error_code/ 的实现（如 code_message.cpp）
-│   └── qtrade/sdk/                 # 【SDK 接口实现】对应 include/qtrade/sdk/
-│       ├── mock/quote|trader/      # Mock 开发/测试适配
-│       └── emt/quote|trader/       # EMT 厂商适配
-├── config/                         # 【示例配置】与 build/bin 二进制同名（--config 传入）
-│   ├── qtrade_engine.json          # 引擎引导：config/account 地址、engine_id、log/monitor
-│   ├── qtrade_config_service.json
-│   ├── qtrade_account_service.json # 【规划】account-service 进程配置
-│   └── ...                         # 其余 qtrade_*_service.json
-├── demo/                           # 【示例代码】仅用于演示，不参与生产部署
-│   └── strategy/                   # 可插拔策略插件开发示例：趋势跟踪、套利等简单策略实现
-├── test/                           # 【测试代码】按模块分类，单元测试、集成测试、性能测试
-│   ├── engine/                     # 交易引擎测试：核心模块单元测试、链路测试
-│   ├── quote/                      # 行情适配器测试
-│   ├── trader/                     # 交易适配器测试
-│   ├── strategy/                   # 策略测试：策略插件单元测试、回测验证
-│   ├── client/                     # 客户端测试：日志、配置、监控客户端连通性测试
-│   └── service/                    # 支撑服务测试：服务可用性、性能测试
-└── release/                        # 【发行与运维】自动化部署、CI/CD、运维脚本
-    ├── ci/                         # 自动化流水线：编译、测试、打包、镜像构建脚本
-    └── deploy/                     # 部署脚本：分模块部署、启停、滚动更新、容灾切换脚本
+├── docs/                           # Architecture.md 与本开发指南
+├── include/qtrade/                 # 对外稳定契约（实现头不安装）
+│   ├── bridge/                     # 账户与账户风控桥接接口
+│   ├── engine/                     # IEngine、EngineConfig、CreateEngine
+│   ├── sdk/                        # QuoteApi / TraderApi SPI
+│   └── strategy/                   # 策略接口与插件 ABI
+├── src/qtrade_engine/              # 引擎私有实现
+│   ├── core/                       # 生命周期、订单流水线、SDK 回调、行情健康
+│   ├── events/                     # Lane-Q / Lane-T reactor
+│   ├── strategies/                 # 策略插件加载、生命周期与事件分发
+│   ├── strategy_risk/              # 策略级数值风控
+│   ├── instance_risk/              # engine_id 内共享风控预算
+│   ├── account_risk/               # 账户级预占桥接与释放
+│   ├── orders/                     # 内存订单状态机
+│   ├── execution/                  # 出站报单/撤单 worker
+│   ├── account/                    # 账户资金快照
+│   ├── positions/                  # 持仓快照
+│   └── common/utils/               # 引擎私有工具
+├── config/qtrade_engine.json       # 引擎进程引导配置样例
+├── test/                           # 引擎单元测试、stub 与安装包消费者测试
+└── cmake/                          # 构建、导出与安装规则
 ```
 
 **说明**：
