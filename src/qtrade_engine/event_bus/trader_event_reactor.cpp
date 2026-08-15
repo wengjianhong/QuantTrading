@@ -13,14 +13,11 @@
 
 namespace qtrade::engine::event_bus {
 
-TraderEventReactor::TraderEventReactor() : loop_("TraderEventReactor") {}
+TraderEventReactor::TraderEventReactor()
+  : loop_("TraderEventReactor", LanePolicy{.capacity = 8192, .drop_oldest_on_full = false}) {}
 
 TraderEventReactor::~TraderEventReactor() {
   Stop();
-}
-
-bool TraderEventReactor::SetLanePolicy(LanePolicy policy) {
-  return loop_.SetLanePolicy(policy);
 }
 
 void TraderEventReactor::Start() {
@@ -36,6 +33,14 @@ void TraderEventReactor::Stop() {
   std::lock_guard<std::mutex> lock(callbacks_mutex_);
   order_callbacks_.clear();
   trade_callbacks_.clear();
+}
+
+bool TraderEventReactor::HasPending() const {
+  return loop_.HasPending();
+}
+
+std::size_t TraderEventReactor::PendingCount() const {
+  return loop_.PendingCount();
 }
 
 void TraderEventReactor::RegisterOrderCallback(qtrade::sdk::trader::TraderApi::OrderCallback callback) {
@@ -56,14 +61,6 @@ void TraderEventReactor::PublishOrder(const qtrade::sdk::trader::Order& order) {
 
 void TraderEventReactor::PublishTrade(const qtrade::sdk::trader::Trade& trade) {
   loop_.Publish(std::make_unique<TradeEvent>(trade));
-}
-
-bool TraderEventReactor::HasPending() const {
-  return loop_.HasPending();
-}
-
-std::size_t TraderEventReactor::PendingCount() const {
-  return loop_.PendingCount();
 }
 
 void TraderEventReactor::HandleEvent(const Event& event) {

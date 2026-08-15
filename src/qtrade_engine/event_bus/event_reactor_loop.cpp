@@ -13,22 +13,7 @@
 namespace qtrade::engine::event_bus {
 
 template <typename Event>
-EventReactorLoop<Event>::EventReactorLoop(std::string_view name) : name_(name) {}
-
-template <typename Event>
-bool EventReactorLoop<Event>::SetLanePolicy(LanePolicy policy) {
-  std::lock_guard<std::mutex> lock(mutex_);
-
-  // 如果 Reactor 正在运行，则忽略设置队列策略
-  if (running_.load(std::memory_order_acquire)) {
-    spdlog::warn("[{}] ignore SetLanePolicy while reactor is running", name_);
-    return false;
-  }
-
-  // 设置队列策略
-  policy_ = policy;
-  return true;
-}
+EventReactorLoop<Event>::EventReactorLoop(std::string_view name, LanePolicy policy) : name_(name), policy_(policy) {}
 
 template <typename Event>
 EventReactorLoop<Event>::~EventReactorLoop() {
@@ -76,10 +61,10 @@ bool EventReactorLoop<Event>::Publish(Event event) {
       if (policy_.drop_oldest_on_full) {
         queue_.pop_front();
         ++dropped_;
-        spdlog::warn("[{}] queue full, dropped oldest event", name_);
+        spdlog::debug("[{}] queue full, dropped oldest event", name_);
       } else {
         ++rejected_;
-        spdlog::error("[{}] queue full, rejected publish", name_);
+        spdlog::debug("[{}] queue full, rejected publish", name_);
         return false;
       }
     }

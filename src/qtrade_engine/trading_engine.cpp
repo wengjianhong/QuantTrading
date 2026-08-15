@@ -7,8 +7,7 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/engine/trading_engine.hpp"
 
-#include "qtrade/common/utils/adapter_payload_validation.hpp"
-#include "qtrade/error_code/error_codes.hpp"
+#include <qtrade/error_code/error_codes.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -19,11 +18,6 @@
 #include <vector>
 
 namespace qtrade::engine {
-
-using qtrade::common::utils::IsValidBar;
-using qtrade::common::utils::IsValidOrder;
-using qtrade::common::utils::IsValidTick;
-using qtrade::common::utils::IsValidTrade;
 
 // =============================================================================
 // 构造 / 析构
@@ -135,10 +129,9 @@ ErrorCode TradingEngine::Start() {
     return code;
   }
 
-  // 5. 订阅行情
-  if (const ErrorCode code = StartMarketData(); code != ErrorCode::kSuccess) {
-    spdlog::error("StartMarketData failed, code={}", static_cast<int>(code));
-    return code;
+  // 5. 订阅策略登记时收集的行情合约
+  if (!subscribed_instruments_.empty()) {
+    SubscribeQuote(std::vector<std::string>{subscribed_instruments_.begin(), subscribed_instruments_.end()});
   }
 
   // 6. 生命周期门禁 → READY
@@ -187,23 +180,35 @@ void TradingEngine::SetAccountBridge(qtrade::account::IAccountBridge* bridge) {
 }
 
 void TradingEngine::SetAccountRiskBridge(qtrade::account_risk::IAccountRiskBridge* bridge) {
-  account_risk_.SetBridge(bridge);
+  account_risk_manager_.SetBridge(bridge);
 }
 
 void TradingEngine::SetQuoteApi(std::unique_ptr<qtrade::sdk::quote::QuoteApi> quote_api) {
   if (running_.load(std::memory_order_acquire)) {
     return;
   }
+
   quote_api_ = std::move(quote_api);
-  RegisterQuoteCallbacks();
+  if (quote_api_ == nullptr) {
+    return;
+  }
+
+  quote_api_->SetTickCallback([this](const qtrade::sdk::quote::MarketTick& tick) { sdk_event_handler_.OnTick(tick); });
+  quote_api_->SetBarCallback([this](const qtrade::sdk::quote::Bar& bar) { sdk_event_handler_.OnBar(bar); });
 }
 
 void TradingEngine::SetTraderApi(std::unique_ptr<qtrade::sdk::trader::TraderApi> trader_api) {
   if (running_.load(std::memory_order_acquire)) {
     return;
   }
+
   trader_api_ = std::move(trader_api);
-  RegisterTraderCallbacks();
+  if (trader_api_ == nullptr) {
+    return;
+  }
+
+  trader_api_->SetOrderCallback([this](const qtrade::sdk::trader::Order& order) { sdk_event_handler_.OnOrder(order); });
+  trader_api_->SetTradeCallback([this](const qtrade::sdk::trader::Trade& trade) { sdk_event_handler_.OnTrade(trade); });
 }
 
 // =============================================================================
@@ -268,54 +273,6 @@ ErrorCode TradingEngine::AddStrategy(const qtrade::strategy::StrategyConfig& con
 }
 
 // =============================================================================
-// 实现侧扩展（非 IEngine）
-// =============================================================================
-
-void TradingEngine::Release() {
-  // 1. 释放引擎内模块（按依赖逆序释放）
-  strategy_manager_.Stop();
-  quote_health_monitor_.Stop();
-  execution_manager_.Stop();
-  DisconnectAdapters();
-  event_lanes_.Stop();
-  account_risk_.Stop();
-  order_manager_.Shutdown();
-
-  // 2. 释放适配器（桥接生命周期由进程入口持有）
-  quote_api_.reset();
-  trader_api_.reset();
-}
-
-bool TradingEngine::IsReady() const {
-  return lifecycle_.IsReady();
-}
-
-bool TradingEngine::IsQuoteHealthy() const {
-  return quote_health_monitor_.IsHealthy();
-}
-
-void TradingEngine::SubscribeQuote(const std::vector<std::string>& instruments) {
-  if (!running_.load(std::memory_order_acquire) || quote_api_ == nullptr) {
-    spdlog::warn("cannot subscribe quote: api not ready");
-    return;
-  }
-  const auto rc = quote_api_->Subscribe({instruments});
-  if (rc == ErrorCode::kSuccess) {
-    spdlog::info("subscribed to {} instruments", instruments.size());
-  } else {
-    spdlog::error("quote subscription failed: {}", GetErrorCodeMessage(rc));
-  }
-}
-
-void TradingEngine::UnsubscribeQuote(const std::vector<std::string>& instruments) {
-  if (!running_.load(std::memory_order_acquire) || quote_api_ == nullptr) {
-    return;
-  }
-  quote_api_->Unsubscribe({instruments});
-  spdlog::info("unsubscribed from {} instruments", instruments.size());
-}
-
-// =============================================================================
 // Init 子阶段
 // =============================================================================
 
@@ -352,12 +309,16 @@ ErrorCode TradingEngine::ConfigureQuoteHealth() {
     std::lock_guard lock(engine_config_mutex_);
     quote_health_options.quote_max_stale_ms = engine_config_.quote_max_stale_ms;
   }
+
+  // 配置行情健康监控
   spdlog::info("ConfigureQuoteHealth quote_max_stale_ms={}", quote_health_options.quote_max_stale_ms);
   if (quote_health_monitor_.Configure(quote_health_options) != ErrorCode::kSuccess) {
     lifecycle_.Transition(EngineState::kFailed, "QUOTE_HEALTH_CONFIG_INVALID");
     return ErrorCode::kSystemError;
   }
-  quote_health_monitor_.SetHealthChangedHandler([this](bool healthy) { OnMarketHealthChanged(healthy); });
+
+  // 行情健康变化回调
+  quote_health_monitor_.SetHealthChangedHandler([this](bool healthy) { HandleMarketHealthChanged(healthy); });
   return ErrorCode::kSuccess;
 }
 
@@ -383,8 +344,8 @@ ErrorCode TradingEngine::InitEngineModules() {
 
   // 2. EMS 绑定 OMS；硬风控身份交给 AccountRiskManager（桥仅该模块持有）
   execution_manager_.SetOrderApi(&order_manager_);
-  execution_manager_.SetAccountRiskApi(&account_risk_);
-  account_risk_.SetIdentity(runtime.account_id, runtime.engine_id);
+  execution_manager_.SetAccountRiskApi(&account_risk_manager_);
+  account_risk_manager_.SetIdentity(runtime.account_id, runtime.engine_id);
 
   return ErrorCode::kSuccess;
 }
@@ -410,9 +371,9 @@ ErrorCode TradingEngine::InitAdapters() {
 
 ErrorCode TradingEngine::StartEventLanes() {
   spdlog::info("StartEventLanes");
-  account_risk_.Start();
+  account_risk_manager_.Start();
   // Stop() 会清空 Lane-T 订阅；须先于策略 Dispatcher 注册引擎侧回报回调
-  trader_event_handler_.Register(event_lanes_);
+  lane_event_handler_.Register(event_lanes_);
   event_lanes_.Start();
   quote_health_monitor_.Start();
   return ErrorCode::kSuccess;
@@ -512,76 +473,45 @@ ErrorCode TradingEngine::StartEngineModules() {
   return ErrorCode::kSuccess;
 }
 
-ErrorCode TradingEngine::StartMarketData() {
-  spdlog::info("StartMarketData");
-  if (subscribed_instruments_.empty()) {
-    return ErrorCode::kSuccess;
+void TradingEngine::SubscribeQuote(const std::vector<std::string>& instruments) {
+  if (!running_.load(std::memory_order_acquire) || quote_api_ == nullptr) {
+    spdlog::warn("cannot subscribe quote: api not ready");
+    return;
   }
-  SubscribeQuote(std::vector<std::string>{subscribed_instruments_.begin(), subscribed_instruments_.end()});
-  return ErrorCode::kSuccess;
+  const auto rc = quote_api_->Subscribe({instruments});
+  if (rc == ErrorCode::kSuccess) {
+    spdlog::info("subscribed to {} instruments", instruments.size());
+  } else {
+    spdlog::error("quote subscription failed: {}", GetErrorCodeMessage(rc));
+  }
 }
 
 ErrorCode TradingEngine::AdvanceReadyGates() {
   spdlog::info("AdvanceReadyGates");
-  // 行情已健康则 Initiated → Ready；否则等 OnMarketHealthChanged
+  // 行情已健康则 Initiated → Ready；否则等 HandleMarketHealthChanged
   if (quote_health_monitor_.IsHealthy()) {
-    OnMarketHealthChanged(true);
+    HandleMarketHealthChanged(true);
   }
   return ErrorCode::kSuccess;
 }
 
 // =============================================================================
-// 适配器接线 / 断开
+// Stop 子阶段
 // =============================================================================
 
-void TradingEngine::RegisterQuoteCallbacks() {
-  if (quote_api_ == nullptr) {
-    return;
-  }
-  quote_api_->SetTickCallback([this](const qtrade::sdk::quote::MarketTick& tick) { OnAdapterTick(tick); });
-  quote_api_->SetBarCallback([this](const qtrade::sdk::quote::Bar& bar) { OnAdapterBar(bar); });
-}
+void TradingEngine::Release() {
+  // 1. 释放引擎内模块（按依赖逆序释放）
+  strategy_manager_.Stop();
+  quote_health_monitor_.Stop();
+  execution_manager_.Stop();
+  DisconnectAdapters();
+  event_lanes_.Stop();
+  account_risk_manager_.Stop();
+  order_manager_.Shutdown();
 
-void TradingEngine::RegisterTraderCallbacks() {
-  if (trader_api_ == nullptr) {
-    return;
-  }
-  trader_api_->SetOrderCallback([this](const qtrade::sdk::trader::Order& order) { OnAdapterOrder(order); });
-  trader_api_->SetTradeCallback([this](const qtrade::sdk::trader::Trade& trade) { OnAdapterTrade(trade); });
-}
-
-void TradingEngine::OnAdapterTick(const qtrade::sdk::quote::MarketTick& tick) {
-  if (!running_.load(std::memory_order_acquire)) {
-    return;
-  }
-  if (!IsValidTick(tick)) {
-    quote_health_monitor_.OnInvalidTick();
-    spdlog::warn("rejected invalid tick: instrument={}", tick.instrument);
-    return;
-  }
-  quote_health_monitor_.OnValidTick();
-  event_lanes_.Quote().PublishTick(tick);
-}
-
-void TradingEngine::OnAdapterBar(const qtrade::sdk::quote::Bar& bar) {
-  if (!running_.load(std::memory_order_acquire) || !IsValidBar(bar)) {
-    return;
-  }
-  event_lanes_.Quote().PublishBar(bar);
-}
-
-void TradingEngine::OnAdapterOrder(const qtrade::sdk::trader::Order& order) {
-  if (!running_.load(std::memory_order_acquire) || !IsValidOrder(order)) {
-    return;
-  }
-  event_lanes_.Trader().PublishOrder(order);
-}
-
-void TradingEngine::OnAdapterTrade(const qtrade::sdk::trader::Trade& trade) {
-  if (!running_.load(std::memory_order_acquire) || !IsValidTrade(trade)) {
-    return;
-  }
-  event_lanes_.Trader().PublishTrade(trade);
+  // 2. 释放适配器（桥接生命周期由进程入口持有）
+  quote_api_.reset();
+  trader_api_.reset();
 }
 
 void TradingEngine::DisconnectAdapters() {
@@ -594,10 +524,10 @@ void TradingEngine::DisconnectAdapters() {
 }
 
 // =============================================================================
-// 运行时回调（配置应用 / 行情健康 → 生命周期）
+// 运行时
 // =============================================================================
 
-void TradingEngine::OnMarketHealthChanged(bool healthy) {
+void TradingEngine::HandleMarketHealthChanged(bool healthy) {
   const auto state = lifecycle_.State();
 
   // 1. 行情不健康：Ready → Frozen（拒新单，仍处理回报）
@@ -623,17 +553,22 @@ void TradingEngine::OnMarketHealthChanged(bool healthy) {
 
 qtrade::strategy::OrderSender TradingEngine::MakeOrderSender(std::string strategy_id) {
   return [this, strategy_id = std::move(strategy_id)](const qtrade::strategy::OrderBatch& batch) {
-    if (!IsReady()) {
-      return ErrorCode::kNotInitialized;
-    }
-    qtrade::strategy::OrderBatch stamped = batch;
-    for (auto& request : stamped.order_requests) {
-      if (request.strategy_id.empty()) {
-        request.strategy_id = strategy_id;
-      }
-    }
-    return order_pipeline_.SubmitBatch(stamped);
+    return SubmitStrategyBatch(strategy_id, batch);
   };
+}
+
+ErrorCode TradingEngine::SubmitStrategyBatch(const std::string& strategy_id,
+                                             const qtrade::strategy::OrderBatch& batch) {
+  if (!lifecycle_.IsReady()) {
+    return ErrorCode::kNotInitialized;
+  }
+  qtrade::strategy::OrderBatch stamped = batch;
+  for (auto& request : stamped.order_requests) {
+    if (request.strategy_id.empty()) {
+      request.strategy_id = strategy_id;
+    }
+  }
+  return order_pipeline_.SubmitBatch(stamped);
 }
 
 std::unique_ptr<IEngine> CreateEngine() {

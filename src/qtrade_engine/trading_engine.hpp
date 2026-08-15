@@ -11,12 +11,13 @@
 #define QTRADE_TRADING_ENGINE_TRADING_ENGINE_HPP_
 
 #include "qtrade/engine/account/account_manager.hpp"
-#include "qtrade/engine/cms/compliance_manager.hpp"
 #include "qtrade/engine/account_risk/account_risk_manager.hpp"
+#include "qtrade/engine/cms/compliance_manager.hpp"
 #include "qtrade/engine/core/engine_lifecycle.hpp"
+#include "qtrade/engine/core/lane_event_handler.hpp"
 #include "qtrade/engine/core/order_pipeline.hpp"
 #include "qtrade/engine/core/quote_health_monitor.hpp"
-#include "qtrade/engine/core/trader_event_handler.hpp"
+#include "qtrade/engine/core/sdk_event_handler.hpp"
 #include "qtrade/engine/ems/execution_manager.hpp"
 #include "qtrade/engine/event_bus/event_lanes.hpp"
 #include "qtrade/engine/oms/order_manager.hpp"
@@ -73,25 +74,6 @@ class TradingEngine final : public IEngine {
 
   ErrorCode AddStrategy(const qtrade::strategy::StrategyConfig& config, const std::string& plugin_so_path) override;
 
-  // ---------------------------------------------------------------------------
-  // 实现侧扩展（非 IEngine；供 boot / 测试 / 内部编排）
-  // ---------------------------------------------------------------------------
-
-  /// @brief 释放资源（Init 失败路径与析构使用）
-  void Release();
-
-  /// @brief 是否已通过内部 READY 门禁（可接受新单）；仅实现/测试使用
-  [[nodiscard]] bool IsReady() const;
-
-  /// @brief 查询行情是否健康
-  [[nodiscard]] bool IsQuoteHealthy() const;
-
-  /// @brief 订阅合约行情（须已 Start）；不修改 subscribed_instruments_
-  void SubscribeQuote(const std::vector<std::string>& instruments);
-
-  /// @brief 取消订阅合约行情
-  void UnsubscribeQuote(const std::vector<std::string>& instruments);
-
  private:
   // ---------------------------------------------------------------------------
   // Init 子阶段（由 Init() 按序调用；失败时 Release）
@@ -138,49 +120,42 @@ class TradingEngine final : public IEngine {
   /// @return ErrorCode::kSuccess 表示成功
   ErrorCode StartEngineModules();
 
-  /// @brief 按已缓存合约列表订阅行情
-  /// @return ErrorCode::kSuccess 表示成功
-  ErrorCode StartMarketData();
+  /// @brief 订阅策略登记时收集的合约行情
+  /// @param instruments 合约列表
+  void SubscribeQuote(const std::vector<std::string>& instruments);
 
   /// @brief 按行情门禁尝试进入 READY（Initiated → Ready）
   /// @return ErrorCode::kSuccess 表示成功
   ErrorCode AdvanceReadyGates();
 
   // ---------------------------------------------------------------------------
-  // 适配器接线 / 断开
+  // Stop 子阶段（由 Stop() 按序调用）
   // ---------------------------------------------------------------------------
 
-  /// @brief 注册行情 SDK 回调并接入 Lane-Q
-  void RegisterQuoteCallbacks();
-
-  /// @brief 注册交易 SDK 回调并接入 Lane-T
-  void RegisterTraderCallbacks();
+  /// @brief 释放资源（Init 失败路径与析构使用）
+  void Release();
 
   /// @brief 断开并释放行情/交易适配器
   void DisconnectAdapters();
 
-  /// @brief 适配器 Tick 入口：运行门禁、校验、健康计数后写入 Lane-Q
-  void OnAdapterTick(const qtrade::sdk::quote::MarketTick& tick);
-
-  /// @brief 适配器 Bar 入口：运行门禁、校验后写入 Lane-Q
-  void OnAdapterBar(const qtrade::sdk::quote::Bar& bar);
-
-  /// @brief 适配器订单回报入口：运行门禁、校验后写入 Lane-T
-  void OnAdapterOrder(const qtrade::sdk::trader::Order& order);
-
-  /// @brief 适配器成交回报入口：运行门禁、校验后写入 Lane-T
-  void OnAdapterTrade(const qtrade::sdk::trader::Trade& trade);
-
   // ---------------------------------------------------------------------------
-  // 运行时回调（配置应用 / 行情健康 → 生命周期）
+  // 运行时
   // ---------------------------------------------------------------------------
 
   /// @brief 处理行情健康变化并更新 READY 门禁
   /// @param healthy 行情是否健康
-  void OnMarketHealthChanged(bool healthy);
+  void HandleMarketHealthChanged(bool healthy);
 
   /// @brief 构造带 READY 门禁的策略发单回调，并自动填入 strategy_id
+  /// @param strategy_id 策略 ID
+  /// @return 策略发单回调
   [[nodiscard]] qtrade::strategy::OrderSender MakeOrderSender(std::string strategy_id);
+
+  /// @brief 策略发单入口：READY 门禁、补全 strategy_id 后交给流水线
+  /// @param strategy_id 登记策略时绑定的策略 ID
+  /// @param batch 策略订单批次
+  /// @return 未 READY 返回 kNotInitialized，否则返回流水线结果
+  ErrorCode SubmitStrategyBatch(const std::string& strategy_id, const qtrade::strategy::OrderBatch& batch);
 
   // ---------------------------------------------------------------------------
   // 成员：生命周期与配置
@@ -211,6 +186,8 @@ class TradingEngine final : public IEngine {
   strategy::StrategyManager strategy_manager_;
   /// 行情健康监控
   QuoteHealthMonitor quote_health_monitor_;
+  /// SDK 回调入站（须在 event_lanes / quote_health 之后）
+  SdkEventHandler sdk_event_handler_{running_, event_lanes_, quote_health_monitor_};
 
   // ---------------------------------------------------------------------------
   // 成员：交易核心内的子模块
@@ -227,11 +204,11 @@ class TradingEngine final : public IEngine {
   /// 持仓
   position::PositionManager position_manager_;
   /// 账户硬风控（须在 pipeline / handler 之前；唯一持有 IAccountRiskBridge）
-  account_risk::AccountRiskManager account_risk_;
+  account_risk::AccountRiskManager account_risk_manager_;
   /// 发单流水线（须在 compliance/order/execution/account_risk 之后）
-  OrderPipeline order_pipeline_{compliance_, order_manager_, execution_manager_, account_risk_};
+  OrderPipeline order_pipeline_{compliance_, order_manager_, execution_manager_, account_risk_manager_};
   /// Lane-T 引擎侧回报处理（须在 order/account/position/account_risk 之后；Start 时先于策略 Dispatcher 注册）
-  TraderEventHandler trader_event_handler_{order_manager_, account_manager_, position_manager_, account_risk_};
+  LaneEventHandler lane_event_handler_{order_manager_, account_manager_, position_manager_, account_risk_manager_};
 
   // ---------------------------------------------------------------------------
   // 成员：适配器

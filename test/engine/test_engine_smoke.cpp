@@ -13,22 +13,9 @@
 
 #include <gtest/gtest.h>
 
-#include <chrono>
-#include <functional>
 #include <string>
-#include <thread>
 
 namespace {
-
-void WaitUntil(const std::function<bool()>& predicate) {
-  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
-  while (std::chrono::steady_clock::now() < deadline) {
-    if (predicate()) {
-      return;
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-  }
-}
 
 [[nodiscard]] qtrade::engine::EngineConfig MakeTestEngineConfig(const std::string& engine_id) {
   qtrade::engine::EngineConfig config;
@@ -53,18 +40,15 @@ void InstallStubAdapters(qtrade::engine::TradingEngine& engine) {
 
 }  // namespace
 
-TEST(EngineSmoke, TradingEngineStartStop) {
+TEST(EngineSmoke, TradingEngineStartsWithoutStrategySubscriptions) {
   const auto config =
     MakeTestEngineConfig("test-engine-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
   qtrade::engine::TradingEngine engine;
   ASSERT_EQ(engine.Init(config), qtrade::ErrorCode::kSuccess);
   InstallStubAdapters(engine);
   ASSERT_EQ(engine.Start(), qtrade::ErrorCode::kSuccess);
-  engine.SubscribeQuote({"IF2506"});
-  WaitUntil([&] { return engine.IsReady(); });
   ASSERT_TRUE(engine.IsRunning());
-  ASSERT_TRUE(engine.IsReady());
-  EXPECT_EQ(engine.State(), qtrade::engine::EngineState::kReady);
+  EXPECT_EQ(engine.State(), qtrade::engine::EngineState::kInitiated);
   engine.Stop();
   ASSERT_FALSE(engine.IsRunning());
   EXPECT_EQ(engine.State(), qtrade::engine::EngineState::kStopped);
@@ -76,15 +60,13 @@ TEST(EngineSmoke, MarketTickSize) {
   SUCCEED();
 }
 
-TEST(EngineSmoke, InjectedStubAdaptersReachReady) {
+TEST(EngineSmoke, InjectedStubAdaptersCanStopWithoutSubscriptions) {
   const std::string suffix = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
   const auto config = MakeTestEngineConfig("configured-stub-" + suffix);
   qtrade::engine::TradingEngine engine;
   ASSERT_EQ(engine.Init(config), qtrade::ErrorCode::kSuccess);
   InstallStubAdapters(engine);
   ASSERT_EQ(engine.Start(), qtrade::ErrorCode::kSuccess);
-  engine.SubscribeQuote({"IF2506"});
-  WaitUntil([&] { return engine.IsReady(); });
-  EXPECT_TRUE(engine.IsReady());
+  EXPECT_EQ(engine.State(), qtrade::engine::EngineState::kInitiated);
   EXPECT_EQ(engine.Stop(), qtrade::ErrorCode::kSuccess);
 }

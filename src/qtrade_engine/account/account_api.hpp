@@ -1,6 +1,6 @@
 /// @file      account_api.hpp
 /// @brief     账户资金视图对引擎内其他模块提供的稳定接口
-/// @details   TraderEventHandler 等兄弟模块只依赖本接口，不依赖 AccountManager。
+/// @details   LaneEventHandler 等兄弟模块只依赖本接口，不依赖 AccountManager。
 ///            柜台资产快照由组合根通过 AccountManager 写入。
 /// @author    wengjianhong
 /// @date      2026-08-14

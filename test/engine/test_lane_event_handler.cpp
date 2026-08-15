@@ -1,6 +1,6 @@
 #include "qtrade/engine/account/account_manager.hpp"
 #include "qtrade/engine/account_risk/account_risk_manager.hpp"
-#include "qtrade/engine/core/trader_event_handler.hpp"
+#include "qtrade/engine/core/lane_event_handler.hpp"
 #include "qtrade/engine/oms/order_manager.hpp"
 #include "qtrade/engine/position/position_manager.hpp"
 
@@ -73,7 +73,7 @@ qtrade::engine::oms::OrderManagerOptions MakeOptions() {
 
 }  // namespace
 
-TEST(TraderEventHandler, RejectedOrderReleasesViaAccountRiskApi) {
+TEST(LaneEventHandler, RejectedOrderReleasesViaAccountRiskApi) {
   qtrade::engine::oms::OrderManager orders;
   ASSERT_EQ(orders.Initialize(MakeOptions()), qtrade::ErrorCode::kSuccess);
   qtrade::engine::account::AccountManager account;
@@ -84,7 +84,7 @@ TEST(TraderEventHandler, RejectedOrderReleasesViaAccountRiskApi) {
   account_risk.SetIdentity("acct", "engine");
   account_risk.Start();
 
-  qtrade::engine::TraderEventHandler handler(orders, account, position, account_risk);
+  qtrade::engine::LaneEventHandler handler(orders, account, position, account_risk);
   qtrade::sdk::trader::OrderRequest request;
   request.client_order_id = 1;
   request.instrument = "IF2506";
@@ -103,13 +103,13 @@ TEST(TraderEventHandler, RejectedOrderReleasesViaAccountRiskApi) {
   EXPECT_EQ(bridge.Releases()[0].reason, qtrade::account_risk::ReleaseReason::kRejectedByVenue);
 }
 
-TEST(TraderEventHandler, NoBridgeStillAppliesOrder) {
+TEST(LaneEventHandler, NoBridgeStillAppliesOrder) {
   qtrade::engine::oms::OrderManager orders;
   ASSERT_EQ(orders.Initialize(MakeOptions()), qtrade::ErrorCode::kSuccess);
   qtrade::engine::account::AccountManager account;
   qtrade::engine::position::PositionManager position;
   qtrade::engine::account_risk::AccountRiskManager account_risk;
-  qtrade::engine::TraderEventHandler handler(orders, account, position, account_risk);
+  qtrade::engine::LaneEventHandler handler(orders, account, position, account_risk);
 
   qtrade::sdk::trader::OrderRequest request;
   request.client_order_id = 3;

@@ -45,9 +45,10 @@ struct LanePolicy {
 template <typename Event>
 class EventReactorLoop {
  public:
-  /// @brief 构造 Reactor 循环
+  /// @brief 构造 Reactor 循环；队列策略此后不再修改
   /// @param name 通道名称
-  EventReactorLoop(std::string_view name);
+  /// @param policy 队列容量与满队列处理策略
+  EventReactorLoop(std::string_view name, LanePolicy policy = {});
 
   /// @brief 析构时 Stop，确保 Reactor 线程退出
   ~EventReactorLoop();
@@ -57,14 +58,6 @@ class EventReactorLoop {
   EventReactorLoop(const EventReactorLoop&) = delete;
   EventReactorLoop& operator=(EventReactorLoop&&) = delete;
   EventReactorLoop& operator=(const EventReactorLoop&) = delete;
-
-  /// @brief 设置队列策略
-  /// @note 默认队列容量为 8192，满队列时丢弃最旧事件
-  /// @warning 仅未 Start 时生效，Reactor 正在运行时忽略设置
-  ///
-  /// @param policy 队列容量与满队列处理策略
-  /// @return 设置成功返回 true；Reactor 正在运行时返回 false
-  bool SetLanePolicy(LanePolicy policy);
 
   /// @brief 启动 Reactor 线程
   /// @param handle_event 出队事件的处理回调

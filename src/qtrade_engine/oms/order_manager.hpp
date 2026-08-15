@@ -1,7 +1,7 @@
 /// @file      order_manager.hpp
 /// @brief     订单管理器（进程内内存状态机；实现 OrderApi）
 /// @details   职责分层：
-///            1) OrderApi：Pipeline / EMS / TraderEventHandler 等模块间稳定接口；
+///            1) OrderApi：Pipeline / EMS / LaneEventHandler 等模块间稳定接口；
 ///            2) 本地内存：订单表、索引、幂等与对账标记；
 ///            3) 业务状态机：生命周期迁移与敞口聚合；
 ///            4) 柜台对接：委托/成交回报应用与启动期对账 Adopt。

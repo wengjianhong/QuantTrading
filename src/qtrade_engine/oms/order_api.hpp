@@ -1,6 +1,6 @@
 /// @file      order_api.hpp
 /// @brief     OMS 对引擎内其他模块提供的稳定接口
-/// @details   Pipeline / EMS / TraderEventHandler 等兄弟模块只依赖本接口，不依赖 OrderManager。
+/// @details   Pipeline / EMS / LaneEventHandler 等兄弟模块只依赖本接口，不依赖 OrderManager。
 ///            生命周期初始化、柜台对账等由组合根通过 OrderManager 调用。
 /// @author    wengjianhong
 /// @date      2026-07-29

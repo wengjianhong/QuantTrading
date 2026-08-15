@@ -1,6 +1,6 @@
 /// @file      adapter_payload_validation.hpp
 /// @brief     行情/交易 SDK 回调入站校验
-/// @details   在 RegisterQuoteCallbacks / RegisterTraderCallbacks 边界过滤脏数据，
+/// @details   在 SdkEventHandler 入口过滤脏数据，
 ///            避免无效 tick 污染行情健康度、无效回报进入 Lane-Q/Lane-T。
 /// @author    wengjianhong
 /// @date      2026-08-05

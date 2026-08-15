@@ -13,16 +13,11 @@
 
 namespace qtrade::engine::event_bus {
 
-QuoteEventReactor::QuoteEventReactor() : loop_("QuoteEventReactor") {
-  SetLanePolicy(LanePolicy{.drop_oldest_on_full = true});
-}
+QuoteEventReactor::QuoteEventReactor()
+  : loop_("QuoteEventReactor", LanePolicy{.capacity = 8192, .drop_oldest_on_full = true}) {}
 
 QuoteEventReactor::~QuoteEventReactor() {
   Stop();
-}
-
-bool QuoteEventReactor::SetLanePolicy(LanePolicy policy) {
-  return loop_.SetLanePolicy(policy);
 }
 
 void QuoteEventReactor::Start() {
@@ -37,6 +32,14 @@ void QuoteEventReactor::Stop() {
   std::lock_guard<std::mutex> lock(callbacks_mutex_);
   tick_callbacks_.clear();
   bar_callbacks_.clear();
+}
+
+bool QuoteEventReactor::HasPending() const {
+  return loop_.HasPending();
+}
+
+std::size_t QuoteEventReactor::PendingCount() const {
+  return loop_.PendingCount();
 }
 
 void QuoteEventReactor::RegisterTickCallback(qtrade::sdk::quote::QuoteApi::TickCallback callback) {
@@ -59,20 +62,12 @@ void QuoteEventReactor::PublishBar(const qtrade::sdk::quote::Bar& bar) {
   loop_.Publish(std::make_unique<BarEvent>(bar));
 }
 
-bool QuoteEventReactor::HasPending() const {
-  return loop_.HasPending();
-}
-
-std::size_t QuoteEventReactor::PendingCount() const {
-  return loop_.PendingCount();
-}
-
 void QuoteEventReactor::HandleEvent(const Event& event) {
   std::lock_guard<std::mutex> lock(callbacks_mutex_);
 
   // 按 EventType 分发并隔离回调异常
   switch (event.type) {
-    /// 行情事件
+    /// 逐笔行情事件
     case EventType::kTickData: {
       const auto& payload = static_cast<const TickEvent&>(event).tick;
       for (const auto& callback : tick_callbacks_) {
@@ -85,7 +80,7 @@ void QuoteEventReactor::HandleEvent(const Event& event) {
       break;
     }
 
-    /// 分钟线事件
+    /// K线柱行情事件
     case EventType::kBarData: {
       const auto& payload = static_cast<const BarEvent&>(event).bar;
       for (const auto& callback : bar_callbacks_) {

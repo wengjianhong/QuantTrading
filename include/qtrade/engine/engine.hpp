@@ -81,16 +81,17 @@ class IEngine {
   // 生命周期
   // ---------------------------------------------------------------------------
 
-  /// @brief 初始化引擎：应用运行配置、装配内部模块
+  /// @brief 初始化引擎
   /// @param config 引擎运行配置（身份与行情源等）；须含非空 engine_id / account_id
   /// @return ErrorCode::kSuccess 表示成功
   virtual ErrorCode Init(const EngineConfig& config) = 0;
 
-  /// @brief 启动引擎：连接柜台、对账、事件泵、策略与 EMS
+  /// @brief 启动引擎
   /// @return ErrorCode::kSuccess 表示成功
   virtual ErrorCode Start() = 0;
 
-  /// @brief 停止引擎：停策略与通道；返回后可销毁本对象
+  /// @brief 停止引擎
+  /// @details Stop 完成内部对象销毁，返回后可销毁本对象
   /// @return 已运行并完成停机返回 kSuccess；未处于运行态时可能返回错误码
   virtual ErrorCode Stop() = 0;
 
@@ -116,12 +117,14 @@ class IEngine {
   /// @param bridge 非拥有指针；生命周期与就绪状态由调用方管理
   virtual void SetAccountRiskBridge(qtrade::account_risk::IAccountRiskBridge* bridge) = 0;
 
-  /// @brief 注入行情适配器；须已 Connect。可在 Init 前后设置，但须在 Start 之前
-  /// @param quote_api 所有权转入引擎
+  /// @brief 注入行情适配器；
+  /// @details 调用方保证在注入前完成配置与 Connect，引擎在 Start 时仅校验连接状态，不负责 Connect
+  /// @param quote_api 所有权转入引擎；调用方须在注入前完成配置与 Connect，可在 Init 前后设置但须在 Start 前
   virtual void SetQuoteApi(std::unique_ptr<qtrade::sdk::quote::QuoteApi> quote_api) = 0;
 
-  /// @brief 注入交易适配器；须已 Connect。可在 Init 前后设置，但须在 Start 之前
-  /// @param trader_api 所有权转入引擎
+  /// @brief 注入交易适配器；
+  /// @details 调用方保证在注入前完成配置与 Connect，引擎在 Start 时仅校验连接状态，不负责 Connect
+  /// @param trader_api 所有权转入引擎；调用方须在注入前完成配置与 Connect，可在 Init 前后设置但须在 Start 前
   virtual void SetTraderApi(std::unique_ptr<qtrade::sdk::trader::TraderApi> trader_api) = 0;
 
   // ---------------------------------------------------------------------------

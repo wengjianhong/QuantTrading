@@ -1,6 +1,6 @@
 /// @file      position_api.hpp
 /// @brief     持仓视图对引擎内其他模块提供的稳定接口
-/// @details   TraderEventHandler 等兄弟模块只依赖本接口，不依赖 PositionManager。
+/// @details   LaneEventHandler 等兄弟模块只依赖本接口，不依赖 PositionManager。
 ///            柜台持仓快照由组合根通过 PositionManager 写入。
 /// @author    wengjianhong
 /// @date      2026-08-14
