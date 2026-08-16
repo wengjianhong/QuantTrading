@@ -17,12 +17,14 @@ StrategyManager::~StrategyManager() {
   Stop();
 }
 
-std::vector<IStrategy*> StrategyManager::BuildStrategyListLocked() const {
-  std::vector<IStrategy*> list;
+std::vector<StrategyEventQueue*> StrategyManager::BuildQueueListLocked() const {
+  std::vector<StrategyEventQueue*> list;
   list.reserve(strategies_.size());
   for (const auto& [strategy_id, entry] : strategies_) {
     (void)strategy_id;
-    list.push_back(entry.strategy.get());
+    if (entry.event_queue) {
+      list.push_back(entry.event_queue.get());
+    }
   }
   return list;
 }
@@ -31,7 +33,7 @@ void StrategyManager::PushRoutingToDispatcherLocked() {
   if (!dispatcher_) {
     return;
   }
-  dispatcher_->SetRouting(instrument_routes_, BuildStrategyListLocked());
+  dispatcher_->SetRouting(instrument_routes_, BuildQueueListLocked());
 }
 
 ErrorCode StrategyManager::AddStrategyFromPlugin(const StrategyConfig& config,
@@ -121,7 +123,13 @@ ErrorCode StrategyManager::Start() {
     dispatcher_->Subscribe();
   }
 
-  // 2. 激活投递并逐个 Start 策略
+  // 2. 先启动每策略队列，再激活 Lane 投递，最后 Start 策略
+  for (auto& [strategy_id, entry] : strategies_) {
+    (void)strategy_id;
+    if (entry.event_queue) {
+      entry.event_queue->Start();
+    }
+  }
   dispatcher_->SetActive(true);
   running_.store(true);
   for (auto& [strategy_id, entry] : strategies_) {
@@ -145,6 +153,12 @@ void StrategyManager::Stop() {
     }
 
     if (running_.load()) {
+      for (auto& [strategy_id, entry] : strategies_) {
+        (void)strategy_id;
+        if (entry.event_queue) {
+          entry.event_queue->Stop();
+        }
+      }
       for (auto& [strategy_id, entry] : strategies_) {
         (void)strategy_id;
         entry.strategy->Stop();
@@ -181,11 +195,12 @@ ErrorCode StrategyManager::RegisterStrategy(const std::string& strategy_id,
       return ErrorCode::kSystemError;
     }
   }
-  auto* raw = strategy.get();
+  auto queue = std::make_unique<StrategyEventQueue>(*strategy);
+  auto* queue_ptr = queue.get();
   for (const auto& instrument : instruments) {
-    instrument_routes_[instrument] = raw;
+    instrument_routes_[instrument] = queue_ptr;
   }
-  strategies_.emplace(strategy_id, StrategyEntry{std::move(strategy), instruments});
+  strategies_.emplace(strategy_id, StrategyEntry{std::move(strategy), std::move(queue), instruments});
 
   // 3. 若分发器已存在（Init 后、Start 前补注册），刷新快照
   PushRoutingToDispatcherLocked();

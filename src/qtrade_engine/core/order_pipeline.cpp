@@ -1,5 +1,5 @@
 /// @file      order_pipeline.cpp
-/// @brief     OrderPipeline 发单准入编排实现
+/// @brief     OrderPipeline 发单 A 段编排实现
 /// @author    wengjianhong
 /// @date      2026-07-15
 /// @copyright CC BY-NC-SA 4.0
@@ -12,16 +12,15 @@ OrderPipeline::OrderPipeline(compliance::ComplianceApi& compliance,
                              instance_risk::InstanceRiskApi& instance_risk,
                              orders::OrderApi& orders,
                              execution::ExecutionApi& execution,
-                             account_risk::AccountRiskApi& account_risk)
+                             OrderIntentQueue& intent_queue)
   : compliance_(compliance),
     strategy_risk_(strategy_risk),
     instance_risk_(instance_risk),
     orders_(orders),
     execution_(execution),
-    account_risk_(account_risk) {}
+    intent_queue_(intent_queue) {}
 
 ErrorCode OrderPipeline::Submit(const qtrade::sdk::trader::OrderRequest& request) {
-  // 1. 合规与策略级风控
   if (const auto rc = compliance_.CheckOrder(request); rc != ErrorCode::kSuccess) {
     return rc;
   }
@@ -35,35 +34,9 @@ ErrorCode OrderPipeline::Submit(const qtrade::sdk::trader::OrderRequest& request
     return ErrorCode::kSuccess;
   }
 
-  // 2. 账户硬风控预占（跨策略，同步）
-  const std::string order_id = orders_.AllocateOrderId();
-  if (const auto rc = account_risk_.Reserve(request, order_id); rc != ErrorCode::kSuccess) {
-    return rc;
-  }
-
-  // 3. OMS → EMS
-  const auto order = orders_.CreateOrder(request, order_id);
-  if (!order.has_value()) {
-    account_risk_.Release(order_id, qtrade::account_risk::ReleaseReason::kSendFailed);
-    return ErrorCode::kNotInitialized;
-  }
-  const std::string& created_order_id = order->order_id;
-  const auto lifecycle = orders_.GetLifecycleState(created_order_id);
-  if (lifecycle.has_value() && *lifecycle != orders::OrderLifecycleState::kPrepared) {
-    return ErrorCode::kSuccess;
-  }
-
-  if (const auto rc = orders_.MarkEmsQueued(created_order_id); rc != ErrorCode::kSuccess) {
-    account_risk_.Release(created_order_id, qtrade::account_risk::ReleaseReason::kSendFailed);
-    return rc;
-  }
-
-  const auto rc = execution_.Enqueue(*order);
-  if (rc != ErrorCode::kSuccess) {
-    (void)orders_.RecordSendResult(created_order_id, rc);
-    account_risk_.Release(created_order_id, qtrade::account_risk::ReleaseReason::kSendFailed);
-  }
-  return rc;
+  OrderIntent intent;
+  intent.request = request;
+  return intent_queue_.Enqueue(std::move(intent));
 }
 
 ErrorCode OrderPipeline::SubmitBatch(const qtrade::strategy::OrderBatch& batch) {

@@ -10,6 +10,7 @@
 
 #include "qtrade/engine/events/event_lanes.hpp"
 #include "qtrade/engine/strategies/strategy_event_dispatcher.hpp"
+#include "qtrade/engine/strategies/strategy_event_queue.hpp"
 #include "qtrade/engine/strategies/strategy_plugin_loader.hpp"
 
 #include <qtrade/error_code/error_codes.hpp>
@@ -78,13 +79,15 @@ class StrategyManager {
   struct StrategyEntry {
     /// 策略实例（自定义删除器，与插件 ABI 对齐）
     StrategyPtr strategy{nullptr, [](IStrategy*) {}};
+    /// 本策略串行入站队列
+    std::unique_ptr<StrategyEventQueue> event_queue;
     /// 本策略独占路由的合约列表
     std::vector<std::string> instruments;
   };
 
-  /// @brief 根据 strategies_ 构建广播用裸指针列表
-  /// @return 当前全部策略裸指针
-  [[nodiscard]] std::vector<IStrategy*> BuildStrategyListLocked() const;
+  /// @brief 根据 strategies_ 构建广播用队列列表
+  /// @return 当前全部策略事件队列裸指针
+  [[nodiscard]] std::vector<StrategyEventQueue*> BuildQueueListLocked() const;
 
   /// @brief 将当前路由快照推送给 dispatcher（若已创建）
   void PushRoutingToDispatcherLocked();
@@ -101,8 +104,8 @@ class StrategyManager {
   std::unique_ptr<StrategyEventDispatcher> dispatcher_;
   /// strategy_id → 策略条目
   std::unordered_map<std::string, StrategyEntry> strategies_;
-  /// 合约 → 独占该合约的策略；无条目时事件广播
-  std::unordered_map<std::string, IStrategy*> instrument_routes_;
+  /// 合约 → 独占该合约的策略队列；无条目时事件广播
+  std::unordered_map<std::string, StrategyEventQueue*> instrument_routes_;
 };
 
 }  // namespace qtrade::engine::strategies

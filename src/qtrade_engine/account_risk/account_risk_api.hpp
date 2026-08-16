@@ -1,6 +1,6 @@
 /// @file      account_risk_api.hpp
 /// @brief     账户硬风控对引擎内其他模块提供的稳定接口
-/// @details   Pipeline / EMS / LaneEventHandler 只依赖本接口，不依赖 AccountRiskManager，
+/// @details   OrderIntentQueue / EMS / LaneEventHandler 只依赖本接口，不依赖 AccountRiskManager，
 ///            也不直接持有 IAccountRiskBridge。桥接与身份由组合根注入实现类。
 ///            与 engine::risk（实例风控）及 qtrade::account_risk（进程外桥接）分层不同。
 /// @author    wengjianhong

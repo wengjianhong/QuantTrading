@@ -76,6 +76,7 @@ struct StrategyConfig {
 };
 
 /// @brief 策略发单回调（由引擎在创建实例后注入）
+/// @details 返回 kSuccess 表示意图已通过 A 段并入队，不表示账户预占或柜台已接受
 using OrderSender = std::function<ErrorCode(const OrderBatch&)>;
 
 /// @brief 策略接口类

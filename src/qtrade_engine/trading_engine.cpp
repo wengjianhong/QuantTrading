@@ -481,10 +481,11 @@ ErrorCode TradingEngine::ReconcileBrokerState() {
 
 ErrorCode TradingEngine::StartEngineModules() {
   spdlog::info("StartEngineModules");
-  // Start 阶段交易模块：策略消费与 EMS 出站（InitEngineModules 仅 OMS/接线）
-  strategy_manager_.Start();
+  // Start 阶段交易模块：EMS 出站 → Intent E 段 → 策略消费
   execution_manager_.SetTraderApi(trader_api_.get());
   execution_manager_.Start();
+  order_intent_queue_.Start();
+  strategy_manager_.Start();
   running_.store(true, std::memory_order_release);
   return ErrorCode::kSuccess;
 }
@@ -518,6 +519,7 @@ ErrorCode TradingEngine::AdvanceReadyGates() {
 void TradingEngine::Release() {
   // 1. 释放引擎内模块（按依赖逆序释放）
   strategy_manager_.Stop();
+  order_intent_queue_.Stop();
   quote_health_monitor_.Stop();
   execution_manager_.Stop();
   DisconnectAdapters();

@@ -17,15 +17,14 @@ StrategyEventDispatcher::~StrategyEventDispatcher() {
   active_.store(false);
   std::lock_guard lock(mutex_);
   instrument_routes_.clear();
-  strategies_.clear();
+  queues_.clear();
 }
 
-void StrategyEventDispatcher::SetRouting(
-  std::unordered_map<std::string, qtrade::strategy::IStrategy*> instrument_routes,
-  std::vector<qtrade::strategy::IStrategy*> strategies) {
+void StrategyEventDispatcher::SetRouting(std::unordered_map<std::string, StrategyEventQueue*> instrument_routes,
+                                         std::vector<StrategyEventQueue*> queues) {
   std::lock_guard lock(mutex_);
   instrument_routes_ = std::move(instrument_routes);
-  strategies_ = std::move(strategies);
+  queues_ = std::move(queues);
 }
 
 void StrategyEventDispatcher::Subscribe() {
@@ -43,106 +42,73 @@ void StrategyEventDispatcher::SetActive(bool active) {
   active_.store(active);
 }
 
+std::vector<StrategyEventQueue*> StrategyEventDispatcher::ResolveTargetsLocked(const std::string& instrument) const {
+  if (const auto route = instrument_routes_.find(instrument); route != instrument_routes_.end()) {
+    return {route->second};
+  }
+  return queues_;
+}
+
 void StrategyEventDispatcher::OnTick(const qtrade::sdk::quote::MarketTick& tick) {
-  std::lock_guard lock(mutex_);
-  if (!active_.load()) {
-    return;
-  }
-
-  // 1. 有品种路由则单播
-  if (const auto route = instrument_routes_.find(tick.instrument); route != instrument_routes_.end()) {
-    try {
-      route->second->OnTick(tick);
-    } catch (const std::exception& e) {
-      spdlog::error("[StrategyEventDispatcher] OnTick exception: {}", e.what());
+  std::vector<StrategyEventQueue*> targets;
+  {
+    std::lock_guard lock(mutex_);
+    if (!active_.load()) {
+      return;
     }
-    return;
+    targets = ResolveTargetsLocked(tick.instrument);
   }
-
-  // 2. 否则广播给全部策略
-  for (auto* strategy : strategies_) {
-    try {
-      strategy->OnTick(tick);
-    } catch (const std::exception& e) {
-      spdlog::error("[StrategyEventDispatcher] OnTick broadcast exception: {}", e.what());
+  for (auto* queue : targets) {
+    if (queue != nullptr && !queue->EnqueueTick(tick)) {
+      spdlog::warn("[StrategyEventDispatcher] EnqueueTick rejected instrument={}", tick.instrument);
     }
   }
 }
 
 void StrategyEventDispatcher::OnBar(const qtrade::sdk::quote::Bar& bar) {
-  std::lock_guard lock(mutex_);
-  if (!active_.load()) {
-    return;
-  }
-
-  // 1. 有品种路由则单播
-  if (const auto route = instrument_routes_.find(bar.instrument); route != instrument_routes_.end()) {
-    try {
-      route->second->OnBar(bar);
-    } catch (const std::exception& e) {
-      spdlog::error("[StrategyEventDispatcher] OnBar exception: {}", e.what());
+  std::vector<StrategyEventQueue*> targets;
+  {
+    std::lock_guard lock(mutex_);
+    if (!active_.load()) {
+      return;
     }
-    return;
+    targets = ResolveTargetsLocked(bar.instrument);
   }
-
-  // 2. 否则广播给全部策略
-  for (auto* strategy : strategies_) {
-    try {
-      strategy->OnBar(bar);
-    } catch (const std::exception& e) {
-      spdlog::error("[StrategyEventDispatcher] OnBar broadcast exception: {}", e.what());
+  for (auto* queue : targets) {
+    if (queue != nullptr && !queue->EnqueueBar(bar)) {
+      spdlog::warn("[StrategyEventDispatcher] EnqueueBar rejected instrument={}", bar.instrument);
     }
   }
 }
 
 void StrategyEventDispatcher::OnOrder(const qtrade::sdk::trader::Order& order) {
-  std::lock_guard lock(mutex_);
-  if (!active_.load()) {
-    return;
-  }
-
-  // 1. 有品种路由则单播
-  if (const auto route = instrument_routes_.find(order.instrument); route != instrument_routes_.end()) {
-    try {
-      route->second->OnOrder(order);
-    } catch (const std::exception& e) {
-      spdlog::error("[StrategyEventDispatcher] OnOrder exception: {}", e.what());
+  std::vector<StrategyEventQueue*> targets;
+  {
+    std::lock_guard lock(mutex_);
+    if (!active_.load()) {
+      return;
     }
-    return;
+    targets = ResolveTargetsLocked(order.instrument);
   }
-
-  // 2. 否则广播给全部策略
-  for (auto* strategy : strategies_) {
-    try {
-      strategy->OnOrder(order);
-    } catch (const std::exception& e) {
-      spdlog::error("[StrategyEventDispatcher] OnOrder broadcast exception: {}", e.what());
+  for (auto* queue : targets) {
+    if (queue != nullptr && !queue->EnqueueOrder(order)) {
+      spdlog::warn("[StrategyEventDispatcher] EnqueueOrder rejected instrument={}", order.instrument);
     }
   }
 }
 
 void StrategyEventDispatcher::OnTrade(const qtrade::sdk::trader::Trade& trade) {
-  std::lock_guard lock(mutex_);
-  if (!active_.load()) {
-    return;
-  }
-
-  // 1. 有品种路由则单播
-  if (const auto route = instrument_routes_.find(trade.instrument); route != instrument_routes_.end()) {
-    try {
-      route->second->OnTrade(trade);
-    } catch (const std::exception& e) {
-      spdlog::error("[StrategyEventDispatcher] OnTrade exception: {}", e.what());
+  std::vector<StrategyEventQueue*> targets;
+  {
+    std::lock_guard lock(mutex_);
+    if (!active_.load()) {
+      return;
     }
-    return;
+    targets = ResolveTargetsLocked(trade.instrument);
   }
-
-  // 2. 否则广播给全部策略
-  for (auto* strategy : strategies_) {
-    try {
-      strategy->OnTrade(trade);
-    } catch (const std::exception& e) {
-      spdlog::error("[StrategyEventDispatcher] OnTrade broadcast exception: {}", e.what());
+  for (auto* queue : targets) {
+    if (queue != nullptr && !queue->EnqueueTrade(trade)) {
+      spdlog::warn("[StrategyEventDispatcher] EnqueueTrade rejected instrument={}", trade.instrument);
     }
   }
 }

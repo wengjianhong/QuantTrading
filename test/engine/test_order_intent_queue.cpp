@@ -1,6 +1,9 @@
-#include "qtrade/engine/compliance/compliance_api.hpp"
+/// @file      test_order_intent_queue.cpp
+/// @brief     OrderIntentQueue：A 段入队与 E 段预占线程隔离
+#include "qtrade/engine/account_risk/account_risk_api.hpp"
 #include "qtrade/engine/core/order_intent_queue.hpp"
-#include "qtrade/engine/core/order_pipeline.hpp"
+#include "qtrade/engine/execution/execution_api.hpp"
+#include "qtrade/engine/orders/order_api.hpp"
 
 #include <gtest/gtest.h>
 
@@ -23,42 +26,9 @@ void WaitUntil(const std::function<bool()>& pred, std::chrono::milliseconds time
   }
 }
 
-class DenyingCompliance final : public qtrade::engine::compliance::ComplianceApi {
- public:
-  qtrade::ErrorCode CheckOrder(const qtrade::sdk::trader::OrderRequest&) const override {
-    return qtrade::ErrorCode::kPermissionDenied;
-  }
-};
-
-class PassingCompliance final : public qtrade::engine::compliance::ComplianceApi {
- public:
-  qtrade::ErrorCode CheckOrder(const qtrade::sdk::trader::OrderRequest&) const override {
-    return qtrade::ErrorCode::kSuccess;
-  }
-};
-
-class PassingStrategyRisk final : public qtrade::engine::strategy_risk::StrategyRiskApi {
- public:
-  qtrade::ErrorCode CheckOrder(const qtrade::sdk::trader::OrderRequest&) const override {
-    return qtrade::ErrorCode::kSuccess;
-  }
-};
-
-class PassingInstanceRisk final : public qtrade::engine::instance_risk::InstanceRiskApi {
- public:
-  std::uint64_t Version() const override {
-    return 0;
-  }
-
-  qtrade::ErrorCode CheckOrder(const qtrade::sdk::trader::OrderRequest&) const override {
-    return qtrade::ErrorCode::kSuccess;
-  }
-};
-
 class RecordingOrderApi final : public qtrade::engine::orders::OrderApi {
  public:
   std::string AllocateOrderId() override {
-    allocate_called.store(true, std::memory_order_release);
     return "order-1";
   }
 
@@ -67,6 +37,7 @@ class RecordingOrderApi final : public qtrade::engine::orders::OrderApi {
     qtrade::sdk::trader::Order order;
     order.order_id = order_id;
     order.instrument = request.instrument;
+    created.store(true, std::memory_order_release);
     return order;
   }
 
@@ -88,6 +59,7 @@ class RecordingOrderApi final : public qtrade::engine::orders::OrderApi {
   }
 
   qtrade::ErrorCode MarkEmsQueued(const std::string&) override {
+    ems_queued.store(true, std::memory_order_release);
     return qtrade::ErrorCode::kSuccess;
   }
 
@@ -104,85 +76,74 @@ class RecordingOrderApi final : public qtrade::engine::orders::OrderApi {
   }
 
   void ApplyOrderReport(const qtrade::sdk::trader::Order&) override {}
-
   void ApplyTradeReport(const qtrade::sdk::trader::Trade&) override {}
 
-  std::atomic<bool> allocate_called{false};
+  std::atomic<bool> created{false};
+  std::atomic<bool> ems_queued{false};
 };
 
 class RecordingExecutionApi final : public qtrade::engine::execution::ExecutionApi {
  public:
   qtrade::ErrorCode Enqueue(const qtrade::sdk::trader::Order&) override {
+    enqueued.store(true, std::memory_order_release);
     return qtrade::ErrorCode::kSuccess;
   }
 
   qtrade::ErrorCode EnqueueCancel(const qtrade::sdk::trader::CancelOrderRequest&) override {
     return qtrade::ErrorCode::kSuccess;
   }
+
+  std::atomic<bool> enqueued{false};
 };
 
-class RecordingAccountRiskApi final : public qtrade::engine::account_risk::AccountRiskApi {
+class SlowReserveApi final : public qtrade::engine::account_risk::AccountRiskApi {
  public:
   qtrade::ErrorCode Reserve(const qtrade::sdk::trader::OrderRequest&, const std::string&) override {
     in_reserve.store(true, std::memory_order_release);
-    std::this_thread::sleep_for(hold);
-    reserve_called.store(true, std::memory_order_release);
+    std::this_thread::sleep_for(std::chrono::milliseconds(120));
+    reserve_calls.fetch_add(1, std::memory_order_relaxed);
     in_reserve.store(false, std::memory_order_release);
     return qtrade::ErrorCode::kSuccess;
   }
 
   void Release(std::string, qtrade::account_risk::ReleaseReason) override {}
 
-  std::chrono::milliseconds hold{0};
   std::atomic<bool> in_reserve{false};
-  std::atomic<bool> reserve_called{false};
+  std::atomic<int> reserve_calls{0};
 };
 
 }  // namespace
 
-TEST(OrderPipeline, ComplianceDenialPrecedesOmsAndAccountReservation) {
-  DenyingCompliance compliance;
-  PassingStrategyRisk strategy_risk;
-  PassingInstanceRisk instance_risk;
+TEST(OrderIntentQueue, RejectsEnqueueBeforeStart) {
   RecordingOrderApi orders;
   RecordingExecutionApi execution;
-  RecordingAccountRiskApi account_risk;
-  qtrade::engine::OrderIntentQueue intent_queue{account_risk, orders, execution};
-  qtrade::engine::OrderPipeline pipeline{
-    compliance, strategy_risk, instance_risk, orders, execution, intent_queue};
+  SlowReserveApi account_risk;
+  qtrade::engine::OrderIntentQueue queue{account_risk, orders, execution};
 
-  qtrade::sdk::trader::OrderRequest request;
-  request.instrument = "IF2506";
-  EXPECT_EQ(pipeline.Submit(request), qtrade::ErrorCode::kPermissionDenied);
-  EXPECT_FALSE(orders.allocate_called.load());
-  EXPECT_FALSE(account_risk.reserve_called.load());
+  qtrade::engine::OrderIntent intent;
+  intent.request.instrument = "IF2506";
+  EXPECT_EQ(queue.Enqueue(std::move(intent)), qtrade::ErrorCode::kNotInitialized);
+  EXPECT_EQ(account_risk.reserve_calls.load(), 0);
 }
 
-TEST(OrderPipeline, SubmitEnqueuesWithoutWaitingForReserve) {
-  PassingCompliance compliance;
-  PassingStrategyRisk strategy_risk;
-  PassingInstanceRisk instance_risk;
+TEST(OrderIntentQueue, EnqueueReturnsBeforeReserveFinishes) {
   RecordingOrderApi orders;
   RecordingExecutionApi execution;
-  RecordingAccountRiskApi account_risk;
-  account_risk.hold = std::chrono::milliseconds(120);
-  qtrade::engine::OrderIntentQueue intent_queue{account_risk, orders, execution};
-  intent_queue.Start();
-  qtrade::engine::OrderPipeline pipeline{
-    compliance, strategy_risk, instance_risk, orders, execution, intent_queue};
+  SlowReserveApi account_risk;
+  qtrade::engine::OrderIntentQueue queue{account_risk, orders, execution};
+  queue.Start();
 
-  qtrade::sdk::trader::OrderRequest request;
-  request.instrument = "IF2506";
+  qtrade::engine::OrderIntent intent;
+  intent.request.instrument = "IF2506";
   const auto started = std::chrono::steady_clock::now();
-  EXPECT_EQ(pipeline.Submit(request), qtrade::ErrorCode::kSuccess);
+  EXPECT_EQ(queue.Enqueue(std::move(intent)), qtrade::ErrorCode::kSuccess);
   const auto elapsed = std::chrono::steady_clock::now() - started;
   EXPECT_LT(elapsed, std::chrono::milliseconds(50));
-  EXPECT_FALSE(orders.allocate_called.load());
 
-  WaitUntil([&] { return account_risk.reserve_called.load(std::memory_order_acquire); },
-            std::chrono::milliseconds(500));
-  EXPECT_TRUE(account_risk.reserve_called.load());
-  EXPECT_TRUE(orders.allocate_called.load());
+  WaitUntil([&] { return orders.created.load(std::memory_order_acquire); }, std::chrono::milliseconds(500));
+  EXPECT_EQ(account_risk.reserve_calls.load(), 1);
+  EXPECT_TRUE(orders.created.load());
+  EXPECT_TRUE(execution.enqueued.load());
 
-  intent_queue.Stop();
+  queue.Stop();
 }

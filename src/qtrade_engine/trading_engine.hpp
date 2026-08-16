@@ -15,6 +15,7 @@
 #include "qtrade/engine/compliance/compliance_manager.hpp"
 #include "qtrade/engine/core/engine_lifecycle.hpp"
 #include "qtrade/engine/core/lane_event_handler.hpp"
+#include "qtrade/engine/core/order_intent_queue.hpp"
 #include "qtrade/engine/core/order_pipeline.hpp"
 #include "qtrade/engine/core/quote_health_monitor.hpp"
 #include "qtrade/engine/core/sdk_event_handler.hpp"
@@ -185,10 +186,10 @@ class TradingEngine final : public IEngine {
   /// @return 策略发单回调
   [[nodiscard]] qtrade::strategy::OrderSender MakeOrderSender(std::string strategy_id);
 
-  /// @brief 策略发单入口：READY 门禁、补全 strategy_id 后交给流水线
+  /// @brief 策略发单入口：READY 门禁、补全 strategy_id 后交给 A 段流水线
   /// @param strategy_id 登记策略时绑定的策略 ID
   /// @param batch 策略订单批次
-  /// @return 未 READY 返回 kNotInitialized，否则返回流水线结果
+  /// @return 未 READY 返回 kNotInitialized；成功表示意图已入队，不表示已预占或已报出
   ErrorCode SubmitStrategyBatch(const std::string& strategy_id, const qtrade::strategy::OrderBatch& batch);
 
   // ---------------------------------------------------------------------------
@@ -243,13 +244,15 @@ class TradingEngine final : public IEngine {
   instance_risk::InstanceRiskManager instance_risk_manager_;
   /// 账户硬风控（须在 pipeline / handler 之前；唯一持有 IAccountRiskBridge）
   account_risk::AccountRiskManager account_risk_manager_;
-  /// 发单流水线（须在 compliance/strategy_risk/order/execution/account_risk 之后）
+  /// A→E 意图队列（须在 account_risk / order / execution 之后、pipeline 之前）
+  OrderIntentQueue order_intent_queue_{account_risk_manager_, order_manager_, execution_manager_};
+  /// 发单流水线（须在 compliance/strategy_risk/order/execution/intent_queue 之后）
   OrderPipeline order_pipeline_{compliance_manager_,
                                 strategy_risk_manager_,
                                 instance_risk_manager_,
                                 order_manager_,
                                 execution_manager_,
-                                account_risk_manager_};
+                                order_intent_queue_};
   /// Lane-T 引擎侧回报处理（须在 order/account/position/account_risk 之后；Start 时先于策略 Dispatcher 注册）
   LaneEventHandler lane_event_handler_{order_manager_, account_manager_, position_manager_, account_risk_manager_};
 
