@@ -17,7 +17,7 @@
 |接入层（外部独立项目）|不在本仓库；北向 HTTP REST，南向调 QTrade 支撑服务 gRPC|见《架构》§五|
 |外部企业基础服务|由机构平台提供；QTrade 仅集成身份、数据安全、运维和合规能力，不负责其实现或部署|
 
-**性能口径**：A/E/C/B/D 链路分段、控制面/数据面边界见《架构》**§2.1、§2.2**；A 段止于 `OrderIntent` 入队，禁止同步远程服务和磁盘 I/O。当前不启用订单主日志 J 段。
+**性能口径**：A/E/C/B/D 链路分段、控制面/数据面边界见《架构》**§2.1、§2.2**；A 段在策略 worker 上止于 `OrderIntent` 入队，禁止同步远程服务和磁盘 I/O。当前不启用订单主日志 J 段。
 
 ---
 
@@ -41,9 +41,9 @@ qtrade/
 │   ├── sdk/                        # QuoteApi / TraderApi SPI
 │   └── strategy/                   # 策略接口与插件 ABI
 ├── src/qtrade_engine/              # 引擎私有实现
-│   ├── core/                       # 生命周期、订单流水线、SDK 回调、行情健康
+│   ├── core/                       # 生命周期、OrderPipeline、OrderIntentQueue、SDK 回调、行情健康
 │   ├── events/                     # Lane-Q / Lane-T reactor
-│   ├── strategies/                 # 策略插件加载、生命周期与事件分发
+│   ├── strategies/                 # 插件加载、StrategyEventQueue、事件分发
 │   ├── compliance/                 # 交易所硬规则执行器（仅实现流程，未实现具体规则）
 │   ├── strategy_risk/              # 策略级数值风控
 │   ├── instance_risk/              # engine_id 内共享风控预算
@@ -89,11 +89,11 @@ qtrade/
 
 ### 3.1 A 段热路径（强制约束）
 
-- **定义**（§2.1.1）：Lane-Q → 策略 → ComplianceManager → StrategyRiskManager → InstanceRiskManager → `OrderIntent` 入队
+- **定义**（§2.1.1）：Lane-Q 将 Tick/Bar 写入 `StrategyEventQueue` 后立即返回；策略 worker 执行 `On*` → ComplianceManager → StrategyRiskManager → InstanceRiskManager → `OrderIntent` 入队
 
-- **发单主链**（§2.1.4）：A → [E] → OMS(内存) → C。Production/Institutional 强制执行 E 段；发单前不做订单主日志落盘；无独立 J 段提交门槛
+- **发单主链**（§2.1.4）：A → [E] → OMS(内存) → C。Production/Institutional 强制执行 E 段；`OrderSender` 成功仅表示意图已入队；发单前不做订单主日志落盘；无独立 J 段提交门槛
 
-- **同线程禁止**：同步阻塞、磁盘 I/O、等待交易所/远程 ACK、调用支撑服务 client
+- **同线程禁止**：Lane-Q、策略 worker 均禁止同步阻塞远程服务、磁盘 I/O、等待交易所 ACK；E 段 `ReserveOrder` 只在 `OrderIntentQueue` 工作线程上执行
 
 - **OMS（内存）**：进程内订单状态机；冷启动为空；崩溃后以柜台快照 Adopt 重建 Working 态并对 account-risk 预占对账；**禁止**按本地旧意图自动补单。spdlog/运行日志 ≠ 恢复事实源
 
@@ -103,7 +103,7 @@ qtrade/
 
 ### 3.2 E/C 段与旁路
 
-- **E 段**：同步 `ReserveOrder`；超时或断连为 `Unknown`，必须使用同一 `order_id` 查询，不能直接当拒绝
+- **E 段**：`OrderIntentQueue` 工作线程同步 `ReserveOrder`；超时或断连为 `Unknown`，必须使用同一 `order_id` 查询，不能直接当拒绝
 
 - **C 段**：OMS 内存受理后 → EMS → 执行适配器 → 交易所/券商。明确确认请求未提交时，使用同一 `order_id` 有界重试；不可重试或次数耗尽则记录 `SendFailed` 并尽力释放预占。发送结果未知时先查询，禁止盲目重发
 
@@ -118,12 +118,12 @@ qtrade/
 
 |交互场景|推荐协议|约束|
 |---|---|---|
-|交易引擎内部|内存结构体 + Lane-Q/Lane-T 内存队列|无网络、无序列化|
+|交易引擎内部|内存结构体 + Lane-Q/Lane-T + `StrategyEventQueue` + `OrderIntentQueue`|无网络、无序列化；Lane 回调只入队|
 |交易引擎 ↔ 适配器|函数调用 + 回调接口|同进程内|
 |交易引擎 → 支撑服务（D 段）|`client/` 异步接口 + Protobuf|Outbound 线程 fire-and-forget；内部传输可插拔，MVP 可 stub|
 |引擎 ↔ config-service|gRPC + Protobuf|**client** 出站 `GetEngineConfig` 后 `SetEngineConfig` 注入引擎；引擎不持配置 gRPC；无运行时 Subscribe|
 |引擎 ↔ account-service|gRPC + Protobuf|引擎 Client：`GetCredential(account_id, engine_id)`（启动拉取，不进 A 段）|
-|引擎 ↔ account-risk-service|gRPC + Protobuf|E 段仅同步 `ReserveOrder`；`Unknown` 查询确认；Release/Settle 为直接 gRPC 尽力调用（失败 warn，靠 TTL/对账）|
+|引擎 ↔ account-risk-service|gRPC + Protobuf|E 段由 `OrderIntentQueue` 工作线程同步 `ReserveOrder`；`Unknown` 查询确认；Release/Settle 为直接 gRPC 尽力调用（失败 warn，靠 TTL/对账）|
 |引擎 ↔ safety-control|引擎主动建立双向 gRPC 流|冻结 → 撤单 → 确认/对账 → 必要时断开；返回分阶段 ACK|
 |支撑服务之间|gRPC + Protobuf|同步 / 异步均可（如 config 写入前校验 account 授权）|
 |接入层 ↔ 外部系统|HTTP(S)/WebSocket|**外部独立项目**；RESTful 北向，网关转 gRPC 调本仓库支撑服务|
@@ -275,7 +275,7 @@ Api 适配器实现 QTrade 的稳定接口并转发调用；Spi 适配器继承�
 
 - 交易引擎**不对外开放任何 TCP/HTTP/gRPC 控制服务端**，所有外部操作只能通过支撑服务间接进行
 
-- 策略**仅由内部行情 Tick/Bar 事件驱动**，不接受任何外部触发信号
+- 策略**仅由内部行情 Tick/Bar 与订单/成交回报事件驱动**，不接受任何外部触发信号；引擎为每策略提供 `StrategyEventQueue`，不要求策略作者自行异步返回 `OnTick`/`OnBar`
 
 - 引擎业务配置由 client 拉取后经 `SetEngineConfig` 注入；策略插件经 `AddStrategy(config, so路径)` 加载；**交易凭证**经 account-service 单独管理（《架构》§2.6）；禁止外部直接修改交易引擎内存；运行中不接受配置热推
 
@@ -378,6 +378,7 @@ Api 适配器实现 QTrade 的稳定接口并转发调用；Spi 适配器继承�
 | 架构能力 | 目标阶段 | 当前实现状态 |
 |---|---|---|
 | EventBus 与双 EventReactor 事件通道 | MVP | ✅ 已有引擎骨架、EventReactorLoop 与事件类型 |
+| 策略串行队列与 A/E 解耦 | MVP | ✅ 每策略 `StrategyEventQueue`；`OrderPipeline` 止于 `OrderIntent` 入队；`OrderIntentQueue` 执行 E 段。回报优先与过期快照合并待后续 |
 | 合规（ComplianceManager） | MVP | 🟡 准入位置与执行器已建立；交易所规则数据源及具体规则待接入 |
 | OMS / EMS / 策略风控 / 实例风控 / 持仓 | MVP | 🟡 模块骨架已有；内存 OMS 状态机与幂等语义仍待完善；订单主日志后续可选 |
 | 配置驱动分片与一品种一策略校验 | MVP | 🟡 `EngineConfig` 模型已对齐；配置校验和策略一对一分发待实现 |
