@@ -27,7 +27,13 @@ class AccountRiskManager final : public AccountRiskApi {
   AccountRiskManager();
   ~AccountRiskManager() override;
 
+  /// @brief 禁止移动构造
+  AccountRiskManager(AccountRiskManager&&) = delete;
+  /// @brief 禁止拷贝构造
   AccountRiskManager(const AccountRiskManager&) = delete;
+  /// @brief 禁止移动赋值
+  AccountRiskManager& operator=(AccountRiskManager&&) = delete;
+  /// @brief 禁止拷贝赋值
   AccountRiskManager& operator=(const AccountRiskManager&) = delete;
 
   /// @brief 注入或清除硬风控桥（非拥有）
@@ -45,12 +51,20 @@ class AccountRiskManager final : public AccountRiskApi {
   /// @brief 拒绝新入队，排干已入队 Release 并 join
   void Stop();
 
+  /// @brief 同步预占账户风险额度
+  /// @param request 下单请求
+  /// @param order_id 全局订单 ID
+  /// @return 预占结果
   [[nodiscard]] ErrorCode Reserve(const qtrade::sdk::trader::OrderRequest& request,
                                   const std::string& order_id) override;
 
+  /// @brief 异步释放账户风险额度
+  /// @param order_id 全局订单 ID
+  /// @param reason 释放原因
   void Release(std::string order_id, qtrade::account_risk::ReleaseReason reason) override;
 
   /// @brief 当前待处理 Release 个数
+  /// @return 待处理释放工作项数量
   [[nodiscard]] std::size_t PendingCount() const;
 
  private:
@@ -66,6 +80,9 @@ class AccountRiskManager final : public AccountRiskApi {
   void Run();
 
   /// @brief 调用桥接 Release；失败只打日志
+  /// @param bridge 账户硬风控桥接
+  /// @param account_id 交易账户号
+  /// @param item 释放工作项
   void InvokeRelease(qtrade::account_risk::IAccountRiskBridge* bridge,
                      const std::string& account_id,
                      const ReleaseItem& item);

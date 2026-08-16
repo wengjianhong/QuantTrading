@@ -1,4 +1,4 @@
-/// @file      compliance_manager.cpp
+/// @file      strategy_risk_manager.cpp
 /// @brief     合规管理器实现
 /// @author    wengjianhong
 /// @date      2026-05-19

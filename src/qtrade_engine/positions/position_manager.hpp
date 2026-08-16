@@ -38,11 +38,26 @@ class PositionManager final : public PositionApi {
   /// @param positions 全量持仓列表（每条对应官方一个方向）
   void ApplyPositionSnapshot(const std::vector<Position>& positions);
 
+  /// @brief 幂等应用成交回报
+  /// @param trade 成交回报
   void ApplyTrade(const Trade& trade) override;
+  /// @brief 返回指定合约的净持仓
+  /// @param instrument 合约 ID
+  /// @return 净持仓数量
   [[nodiscard]] std::int64_t GetNetPosition(const std::string& instrument) const override;
+  /// @brief 返回指定合约的总持仓
+  /// @param instrument 合约 ID
+  /// @return 总持仓数量
   [[nodiscard]] std::int64_t GetGrossPosition(const std::string& instrument) const override;
+  /// @brief 返回指定合约与方向的持仓
+  /// @param instrument 合约 ID
+  /// @param direction 持仓方向
+  /// @return 存在则返回持仓快照
   [[nodiscard]] std::optional<Position> GetPosition(const std::string& instrument,
                                                     PositionDirectionType direction) const override;
+  /// @brief 返回指定合约下各方向持仓
+  /// @param instrument 合约 ID
+  /// @return 未跟踪合约返回空 map
   [[nodiscard]] std::map<PositionDirectionType, Position> GetPositions(const std::string& instrument) const override;
 
  private:

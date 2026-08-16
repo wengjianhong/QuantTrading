@@ -20,6 +20,7 @@ namespace qtrade::engine::positions {
 /// @brief 持仓模块间稳定接口（进程内；非 gRPC）
 class PositionApi {
  public:
+  /// @brief 析构持仓接口
   virtual ~PositionApi() = default;
 
   /// @brief 幂等应用成交回报

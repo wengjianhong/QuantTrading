@@ -1,4 +1,4 @@
-/// @file      risk_api.hpp
+/// @file      instance_risk_api.hpp
 /// @brief     实例风控对引擎内其他模块的稳定接口
 /// @details   Pipeline 等兄弟模块只依赖本接口，不依赖 InstanceRiskManager。
 /// @author    wengjianhong
@@ -17,6 +17,7 @@ namespace qtrade::engine::instance_risk {
 /// @brief 实例风控模块间稳定接口
 class InstanceRiskApi {
  public:
+  /// @brief 析构实例风控接口
   virtual ~InstanceRiskApi() = default;
 
   /// @brief 查询当前风险配置版本

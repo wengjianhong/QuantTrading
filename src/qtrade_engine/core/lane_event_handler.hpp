@@ -23,6 +23,10 @@ namespace qtrade::engine {
 class LaneEventHandler {
  public:
   /// @brief 绑定 OMS / 账户 / 持仓 / 硬风控接口（不拥有）
+  /// @param orders 订单管理接口
+  /// @param account 账户资金接口
+  /// @param position 持仓接口
+  /// @param account_risk 账户硬风控接口
   LaneEventHandler(orders::OrderApi& orders,
                    account::AccountApi& account,
                    positions::PositionApi& position,

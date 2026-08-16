@@ -93,6 +93,7 @@ enum class EngineState {
 /// @brief 交易引擎对外抽象接口
 class IEngine {
  public:
+  /// @brief 销毁交易引擎接口实例
   virtual ~IEngine() = default;
 
   // ---------------------------------------------------------------------------
@@ -118,9 +119,11 @@ class IEngine {
   // ---------------------------------------------------------------------------
 
   /// @brief 当前生命周期状态（与内部状态机同一枚举）
+  /// @return 当前引擎生命周期状态
   [[nodiscard]] virtual EngineState State() const = 0;
 
   /// @brief 是否已 Start 且尚未 Stop
+  /// @return 已启动且尚未停止返回 true，否则返回 false
   [[nodiscard]] virtual bool IsRunning() const = 0;
 
   // ---------------------------------------------------------------------------

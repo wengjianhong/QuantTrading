@@ -28,7 +28,13 @@ class StrategyEventDispatcher {
   /// @brief 停投递并排干进行中的 On*，再允许析构
   ~StrategyEventDispatcher();
 
+  /// @brief 禁止移动构造
+  StrategyEventDispatcher(StrategyEventDispatcher&&) = delete;
+  /// @brief 禁止拷贝构造
   StrategyEventDispatcher(const StrategyEventDispatcher&) = delete;
+  /// @brief 禁止移动赋值
+  StrategyEventDispatcher& operator=(StrategyEventDispatcher&&) = delete;
+  /// @brief 禁止拷贝赋值
   StrategyEventDispatcher& operator=(const StrategyEventDispatcher&) = delete;
 
   /// @brief 写入路由快照（按值接管；可在 Subscribe 前后调用以刷新）

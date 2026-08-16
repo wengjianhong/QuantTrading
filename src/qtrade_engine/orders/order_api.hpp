@@ -44,6 +44,7 @@ enum class OrderLifecycleState : std::uint8_t {
 /// @brief OMS 模块间稳定接口（进程内；非 gRPC）
 class OrderApi {
  public:
+  /// @brief 析构订单接口
   virtual ~OrderApi() = default;
 
   /// @brief 在账户预占前分配全局订单 ID

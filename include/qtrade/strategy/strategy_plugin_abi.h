@@ -23,15 +23,19 @@ extern "C" {
 #define QTRADE_STRATEGY_SYM_DESTROY "qtrade_strategy_destroy"
 
 /// @brief 返回插件实现的 ABI 版本
+/// @return 插件实现的 ABI 版本
 int qtrade_strategy_abi_version(void);
 
 /// @brief 返回策略插件名称，保持与策略名一致
+/// @return 以空字符结尾的策略插件名称
 const char* qtrade_strategy_plugin_name(void);
 
 /// @brief 创建策略实例
+/// @return 新建的策略实例指针；创建失败时返回 nullptr
 qtrade::strategy::IStrategy* qtrade_strategy_create(void);
 
 /// @brief 销毁由 qtrade_strategy_create 创建的实例
+/// @param strategy 待销毁的策略实例指针
 void qtrade_strategy_destroy(qtrade::strategy::IStrategy* strategy);
 }  // extern "C"
 

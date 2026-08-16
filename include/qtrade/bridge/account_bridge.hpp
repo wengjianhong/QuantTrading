@@ -30,6 +30,7 @@ struct CredentialMaterial {
 /// @details 注入引擎前须已可用；连接等生命周期由实现方 / 持有方管理，本接口不包含 Start/Stop。
 class IAccountBridge {
  public:
+  /// @brief 销毁账户桥接接口实例
   virtual ~IAccountBridge() = default;
 
   /// @brief 读取建立柜台连接所需的凭证材料

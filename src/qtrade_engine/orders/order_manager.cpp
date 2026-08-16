@@ -19,6 +19,8 @@ using qtrade::common::utils::GenerateTradeDedupKey;
 namespace {
 
 /// @brief 是否为终态生命周期（Filled / Canceled / Rejected）
+/// @param state 订单生命周期状态
+/// @return 终态返回 true
 bool IsTerminalLifecycle(OrderLifecycleState state) {
   return state == OrderLifecycleState::kFilled || state == OrderLifecycleState::kCanceled ||
          state == OrderLifecycleState::kRejected;

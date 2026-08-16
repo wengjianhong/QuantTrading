@@ -15,6 +15,10 @@
 namespace qtrade::engine::strategies {
 namespace {
 
+/// @brief 从动态库查找导出符号并记录加载错误
+/// @param dl_handle 动态库句柄
+/// @param symbol 导出符号名称
+/// @return 成功返回符号地址，失败返回 nullptr
 void* Lookup(void* dl_handle, const char* symbol) {
   dlerror();
   void* sym = dlsym(dl_handle, symbol);
@@ -25,6 +29,11 @@ void* Lookup(void* dl_handle, const char* symbol) {
   return sym;
 }
 
+/// @brief 查找导出符号并转换为指定函数指针类型
+/// @tparam Fn 目标函数指针类型
+/// @param dl_handle 动态库句柄
+/// @param symbol 导出符号名称
+/// @return 成功返回函数指针，失败返回 nullptr
 template <typename Fn>
 Fn LookupFn(void* dl_handle, const char* symbol) {
   return reinterpret_cast<Fn>(Lookup(dl_handle, symbol));

@@ -9,23 +9,16 @@
 #ifndef QTRADE_TRADING_ENGINE_EXECUTION_MANAGER_HPP_
 #define QTRADE_TRADING_ENGINE_EXECUTION_MANAGER_HPP_
 
+#include "qtrade/engine/account_risk/account_risk_api.hpp"
 #include "qtrade/engine/execution/execution_api.hpp"
+#include "qtrade/engine/orders/order_api.hpp"
 
 #include <qtrade/sdk/trader/trader_api.hpp>
 
 #include <condition_variable>
 #include <deque>
 #include <mutex>
-#include <string>
 #include <thread>
-
-namespace qtrade::engine::account_risk {
-class AccountRiskApi;
-}
-
-namespace qtrade::engine::orders {
-class OrderApi;
-}
 
 namespace qtrade::engine::execution {
 

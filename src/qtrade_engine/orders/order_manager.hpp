@@ -175,7 +175,10 @@ class OrderManager final : public OrderApi {
   [[nodiscard]] std::unordered_map<std::string, OrderEntry>::iterator FindOrderLocked(const std::string& order_id,
                                                                                       std::uint32_t client_order_id);
 
-  /// @copydoc FindOrderLocked
+  /// @brief 按 order_id 或 client_order_id 定位（调用方已持锁）
+  /// @param order_id 全局订单 ID；可为空则仅按 client_order_id 查
+  /// @param client_order_id 策略侧客户端订单 ID；0 表示不使用
+  /// @return 命中则返回常量迭代器，否则等于 orders_.end()
   [[nodiscard]] std::unordered_map<std::string, OrderEntry>::const_iterator FindOrderLocked(
     const std::string& order_id, std::uint32_t client_order_id) const;
 

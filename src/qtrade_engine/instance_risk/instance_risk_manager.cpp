@@ -1,4 +1,4 @@
-/// @file      risk_manager.cpp
+/// @file      instance_risk_manager.cpp
 /// @brief     风险管理器实现
 /// @author    wengjianhong
 /// @date      2026-05-19

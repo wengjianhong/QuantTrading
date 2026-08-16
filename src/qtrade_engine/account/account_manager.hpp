@@ -35,11 +35,28 @@ class AccountManager final : public AccountApi {
   /// @param asset 最新账户资产
   void ApplyAssetSnapshot(const qtrade::sdk::trader::AccountAsset& asset);
 
+  /// @brief 根据订单剩余量更新本地冻结名义金额
+  /// @param order 最新订单快照
   void ApplyOrder(const Order& order) override;
+
+  /// @brief 幂等应用成交回报并更新现金流
+  /// @param trade 成交回报
   void ApplyTrade(const Trade& trade) override;
+
+  /// @brief 返回当前累计成交金额
+  /// @return 已去重成交金额绝对值合计
   [[nodiscard]] double GetFilledAmount() const override;
+
+  /// @brief 返回本地订单冻结名义金额
+  /// @return 活动买单冻结合计
   [[nodiscard]] double GetFrozenAmount() const override;
+
+  /// @brief 返回成交净现金流
+  /// @return 卖出为正、买入为负
   [[nodiscard]] double GetNetCashFlow() const override;
+
+  /// @brief 返回估算可用资金
+  /// @return 柜台可用资金加净现金流减本地冻结
   [[nodiscard]] double GetAvailableFunds() const override;
 
  private:

@@ -15,6 +15,7 @@ namespace qtrade::engine::account {
 /// @brief 账户资金模块间稳定接口（进程内；非 gRPC）
 class AccountApi {
  public:
+  /// @brief 析构账户资金接口
   virtual ~AccountApi() = default;
 
   /// @brief 根据订单剩余量更新本地冻结名义金额

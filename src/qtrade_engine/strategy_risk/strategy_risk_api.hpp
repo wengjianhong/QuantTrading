@@ -1,4 +1,4 @@
-/// @file      compliance_api.hpp
+/// @file      strategy_risk_api.hpp
 /// @brief     CMS 对引擎内其他模块提供的稳定接口
 /// @details   Pipeline 等兄弟模块只依赖本接口，不依赖 StrategyRiskManager。
 /// @author    wengjianhong
@@ -15,6 +15,7 @@ namespace qtrade::engine::strategy_risk {
 /// @brief CMS 模块间稳定接口（进程内；非 gRPC）
 class StrategyRiskApi {
  public:
+  /// @brief 析构策略风控接口
   virtual ~StrategyRiskApi() = default;
 
   /// @brief 按 request.strategy_id 检查订单是否满足该策略合规规则

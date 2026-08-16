@@ -15,6 +15,7 @@ namespace qtrade::engine::compliance {
 /// @brief 合规模块间稳定接口
 class ComplianceApi {
  public:
+  /// @brief 析构合规接口
   virtual ~ComplianceApi() = default;
 
   /// @brief 检查订单是否命中合规规则

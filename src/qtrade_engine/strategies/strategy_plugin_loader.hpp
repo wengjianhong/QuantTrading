@@ -19,12 +19,17 @@
 #include <vector>
 
 namespace qtrade::engine::strategies {
+/// 策略接口类型
 using qtrade::strategy::IStrategy;
 
-/// @brief 与 ABI 导出符号签名一致的函数指针（供 dlsym 强转）
+/// 与 ABI 导出符号签名一致的函数指针（供 dlsym 强转）
+/// @brief 策略创建函数指针
 using StrategyCreateFn = decltype(&::qtrade_strategy_create);
+/// @brief 策略销毁函数指针
 using StrategyDestroyFn = decltype(&::qtrade_strategy_destroy);
+/// @brief 插件名称函数指针
 using StrategyPluginNameFn = decltype(&::qtrade_strategy_plugin_name);
+/// @brief ABI 版本函数指针
 using StrategyAbiVersionFn = decltype(&::qtrade_strategy_abi_version);
 
 /// @brief 策略实例指针
@@ -47,10 +52,18 @@ struct StrategyPluginEntry {
 /// @brief 策略动态库加载与按 plugin 名创建
 class StrategyPluginLoader {
  public:
+  /// @brief 构造空插件加载器
   StrategyPluginLoader();
+  /// @brief 析构并卸载全部插件
   ~StrategyPluginLoader();
 
+  /// @brief 禁止移动构造
+  StrategyPluginLoader(StrategyPluginLoader&&) = delete;
+  /// @brief 禁止拷贝构造
   StrategyPluginLoader(const StrategyPluginLoader&) = delete;
+  /// @brief 禁止移动赋值
+  StrategyPluginLoader& operator=(StrategyPluginLoader&&) = delete;
+  /// @brief 禁止拷贝赋值
   StrategyPluginLoader& operator=(const StrategyPluginLoader&) = delete;
 
   /// @brief 扫描目录下所有 .so 并加载合法插件（可多次调用追加）

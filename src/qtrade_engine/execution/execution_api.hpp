@@ -16,6 +16,7 @@ namespace qtrade::engine::execution {
 /// @brief EMS 模块间稳定接口（进程内；非 gRPC）
 class ExecutionApi {
  public:
+  /// @brief 析构执行接口
   virtual ~ExecutionApi() = default;
 
   /// @brief 将新单加入 EMS 有界队列

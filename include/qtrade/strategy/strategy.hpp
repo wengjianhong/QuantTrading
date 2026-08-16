@@ -82,6 +82,7 @@ using OrderSender = std::function<ErrorCode(const OrderBatch&)>;
 /// @details 生命周期为 Init → Start → Stop；发单能力经 SetOrderSender 注入
 class IStrategy {
  public:
+  /// @brief 销毁策略接口实例
   virtual ~IStrategy() = default;
 
   /// @brief 初始化策略

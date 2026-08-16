@@ -37,7 +37,13 @@ class StrategyManager {
   /// @brief 析构：Stop 并卸载插件
   ~StrategyManager();
 
+  /// @brief 禁止移动构造
+  StrategyManager(StrategyManager&&) = delete;
+  /// @brief 禁止拷贝构造
   StrategyManager(const StrategyManager&) = delete;
+  /// @brief 禁止移动赋值
+  StrategyManager& operator=(StrategyManager&&) = delete;
+  /// @brief 禁止拷贝赋值
   StrategyManager& operator=(const StrategyManager&) = delete;
 
   /// @brief 按 .so 路径加载插件、创建并注册单个已启用策略

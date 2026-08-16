@@ -16,12 +16,16 @@
 namespace qtrade::common::utils {
 
 /// @brief 校验 Tick 是否可进入 Lane-Q
+/// @param tick 行情 Tick
+/// @return 载荷有效时返回 true
 [[nodiscard]] inline bool IsValidTick(const qtrade::sdk::quote::MarketTick& tick) {
   return !tick.instrument.empty() && tick.data_time > 0 && std::isfinite(tick.last_price) && tick.last_price > 0.0 &&
          tick.volume >= 0;
 }
 
 /// @brief 校验 Bar 是否可进入 Lane-Q
+/// @param bar 行情 Bar
+/// @return 载荷有效时返回 true
 [[nodiscard]] inline bool IsValidBar(const qtrade::sdk::quote::Bar& bar) {
   return !bar.instrument.empty() && bar.open_time > 0 && bar.close_time >= bar.open_time && std::isfinite(bar.open) &&
          std::isfinite(bar.high) && std::isfinite(bar.low) && std::isfinite(bar.close) && bar.high >= bar.low &&
@@ -29,6 +33,8 @@ namespace qtrade::common::utils {
 }
 
 /// @brief 校验订单回报是否可进入 Lane-T
+/// @param order 订单回报
+/// @return 载荷有效时返回 true
 [[nodiscard]] inline bool IsValidOrder(const qtrade::sdk::trader::Order& order) {
   return !(order.order_id.empty() && order.broker_order_id == 0 && order.client_order_id == 0) && order.volume >= 0 &&
          order.traded_volume >= 0 && order.left_volume >= 0 &&
@@ -36,6 +42,8 @@ namespace qtrade::common::utils {
 }
 
 /// @brief 校验成交回报是否可进入 Lane-T
+/// @param trade 成交回报
+/// @return 载荷有效时返回 true
 [[nodiscard]] inline bool IsValidTrade(const qtrade::sdk::trader::Trade& trade) {
   return !trade.instrument.empty() && trade.volume > 0 && std::isfinite(trade.price) && trade.price >= 0.0 &&
          !(trade.order_id.empty() && trade.broker_order_id == 0 && trade.client_order_id == 0);

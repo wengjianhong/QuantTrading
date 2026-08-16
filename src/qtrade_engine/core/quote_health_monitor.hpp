@@ -38,7 +38,13 @@ class QuoteHealthMonitor {
   /// @brief 析构并停止后台线程
   ~QuoteHealthMonitor();
 
+  /// @brief 禁止移动构造
+  QuoteHealthMonitor(QuoteHealthMonitor&& other) = delete;
+  /// @brief 禁止拷贝构造
   QuoteHealthMonitor(const QuoteHealthMonitor&) = delete;
+  /// @brief 禁止移动赋值
+  QuoteHealthMonitor& operator=(QuoteHealthMonitor&& other) = delete;
+  /// @brief 禁止拷贝赋值
   QuoteHealthMonitor& operator=(const QuoteHealthMonitor&) = delete;
 
   /// @brief 启动后台静默检测线程

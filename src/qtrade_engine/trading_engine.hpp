@@ -45,35 +45,67 @@ namespace qtrade::engine {
 /// @details 对外稳定契约见 IEngine。子模块由本类装配，不对外暴露访问器。
 class TradingEngine final : public IEngine {
  public:
+  /// @brief 构造交易引擎并装配进程内模块
   TradingEngine();
+  /// @brief 析构交易引擎并释放资源
   ~TradingEngine() override;
+
+  /// @brief 禁止移动构造
+  TradingEngine(TradingEngine&&) = delete;
+  /// @brief 禁止拷贝构造
   TradingEngine(const TradingEngine&) = delete;
+  /// @brief 禁止移动赋值
+  TradingEngine& operator=(TradingEngine&&) = delete;
+  /// @brief 禁止拷贝赋值
   TradingEngine& operator=(const TradingEngine&) = delete;
 
   // ---------------------------------------------------------------------------
   // IEngine：生命周期与状态
   // ---------------------------------------------------------------------------
 
+  /// @brief 初始化交易引擎
+  /// @param config 引擎配置
+  /// @return 初始化结果
   ErrorCode Init(const EngineConfig& config) override;
+  /// @brief 启动交易引擎
+  /// @return 启动结果
   ErrorCode Start() override;
+  /// @brief 停止交易引擎
+  /// @return 停止结果
   ErrorCode Stop() override;
 
+  /// @brief 查询当前生命周期状态
+  /// @return 当前引擎状态
   [[nodiscard]] EngineState State() const override;
+  /// @brief 查询引擎是否正在运行
+  /// @return 已启动且未停止时返回 true
   [[nodiscard]] bool IsRunning() const override;
 
   // ---------------------------------------------------------------------------
   // IEngine：依赖注入
   // ---------------------------------------------------------------------------
 
+  /// @brief 注入账户服务桥接
+  /// @param bridge 账户桥接指针；可为 nullptr
   void SetAccountBridge(qtrade::account::IAccountBridge* bridge) override;
+  /// @brief 注入账户硬风控桥接
+  /// @param bridge 账户硬风控桥接指针；可为 nullptr
   void SetAccountRiskBridge(qtrade::account_risk::IAccountRiskBridge* bridge) override;
+  /// @brief 注入行情适配器
+  /// @param quote_api 行情适配器所有权
   void SetQuoteApi(std::unique_ptr<qtrade::sdk::quote::QuoteApi> quote_api) override;
+  /// @brief 注入交易适配器
+  /// @param trader_api 交易适配器所有权
   void SetTraderApi(std::unique_ptr<qtrade::sdk::trader::TraderApi> trader_api) override;
 
   // ---------------------------------------------------------------------------
   // IEngine：策略登记（须在 Start 前）
   // ---------------------------------------------------------------------------
 
+  /// @brief 登记策略插件及实例配置
+  /// @param config 策略配置
+  /// @param plugin_so_path 策略插件路径
+  /// @return 登记结果
   ErrorCode AddStrategy(const qtrade::strategy::StrategyConfig& config, const std::string& plugin_so_path) override;
 
  private:

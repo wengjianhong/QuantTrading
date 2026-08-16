@@ -1,4 +1,4 @@
-/// @file      compliance_manager.hpp
+/// @file      strategy_risk_manager.hpp
 /// @brief     合规管理器（实现 StrategyRiskApi）
 /// @details   按 strategy_id 索引 StrategyRiskLimits；未登记的策略拒单
 /// @author    wengjianhong
@@ -20,7 +20,9 @@ namespace qtrade::engine::strategy_risk {
 /// @brief 按策略管理的限额合规检查（是否启用由 AddStrategy 是否登记决定）
 class StrategyRiskManager final : public StrategyRiskApi {
  public:
+  /// @brief 构造空策略规则表
   StrategyRiskManager() = default;
+  /// @brief 析构策略风控管理器
   ~StrategyRiskManager() override = default;
 
   /// @brief 注册或替换指定策略的限额规则
@@ -34,9 +36,12 @@ class StrategyRiskManager final : public StrategyRiskApi {
   void RemoveStrategyRules(const std::string& strategy_id);
 
   /// @brief 按 request.strategy_id 检查订单
+  /// @param request 下单请求
+  /// @return 通过返回 kSuccess
   [[nodiscard]] ErrorCode CheckOrder(const qtrade::sdk::trader::OrderRequest& request) const override;
 
  private:
+  /// 保护策略规则表
   mutable std::mutex mutex_;
   /// strategy_id → 策略限额
   std::unordered_map<std::string, qtrade::strategy::StrategyRiskLimits> rules_by_strategy_;

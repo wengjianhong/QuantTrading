@@ -20,6 +20,7 @@ namespace qtrade::engine::account_risk {
 /// @brief 账户硬风控模块间稳定接口（进程内；非 gRPC）
 class AccountRiskApi {
  public:
+  /// @brief 析构账户硬风控接口
   virtual ~AccountRiskApi() = default;
 
   /// @brief 发单路径同步预占；未注入桥时跳过并返回 kSuccess

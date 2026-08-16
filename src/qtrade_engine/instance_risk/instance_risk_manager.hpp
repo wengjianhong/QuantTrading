@@ -1,4 +1,4 @@
-/// @file      risk_manager.hpp
+/// @file      instance_risk_manager.hpp
 /// @brief     风险管理器
 /// @details   校验单笔参数、活动订单数与累计名义敞口是否超出实例风险预算
 /// @author    wengjianhong
