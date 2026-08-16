@@ -36,6 +36,10 @@ class AccountRiskManager final : public AccountRiskApi {
   /// @brief 禁止拷贝赋值
   AccountRiskManager& operator=(const AccountRiskManager&) = delete;
 
+  // ---------------------------------------------------------------------------
+  // 组合根配置（仅 TradingEngine 在 Init 前调用）
+  // ---------------------------------------------------------------------------
+
   /// @brief 注入或清除硬风控桥（非拥有）
   /// @param bridge 可空；空则 Reserve 跳过、Release 忽略
   void SetBridge(qtrade::account_risk::IAccountRiskBridge* bridge);
@@ -45,11 +49,19 @@ class AccountRiskManager final : public AccountRiskApi {
   /// @param engine_id 引擎实例标识
   void SetIdentity(std::string account_id, std::string engine_id);
 
+  // ---------------------------------------------------------------------------
+  // 异步释放生命周期
+  // ---------------------------------------------------------------------------
+
   /// @brief 启动 Release 工作线程
   void Start();
 
   /// @brief 拒绝新入队，排干已入队 Release 并 join
   void Stop();
+
+  // ---------------------------------------------------------------------------
+  // AccountRiskApi：订单准入
+  // ---------------------------------------------------------------------------
 
   /// @brief 同步预占账户风险额度
   /// @param request 下单请求
@@ -63,10 +75,6 @@ class AccountRiskManager final : public AccountRiskApi {
   /// @param reason 释放原因
   void Release(std::string order_id, qtrade::account_risk::ReleaseReason reason) override;
 
-  /// @brief 当前待处理 Release 个数
-  /// @return 待处理释放工作项数量
-  [[nodiscard]] std::size_t PendingCount() const;
-
  private:
   /// 异步释放工作项
   struct ReleaseItem {
@@ -75,6 +83,10 @@ class AccountRiskManager final : public AccountRiskApi {
     /// 释放原因
     qtrade::account_risk::ReleaseReason reason = qtrade::account_risk::ReleaseReason::kUnspecified;
   };
+
+  // ---------------------------------------------------------------------------
+  // 异步释放队列
+  // ---------------------------------------------------------------------------
 
   /// @brief 工作线程：出队并调用桥接 Release
   void Run();

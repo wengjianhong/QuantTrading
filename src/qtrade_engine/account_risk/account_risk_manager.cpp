@@ -53,6 +53,7 @@ void AccountRiskManager::Stop() {
 }
 
 ErrorCode AccountRiskManager::Reserve(const qtrade::sdk::trader::OrderRequest& request, const std::string& order_id) {
+  // 1. 在锁内取得本次桥接调用所需的稳定配置快照。
   qtrade::account_risk::IAccountRiskBridge* bridge = nullptr;
   std::string account_id;
   std::string engine_id;
@@ -66,6 +67,7 @@ ErrorCode AccountRiskManager::Reserve(const qtrade::sdk::trader::OrderRequest& r
     return ErrorCode::kSuccess;
   }
 
+  // 2. 将本地下单请求映射为账户风控预占请求。
   qtrade::account_risk::ReserveRequest reserve_request;
   reserve_request.account_id = account_id;
   reserve_request.order_id = order_id;
@@ -78,10 +80,12 @@ ErrorCode AccountRiskManager::Reserve(const qtrade::sdk::trader::OrderRequest& r
   reserve_request.exposure.side = request.side;
   reserve_request.expected_policy_version = 0;
 
+  // 3. 预占结果未知时使用相同 order_id 查询确认，避免重复预占。
   const auto reserve_result = bridge->Reserve(reserve_request);
-  const bool reserve_unknown = reserve_result.error_code == ErrorCode::kTimeout ||
-                               (reserve_result.error_code == ErrorCode::kSuccess && reserve_result.data.has_value() &&
-                                reserve_result.data->state == qtrade::account_risk::ReservationState::kUnspecified);
+  const bool reserve_unknown =
+    reserve_result.error_code == ErrorCode::kTimeout ||
+    (reserve_result.error_code == ErrorCode::kSuccess && reserve_result.data.has_value() &&
+     reserve_result.data->state == qtrade::account_risk::ReservationState::kUnspecified);
   if (reserve_unknown) {
     const auto query_result = bridge->QueryReservation(account_id, order_id);
     if (query_result.error_code != ErrorCode::kSuccess || !query_result.data.has_value() ||
@@ -110,11 +114,6 @@ void AccountRiskManager::Release(std::string order_id, qtrade::account_risk::Rel
     queue_.push_back(ReleaseItem{std::move(order_id), reason});
   }
   cv_.notify_one();
-}
-
-std::size_t AccountRiskManager::PendingCount() const {
-  std::lock_guard lock(mutex_);
-  return queue_.size();
 }
 
 void AccountRiskManager::Run() {
