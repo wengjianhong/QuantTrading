@@ -83,6 +83,106 @@ qtrade/
 
 6. 若日后将通用基础组件（线程池、无锁结构、工具函数等）从 `include/` + `src/` 中独立为 `base/` 目录，保持与《架构》「共享基础代码」职责一致即可。
 
+### 2.1 引擎类关系（当前代码）
+
+组合根是 `TradingEngine`（实现 `IEngine`）。子模块由组合根持有；跨模块协作只依赖 `XxxApi`，不互相拿 Manager。适配器与桥接由进程入口注入，引擎不创建。模块边界见《架构》§三。
+
+```mermaid
+classDiagram
+direction TB
+
+class IEngine {
+  <<interface>>
+  +Init(EngineConfig)
+  +Start() Stop()
+  +SetQuoteApi()
+  +SetTraderApi()
+  +SetAccountBridge()
+  +SetAccountRiskBridge()
+  +AddStrategy()
+}
+
+class TradingEngine {
+  +Init()
+  +Start() Stop()
+  -SubmitStrategyBatch()
+  -HandleMarketHealthChanged()
+}
+
+IEngine <|-- TradingEngine
+
+TradingEngine *-- EngineLifecycle
+TradingEngine *-- EventLanes
+TradingEngine *-- SdkEventHandler
+TradingEngine *-- QuoteHealthMonitor
+TradingEngine *-- StrategyManager
+TradingEngine *-- OrderPipeline
+TradingEngine *-- OrderIntentQueue
+TradingEngine *-- LaneEventHandler
+TradingEngine *-- ComplianceManager
+TradingEngine *-- StrategyRiskManager
+TradingEngine *-- InstanceRiskManager
+TradingEngine *-- OrderManager
+TradingEngine *-- ExecutionManager
+TradingEngine *-- AccountManager
+TradingEngine *-- PositionManager
+TradingEngine *-- AccountRiskManager
+
+TradingEngine o-- QuoteApi : unique_ptr
+TradingEngine o-- TraderApi : unique_ptr
+TradingEngine --> IAccountBridge : 非拥有
+```
+
+```mermaid
+classDiagram
+direction LR
+
+class QuoteApi {
+  <<sdk>>
+}
+class TraderApi {
+  <<sdk>>
+}
+class IAccountRiskBridge {
+  <<bridge>>
+}
+
+QuoteApi ..> SdkEventHandler : 回调 OnTick/OnBar
+TraderApi ..> SdkEventHandler : 回调 OnOrder/OnTrade
+SdkEventHandler --> EventLanes : Publish
+SdkEventHandler --> QuoteHealthMonitor : Tick 健康
+
+EventLanes --> LaneEventHandler : Lane-T 先注册
+EventLanes --> StrategyEventDispatcher : 再入策略队列
+StrategyManager *-- StrategyEventDispatcher
+StrategyManager --> IStrategy : 插件 worker On*
+
+IStrategy --> OrderPipeline : OrderSender
+OrderPipeline --> ComplianceApi
+OrderPipeline --> StrategyRiskApi
+OrderPipeline --> InstanceRiskApi
+OrderPipeline --> OrderIntentQueue : Enqueue
+OrderIntentQueue --> AccountRiskApi : Reserve
+OrderIntentQueue --> OrderApi
+OrderIntentQueue --> ExecutionApi
+
+LaneEventHandler --> OrderApi
+LaneEventHandler --> AccountApi
+LaneEventHandler --> PositionApi
+LaneEventHandler --> AccountRiskApi : Release
+
+ComplianceManager --|> ComplianceApi
+StrategyRiskManager --|> StrategyRiskApi
+InstanceRiskManager --|> InstanceRiskApi
+OrderManager --|> OrderApi
+ExecutionManager --|> ExecutionApi
+AccountManager --|> AccountApi
+PositionManager --|> PositionApi
+AccountRiskManager --|> AccountRiskApi
+AccountRiskManager --> IAccountRiskBridge
+ExecutionManager --> TraderApi : 出站发单
+```
+
 ---
 
 ## 3. 热路径与非热路径（开发约束摘要）
