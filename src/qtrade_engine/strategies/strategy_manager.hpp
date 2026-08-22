@@ -64,6 +64,14 @@ class StrategyManager {
   /// @warning 须重新登记策略后才能再 Start
   void Stop();
 
+  /// @brief 开关 Lane 向策略队列的投递；不停队列、不销毁分发器
+  /// @param active false 时丢弃后续 Lane 事件，供停机时先停投递再 Stop Lane
+  void SetDispatchActive(bool active);
+
+  /// @brief 将订单回报直接写入对应策略队列（E 段失败/未知回传；不经 Lane-T）
+  /// @param order 订单快照
+  void NotifyOrder(const qtrade::sdk::trader::Order& order);
+
   /// @brief 注册已 Init 完成的策略实例（单测注入；生产路径由 AddStrategyFromPlugin 内部调用）
   /// @param strategy_id 策略实例标识，不可为空
   /// @param strategy 策略实例所有权；不可为空

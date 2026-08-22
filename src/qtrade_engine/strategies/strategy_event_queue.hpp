@@ -14,6 +14,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <mutex>
 #include <thread>
@@ -30,9 +31,14 @@ using StrategyEvent = std::variant<qtrade::sdk::quote::MarketTick,
 /// @brief 单策略有界串行队列 + 工作线程
 class StrategyEventQueue {
  public:
+  /// 默认队列容量
+  static constexpr std::size_t kDefaultCapacity = 8192;
+
   /// @brief 绑定策略实例（不拥有）
   /// @param strategy 策略回调目标；须在 Stop 之后才可销毁
-  explicit StrategyEventQueue(qtrade::strategy::IStrategy& strategy);
+  /// @param capacity 队列容量；0 按默认容量
+  explicit StrategyEventQueue(qtrade::strategy::IStrategy& strategy,
+                              std::size_t capacity = kDefaultCapacity);
 
   /// @brief 停止工作线程
   ~StrategyEventQueue();
@@ -52,24 +58,24 @@ class StrategyEventQueue {
   /// @brief 停止接收入队并 join 工作线程
   void Stop();
 
-  /// @brief 入队 Tick；满队列时丢弃最旧事件
+  /// @brief 入队 Tick；满队列时丢弃最旧行情
   /// @param tick 行情 tick
-  /// @return 已入队返回 true；未启动或停写返回 false
+  /// @return 已入队返回 true；未启动、停写或队列已被回报占满返回 false
   bool EnqueueTick(const qtrade::sdk::quote::MarketTick& tick);
 
-  /// @brief 入队 Bar；满队列时丢弃最旧事件
+  /// @brief 入队 Bar；满队列时丢弃最旧行情
   /// @param bar K 线
-  /// @return 已入队返回 true；未启动或停写返回 false
+  /// @return 已入队返回 true；未启动、停写或队列已被回报占满返回 false
   bool EnqueueBar(const qtrade::sdk::quote::Bar& bar);
 
-  /// @brief 入队订单回报；满队列时丢弃最旧事件
+  /// @brief 入队订单回报；满队列时丢弃最旧行情，不丢已有 Order/Trade
   /// @param order 订单回报
-  /// @return 已入队返回 true；未启动或停写返回 false
+  /// @return 已入队返回 true；未启动、停写或无行情可丢返回 false
   bool EnqueueOrder(const qtrade::sdk::trader::Order& order);
 
-  /// @brief 入队成交回报；满队列时丢弃最旧事件
+  /// @brief 入队成交回报；满队列时丢弃最旧行情，不丢已有 Order/Trade
   /// @param trade 成交回报
-  /// @return 已入队返回 true；未启动或停写返回 false
+  /// @return 已入队返回 true；未启动、停写或无行情可丢返回 false
   bool EnqueueTrade(const qtrade::sdk::trader::Trade& trade);
 
  private:
@@ -77,6 +83,11 @@ class StrategyEventQueue {
   /// @param event 待入队事件
   /// @return 已入队返回 true；未启动或停写返回 false
   bool Enqueue(StrategyEvent event);
+
+  /// @brief 丢弃队列中最旧的 Tick/Bar
+  /// @param dropped_kind 被丢弃事件类型名（输出）
+  /// @return 丢弃成功返回 true；队列中没有行情返回 false
+  bool DropOldestMarketLocked(const char** dropped_kind);
 
   /// @brief 工作线程主循环
   void Run();
@@ -86,7 +97,7 @@ class StrategyEventQueue {
   void Dispatch(const StrategyEvent& event);
 
   /// 队列容量
-  static constexpr std::size_t kQueueCapacity = 8192;
+  std::size_t capacity_ = kDefaultCapacity;
   /// 策略实例（不拥有）
   qtrade::strategy::IStrategy& strategy_;
   /// 待回调事件
@@ -101,6 +112,8 @@ class StrategyEventQueue {
   std::atomic<bool> running_{false};
   /// 是否仍接受入队
   std::atomic<bool> accepting_{false};
+  /// 累计丢弃的行情数（仅用于限频日志）
+  std::atomic<std::uint64_t> dropped_count_{0};
 };
 
 }  // namespace qtrade::engine::strategies

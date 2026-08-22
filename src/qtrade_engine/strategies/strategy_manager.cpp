@@ -123,14 +123,13 @@ ErrorCode StrategyManager::Start() {
     dispatcher_->Subscribe();
   }
 
-  // 2. 先启动每策略队列，再激活 Lane 投递，最后 Start 策略
+  // 2. 先启动每策略队列并 Start 策略，再激活 Lane 投递
   for (auto& [strategy_id, entry] : strategies_) {
     (void)strategy_id;
     if (entry.event_queue) {
       entry.event_queue->Start();
     }
   }
-  dispatcher_->SetActive(true);
   running_.store(true);
   for (auto& [strategy_id, entry] : strategies_) {
     (void)strategy_id;
@@ -138,6 +137,7 @@ ErrorCode StrategyManager::Start() {
       spdlog::error("[StrategyManager] strategy Start failed");
     }
   }
+  dispatcher_->SetActive(true);
 
   spdlog::info("[StrategyManager] started with {} strategies", strategies_.size());
   return ErrorCode::kSuccess;
@@ -172,6 +172,30 @@ void StrategyManager::Stop() {
   // 2. 卸载全部插件句柄
   plugin_loader_.UnloadAll();
   spdlog::info("[StrategyManager] stopped and cleared");
+}
+
+void StrategyManager::SetDispatchActive(bool active) {
+  std::lock_guard lock(mutex_);
+  if (dispatcher_) {
+    dispatcher_->SetActive(active);
+  }
+}
+
+void StrategyManager::NotifyOrder(const qtrade::sdk::trader::Order& order) {
+  std::vector<StrategyEventQueue*> targets;
+  {
+    std::lock_guard lock(mutex_);
+    if (const auto route = instrument_routes_.find(order.instrument); route != instrument_routes_.end()) {
+      targets = {route->second};
+    } else {
+      targets = BuildQueueListLocked();
+    }
+  }
+  for (auto* queue : targets) {
+    if (queue != nullptr) {
+      (void)queue->EnqueueOrder(order);
+    }
+  }
 }
 
 ErrorCode StrategyManager::RegisterStrategy(const std::string& strategy_id,

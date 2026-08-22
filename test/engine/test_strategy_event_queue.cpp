@@ -26,10 +26,14 @@ void WaitUntil(const std::function<bool()>& pred, std::chrono::milliseconds time
 
 struct CallbackProbe {
   std::atomic<int> ticks{0};
+  std::atomic<int> orders{0};
   std::atomic<int> concurrent{0};
   std::atomic<int> max_concurrent{0};
   std::atomic<std::thread::id> tick_thread{};
   std::chrono::milliseconds hold{0};
+  std::atomic<bool> start_entered{false};
+  std::chrono::milliseconds start_hold{0};
+  std::atomic<int> last_tick_seq{0};
 };
 
 class ProbeStrategy final : public qtrade::strategy::IStrategy {
@@ -40,6 +44,10 @@ class ProbeStrategy final : public qtrade::strategy::IStrategy {
     return qtrade::ErrorCode::kSuccess;
   }
   qtrade::ErrorCode Start() override {
+    probe_.start_entered.store(true, std::memory_order_release);
+    if (probe_.start_hold > std::chrono::milliseconds::zero()) {
+      std::this_thread::sleep_for(probe_.start_hold);
+    }
     return qtrade::ErrorCode::kSuccess;
   }
   void Stop() override {}
@@ -48,8 +56,9 @@ class ProbeStrategy final : public qtrade::strategy::IStrategy {
     return {};
   }
 
-  void OnTick(const qtrade::sdk::quote::MarketTick&) override {
+  void OnTick(const qtrade::sdk::quote::MarketTick& tick) override {
     probe_.tick_thread.store(std::this_thread::get_id(), std::memory_order_release);
+    probe_.last_tick_seq.store(static_cast<int>(tick.last_price), std::memory_order_release);
     const int now = probe_.concurrent.fetch_add(1, std::memory_order_acq_rel) + 1;
     int max = probe_.max_concurrent.load(std::memory_order_relaxed);
     while (now > max && !probe_.max_concurrent.compare_exchange_weak(max, now, std::memory_order_relaxed)) {
@@ -61,7 +70,9 @@ class ProbeStrategy final : public qtrade::strategy::IStrategy {
     probe_.ticks.fetch_add(1, std::memory_order_relaxed);
   }
   void OnBar(const qtrade::sdk::quote::Bar&) override {}
-  void OnOrder(const qtrade::sdk::trader::Order&) override {}
+  void OnOrder(const qtrade::sdk::trader::Order&) override {
+    probe_.orders.fetch_add(1, std::memory_order_relaxed);
+  }
   void OnTrade(const qtrade::sdk::trader::Trade&) override {}
 
  private:
@@ -147,6 +158,185 @@ TEST(StrategyEventQueue, SlowStrategyDoesNotBlockOtherStrategyOnLaneQ) {
   EXPECT_LT(elapsed, std::chrono::milliseconds(150));
   EXPECT_EQ(slow.ticks.load(), 0);
 
-  manager.Stop();
+  manager.SetDispatchActive(false);
   lanes.Stop();
+  manager.Stop();
+}
+
+class ThrowingTickStrategy final : public qtrade::strategy::IStrategy {
+ public:
+  qtrade::ErrorCode Init(const qtrade::strategy::StrategyConfig&) override {
+    return qtrade::ErrorCode::kSuccess;
+  }
+  qtrade::ErrorCode Start() override {
+    return qtrade::ErrorCode::kSuccess;
+  }
+  void Stop() override {}
+  void SetOrderSender(qtrade::strategy::OrderSender) override {}
+  qtrade::strategy::StrategyConfig GetStrategyConfig() const override {
+    return {};
+  }
+
+  void OnTick(const qtrade::sdk::quote::MarketTick&) override {
+    const int n = ticks.fetch_add(1, std::memory_order_relaxed);
+    if (n == 0) {
+      throw 42;
+    }
+  }
+  void OnBar(const qtrade::sdk::quote::Bar&) override {}
+  void OnOrder(const qtrade::sdk::trader::Order&) override {}
+  void OnTrade(const qtrade::sdk::trader::Trade&) override {}
+
+  std::atomic<int> ticks{0};
+};
+
+TEST(StrategyEventQueue, DropsOldestTickWhenFull) {
+  CallbackProbe probe;
+  probe.hold = std::chrono::milliseconds(80);
+  ProbeStrategy strategy(probe);
+  qtrade::engine::strategies::StrategyEventQueue queue(strategy, 2);
+  queue.Start();
+
+  qtrade::sdk::quote::MarketTick tick;
+  tick.instrument = "IF2506";
+  tick.last_price = 1;
+  ASSERT_TRUE(queue.EnqueueTick(tick));
+  WaitUntil([&] { return probe.concurrent.load(std::memory_order_acquire) == 1; }, std::chrono::milliseconds(200));
+
+  tick.last_price = 2;
+  ASSERT_TRUE(queue.EnqueueTick(tick));
+  tick.last_price = 3;
+  ASSERT_TRUE(queue.EnqueueTick(tick));
+  tick.last_price = 4;
+  ASSERT_TRUE(queue.EnqueueTick(tick));
+
+  WaitUntil([&] { return probe.ticks.load(std::memory_order_relaxed) == 3; }, std::chrono::milliseconds(500));
+  EXPECT_EQ(probe.ticks.load(), 3);
+  EXPECT_EQ(probe.last_tick_seq.load(), 4);
+
+  queue.Stop();
+}
+
+TEST(StrategyEventQueue, KeepsOrderWhenDroppingMarket) {
+  CallbackProbe probe;
+  probe.hold = std::chrono::milliseconds(80);
+  ProbeStrategy strategy(probe);
+  qtrade::engine::strategies::StrategyEventQueue queue(strategy, 2);
+  queue.Start();
+
+  qtrade::sdk::quote::MarketTick tick;
+  tick.instrument = "IF2506";
+  tick.last_price = 1;
+  ASSERT_TRUE(queue.EnqueueTick(tick));
+  WaitUntil([&] { return probe.concurrent.load(std::memory_order_acquire) == 1; }, std::chrono::milliseconds(200));
+
+  qtrade::sdk::trader::Order order;
+  order.instrument = "IF2506";
+  order.order_id = "keep-me";
+  ASSERT_TRUE(queue.EnqueueOrder(order));
+  tick.last_price = 2;
+  ASSERT_TRUE(queue.EnqueueTick(tick));
+  tick.last_price = 3;
+  ASSERT_TRUE(queue.EnqueueTick(tick));
+
+  WaitUntil([&] { return probe.ticks.load(std::memory_order_relaxed) >= 2 && probe.orders.load() == 1; },
+            std::chrono::milliseconds(500));
+  EXPECT_EQ(probe.orders.load(), 1);
+  EXPECT_GE(probe.ticks.load(), 2);
+
+  queue.Stop();
+}
+
+TEST(StrategyEventQueue, ContinuesAfterNonStdException) {
+  ThrowingTickStrategy strategy;
+  qtrade::engine::strategies::StrategyEventQueue queue(strategy);
+  queue.Start();
+
+  qtrade::sdk::quote::MarketTick tick;
+  tick.instrument = "IF2506";
+  ASSERT_TRUE(queue.EnqueueTick(tick));
+  ASSERT_TRUE(queue.EnqueueTick(tick));
+
+  WaitUntil([&] { return strategy.ticks.load(std::memory_order_relaxed) == 2; }, std::chrono::milliseconds(500));
+  EXPECT_EQ(strategy.ticks.load(), 2);
+
+  queue.Stop();
+}
+
+TEST(StrategyManager, DoesNotDispatchUntilStrategyStartReturns) {
+  qtrade::engine::events::EventLanes lanes;
+  qtrade::engine::strategies::StrategyManager manager(lanes);
+
+  CallbackProbe probe;
+  probe.start_hold = std::chrono::milliseconds(120);
+  ASSERT_EQ(manager.RegisterStrategy("s1", MakeTestStrategyPtr(std::make_unique<ProbeStrategy>(probe)), {"IF2506"}),
+            qtrade::ErrorCode::kSuccess);
+
+  lanes.Start();
+  std::thread starter([&] { EXPECT_EQ(manager.Start(), qtrade::ErrorCode::kSuccess); });
+  WaitUntil([&] { return probe.start_entered.load(std::memory_order_acquire); }, std::chrono::milliseconds(200));
+
+  qtrade::sdk::quote::MarketTick tick;
+  tick.instrument = "IF2506";
+  lanes.Quote().PublishTick(tick);
+  std::this_thread::sleep_for(std::chrono::milliseconds(40));
+  EXPECT_EQ(probe.ticks.load(), 0);
+
+  starter.join();
+  lanes.Quote().PublishTick(tick);
+  WaitUntil([&] { return probe.ticks.load(std::memory_order_relaxed) == 1; }, std::chrono::milliseconds(500));
+  EXPECT_EQ(probe.ticks.load(), 1);
+
+  manager.SetDispatchActive(false);
+  lanes.Stop();
+  manager.Stop();
+}
+
+TEST(StrategyManager, SetDispatchActiveStopsLaneDelivery) {
+  qtrade::engine::events::EventLanes lanes;
+  qtrade::engine::strategies::StrategyManager manager(lanes);
+
+  CallbackProbe probe;
+  ASSERT_EQ(manager.RegisterStrategy("s1", MakeTestStrategyPtr(std::make_unique<ProbeStrategy>(probe)), {"IF2506"}),
+            qtrade::ErrorCode::kSuccess);
+  lanes.Start();
+  ASSERT_EQ(manager.Start(), qtrade::ErrorCode::kSuccess);
+
+  manager.SetDispatchActive(false);
+  qtrade::sdk::quote::MarketTick tick;
+  tick.instrument = "IF2506";
+  lanes.Quote().PublishTick(tick);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  EXPECT_EQ(probe.ticks.load(), 0);
+
+  manager.SetDispatchActive(true);
+  lanes.Quote().PublishTick(tick);
+  WaitUntil([&] { return probe.ticks.load(std::memory_order_relaxed) == 1; }, std::chrono::milliseconds(500));
+  EXPECT_EQ(probe.ticks.load(), 1);
+
+  manager.SetDispatchActive(false);
+  lanes.Stop();
+  manager.Stop();
+}
+
+TEST(StrategyManager, NotifyOrderBypassesDispatchGate) {
+  qtrade::engine::events::EventLanes lanes;
+  qtrade::engine::strategies::StrategyManager manager(lanes);
+
+  CallbackProbe probe;
+  ASSERT_EQ(manager.RegisterStrategy("s1", MakeTestStrategyPtr(std::make_unique<ProbeStrategy>(probe)), {"IF2506"}),
+            qtrade::ErrorCode::kSuccess);
+  lanes.Start();
+  ASSERT_EQ(manager.Start(), qtrade::ErrorCode::kSuccess);
+  manager.SetDispatchActive(false);
+
+  qtrade::sdk::trader::Order order;
+  order.instrument = "IF2506";
+  order.order_id = "e-stage";
+  manager.NotifyOrder(order);
+  WaitUntil([&] { return probe.orders.load(std::memory_order_relaxed) == 1; }, std::chrono::milliseconds(500));
+  EXPECT_EQ(probe.orders.load(), 1);
+
+  lanes.Stop();
+  manager.Stop();
 }

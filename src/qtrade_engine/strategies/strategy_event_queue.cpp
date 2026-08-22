@@ -11,24 +11,49 @@
 #include <type_traits>
 #include <utility>
 
-namespace qtrade::engine::strategies {
+#if defined(__linux__)
+#include <pthread.h>
+#endif
 
-StrategyEventQueue::StrategyEventQueue(qtrade::strategy::IStrategy& strategy) : strategy_(strategy) {}
+namespace qtrade::engine::strategies {
+namespace {
+
+void SetWorkerName(const char* name) {
+#if defined(__linux__)
+  pthread_setname_np(pthread_self(), name);
+#else
+  (void)name;
+#endif
+}
+
+}  // namespace
+
+StrategyEventQueue::StrategyEventQueue(qtrade::strategy::IStrategy& strategy, std::size_t capacity)
+  : capacity_(capacity == 0 ? kDefaultCapacity : capacity), strategy_(strategy) {}
 
 StrategyEventQueue::~StrategyEventQueue() {
   Stop();
 }
 
 void StrategyEventQueue::Start() {
-  if (running_.exchange(true)) {
+  bool expected = false;
+  if (!running_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
     return;
   }
+  try {
+    worker_ = std::thread([this] {
+      SetWorkerName("seq-worker");
+      Run();
+    });
+  } catch (...) {
+    running_.store(false, std::memory_order_release);
+    throw;
+  }
   accepting_.store(true, std::memory_order_release);
-  worker_ = std::thread([this] { Run(); });
 }
 
 void StrategyEventQueue::Stop() {
-  if (!running_.exchange(false)) {
+  if (!running_.exchange(false, std::memory_order_acq_rel)) {
     return;
   }
   accepting_.store(false, std::memory_order_release);
@@ -56,17 +81,41 @@ bool StrategyEventQueue::EnqueueTrade(const qtrade::sdk::trader::Trade& trade) {
   return Enqueue(trade);
 }
 
+bool StrategyEventQueue::DropOldestMarketLocked(const char** dropped_kind) {
+  for (auto it = queue_.begin(); it != queue_.end(); ++it) {
+    if (std::holds_alternative<qtrade::sdk::quote::MarketTick>(*it)) {
+      *dropped_kind = "Tick";
+      queue_.erase(it);
+      return true;
+    }
+    if (std::holds_alternative<qtrade::sdk::quote::Bar>(*it)) {
+      *dropped_kind = "Bar";
+      queue_.erase(it);
+      return true;
+    }
+  }
+  return false;
+}
+
 bool StrategyEventQueue::Enqueue(StrategyEvent event) {
+  const char* dropped_kind = nullptr;
   {
     std::lock_guard lock(mutex_);
     if (!accepting_.load(std::memory_order_acquire)) {
       return false;
     }
-    if (queue_.size() >= kQueueCapacity) {
-      queue_.pop_front();
-      spdlog::warn("[StrategyEventQueue] queue full, dropped oldest event");
+    if (queue_.size() >= capacity_) {
+      if (!DropOldestMarketLocked(&dropped_kind)) {
+        return false;
+      }
     }
     queue_.push_back(std::move(event));
+  }
+  if (dropped_kind != nullptr) {
+    const auto n = dropped_count_.fetch_add(1, std::memory_order_relaxed) + 1;
+    if (n == 1 || n % 256 == 0) {
+      spdlog::debug("[StrategyEventQueue] queue full, dropped oldest {} (count={})", dropped_kind, n);
+    }
   }
   cv_.notify_one();
   return true;
@@ -109,6 +158,8 @@ void StrategyEventQueue::Dispatch(const StrategyEvent& event) {
       event);
   } catch (const std::exception& e) {
     spdlog::error("[StrategyEventQueue] strategy callback exception: {}", e.what());
+  } catch (...) {
+    spdlog::error("[StrategyEventQueue] strategy callback unknown exception");
   }
 }
 

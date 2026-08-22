@@ -23,7 +23,10 @@ namespace qtrade::engine {
 // 构造 / 析构
 // =============================================================================
 
-TradingEngine::TradingEngine() : strategy_manager_(event_lanes_) {}
+TradingEngine::TradingEngine() : strategy_manager_(event_lanes_) {
+  order_intent_queue_.SetOutcomeHandler(
+    [this](const qtrade::sdk::trader::Order& order) { strategy_manager_.NotifyOrder(order); });
+}
 
 TradingEngine::~TradingEngine() {
   Stop();
@@ -355,8 +358,8 @@ ErrorCode TradingEngine::InitEngineModules() {
     return rc;
   }
   instance_risk_manager_.SetStateProviders(
-    [this] { return order_manager_.GetActiveOrderCount(); },
-    [this] { return order_manager_.GetOpenNotional(); });
+    [this] { return order_manager_.GetActiveOrderCount() + order_intent_queue_.PendingCount(); },
+    [this] { return order_manager_.GetOpenNotional() + order_intent_queue_.PendingNotional(); });
 
   // 3. EMS 绑定 OMS；硬风控身份交给 AccountRiskManager（桥仅该模块持有）
   execution_manager_.SetOrderApi(&order_manager_);
@@ -517,13 +520,15 @@ ErrorCode TradingEngine::AdvanceReadyGates() {
 // =============================================================================
 
 void TradingEngine::Release() {
-  // 1. 释放引擎内模块（按依赖逆序释放）
-  strategy_manager_.Stop();
+  // 1. 先停 Lane 投递并 join Lane，避免回调打到已销毁的 Dispatcher
+  strategy_manager_.SetDispatchActive(false);
+  event_lanes_.Stop();
+  // 2. 排空 E 段（失败回传仍可写入仍存活的策略队列）后再停策略
   order_intent_queue_.Stop();
+  strategy_manager_.Stop();
   quote_health_monitor_.Stop();
   execution_manager_.Stop();
   DisconnectAdapters();
-  event_lanes_.Stop();
   account_risk_manager_.Stop();
   order_manager_.Shutdown();
 

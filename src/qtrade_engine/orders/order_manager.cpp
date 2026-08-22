@@ -405,7 +405,7 @@ bool OrderManager::CanTransition(OrderLifecycleState from, OrderLifecycleState t
   switch (from) {
     case OrderLifecycleState::kPrepared:
       return to == OrderLifecycleState::kEmsQueued || to == OrderLifecycleState::kRejected ||
-             to == OrderLifecycleState::kCancelPending;
+             to == OrderLifecycleState::kSendUnknown || to == OrderLifecycleState::kCancelPending;
     case OrderLifecycleState::kEmsQueued:
       return to == OrderLifecycleState::kSendPending || to == OrderLifecycleState::kRejected ||
              to == OrderLifecycleState::kCancelPending;

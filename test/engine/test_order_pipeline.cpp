@@ -1,6 +1,7 @@
 #include "qtrade/engine/compliance/compliance_api.hpp"
 #include "qtrade/engine/core/order_intent_queue.hpp"
 #include "qtrade/engine/core/order_pipeline.hpp"
+#include "qtrade/engine/instance_risk/instance_risk_manager.hpp"
 
 #include <gtest/gtest.h>
 
@@ -183,6 +184,35 @@ TEST(OrderPipeline, SubmitEnqueuesWithoutWaitingForReserve) {
             std::chrono::milliseconds(500));
   EXPECT_TRUE(account_risk.reserve_called.load());
   EXPECT_TRUE(orders.allocate_called.load());
+
+  intent_queue.Stop();
+}
+
+TEST(OrderPipeline, InstanceRiskSeesInflightIntent) {
+  PassingCompliance compliance;
+  PassingStrategyRisk strategy_risk;
+  qtrade::engine::instance_risk::InstanceRiskManager instance_risk;
+  qtrade::engine::instance_risk::InstanceRiskLimits limits;
+  limits.max_open_orders = 1;
+  ASSERT_EQ(instance_risk.Configure(limits), qtrade::ErrorCode::kSuccess);
+
+  RecordingOrderApi orders;
+  RecordingExecutionApi execution;
+  RecordingAccountRiskApi account_risk;
+  account_risk.hold = std::chrono::milliseconds(120);
+  qtrade::engine::OrderIntentQueue intent_queue{account_risk, orders, execution};
+  instance_risk.SetStateProviders([&] { return intent_queue.PendingCount(); },
+                                  [&] { return intent_queue.PendingNotional(); });
+  intent_queue.Start();
+  qtrade::engine::OrderPipeline pipeline{
+    compliance, strategy_risk, instance_risk, orders, execution, intent_queue};
+
+  qtrade::sdk::trader::OrderRequest request;
+  request.instrument = "IF2506";
+  request.price = 100.0;
+  request.volume = 1;
+  EXPECT_EQ(pipeline.Submit(request), qtrade::ErrorCode::kSuccess);
+  EXPECT_EQ(pipeline.Submit(request), qtrade::ErrorCode::kResourceExhausted);
 
   intent_queue.Stop();
 }

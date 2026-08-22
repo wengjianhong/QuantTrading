@@ -113,7 +113,7 @@ A 段只负责生成 `OrderIntent`，不等待远程服务或磁盘。策略 `Or
 
 ### 2.2 热路径与非热路径职责
 
-- **分段与时序以 §2.1、§7.2 为准**：Lane-Q 只将 Tick/Bar 写入对应 `StrategyEventQueue`；策略 worker 执行 `On*`、`ComplianceManager`、策略风控与实例风控后将 `OrderIntent` 入队（A 段）；`OrderIntentQueue` 工作线程执行 E 段预占、OMS 受理并交给 EMS；C 段负责出站。订单/成交回报由订单状态协调器更新内存状态后写入同一条 `StrategyEventQueue`（当前无订单主日志 commit 门槛）。
+- **分段与时序以 §2.1、§7.2 为准**：Lane-Q 只将 Tick/Bar 写入对应 `StrategyEventQueue`；策略 worker 执行 `On*`、`ComplianceManager`、策略风控与实例风控后将 `OrderIntent` 入队（A 段）；`OrderIntentQueue` 工作线程执行 E 段预占、OMS 受理并交给 EMS；C 段负责出站。柜台订单/成交回报由订单状态协调器更新内存状态后写入同一条 `StrategyEventQueue`。E 段本地拒绝或 Unknown 也经回调写入对应策略队列，不经 Lane-T，避免二次 Apply/Release。当前无订单主日志 commit 门槛。
 - **控制面**：配置与风控阈值在启动时拉取为本地快照；引擎不暴露 gRPC Server，**不**做运行时配置 Watch。具体 RPC 见 §7.1。
 - **模块职责**：适配器将厂商 API/结构体映射为 `qtrade/sdk`；`TradingEngine` 将 SDK 回调接线至 EventBus；队列由 Lane-Q/Lane-T 承担；行情健康由 `QuoteHealthMonitor` 监控。
 - **账户标识**：账户/账户风控桥接与跨服务账户 API 以全局唯一 `account_id` 为键；`tenant_id` 仅用于配置身份等控制面概念（若启用），不进入账户热路径。
@@ -199,7 +199,7 @@ config-service 按 `engine_id` 返回专属 `EngineConfig`（client 启动时 `G
 |**发单流水线（OrderPipeline + OrderIntentQueue）**|A 段本地准入后入队；独立线程执行 E 段预占、OMS 受理、EMS 入队|策略线程不做 `Reserve`；EMS 不裁决合规或风控|否，核心编排|`OrderPipeline` 在 `core/`；`OrderIntentQueue` 满时拒绝新意图（`kResourceExhausted`）|
 |**合规（ComplianceManager）**|执行交易所硬规则，如交易时段、合约状态、最小价格与数量单位、涨跌停及订单类型约束|不维护实时资金/持仓账簿；私有模块，不安装至 `include/qtrade/`；不接受外部规则配置|执行器固定；规则数据由交易所日历、合约参考数据或适配器内部提供|位于策略信号后的首个准入关口；当前为占位执行器，规则数据源接入前不拒单|
 |**策略风控（StrategyRiskManager）**|校验策略级限额（仓位、冷却、止损止盈等 `StrategyRiskLimits`）|只处理已登记策略的本地规则；不裁决账户级硬限制|规则可配置，执行器固定|A 段第二个准入关口；位于合规之后、实例风控之前|
-|**实例风控（InstanceRiskManager）**|校验实例预算、策略/品种限制、PnL、行情健康和频率|只处理本实例内存状态；不裁决账户级资金/总敞口硬限制|规则可配置，执行器固定|A 段本地原子扣减预算；账户硬限制转交 E 段 `account-risk-service`|
+|**实例风控（InstanceRiskManager）**|校验实例预算、策略/品种限制、PnL、行情健康和频率|只处理本实例内存状态；不裁决账户级资金/总敞口硬限制|规则可配置，执行器固定|A 段检查 OMS 活动订单与在途 Intent；账户硬限制转交 E 段 `account-risk-service`|
 |**订单状态协调器 + OMS**|统一处理新订单、撤单、订单回报和成交回报|是 OMS、Account、PMS 的单写者；不执行策略、磁盘 I/O 或厂商协议|核心流程固定；订单类型可扩展|OMS 为进程内内存状态机；发单前不做订单主日志落盘；按订单顺序更新内存态|
 |**交易执行（EMS）**|将 OMS 已接受订单路由、拆分并发送到交易通道|不决定策略、合规或风险放行|是，基于 `TraderApi` 适配器|C 段开始；处理通道限流、连接健康和执行回报关联|
 |**运行时账户（AccountManager）**|维护本实例资金、冻结和可用额度副本|不保存开户资料或登录凭证；不是跨实例账户硬限制的权威账簿|否，进程内状态|OMS/回报路径同步更新；快照异步刷盘；凭证职责见 §2.6|
@@ -257,7 +257,7 @@ config-service 按 `engine_id` 返回专属 `EngineConfig`（client 启动时 `G
 | **Lane-T** | Order、Trade | 适配器 → TradingEngine → 订单状态协调器 → `StrategyEventQueue` | `TraderEventReactor` 线程（入队后返回） |
 
 - **策略执行语义**：Tick、Bar、Order、Trade 都进入对应策略的同一条 `StrategyEventQueue`；由该策略的 worker 串行回调，策略不会被两个线程同时进入 `On*`。
-- **队列顺序（当前）**：FIFO；满队列时丢弃最旧事件，保证 Lane-Q/Lane-T 不被策略计算堵住。**后续**：订单/成交回报高于普通行情；行情可按策略声明合并过期快照；事件记录 `enqueue_seq` 与来源时间，回测使用同一排序规则。
+- **队列顺序（当前）**：FIFO；满队列时优先丢弃最旧行情（Tick/Bar），尽量保留 Order/Trade，避免堵住 Lane-Q/Lane-T。**后续**：订单/成交回报高于普通行情；行情可按策略声明合并过期快照；事件记录 `enqueue_seq` 与来源时间，回测使用同一排序规则。
 - **状态更新顺序**：规范化回报由订单状态协调器直接更新 OMS、Account、PMS，再将不可变回报事件放入对应 `StrategyEventQueue`（当前无订单主日志 commit 门槛）。
 - **跨 Lane 读写**：Lane-Q 与策略 worker 只读取带版本的只读快照，不直接修改 OMS、Account 或 PMS。
 - **发单路径**：完整路径见 **§7.2**（A → [E] → OMS(内存) → C）。
@@ -514,9 +514,9 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
 | 队列 | 满队列时怎么做 |
 |---|---|
 | **Lane-Q 行情队列** | 可合并同品种的全量快照或丢弃已过期 Tick；如果策略依赖完整逐笔数据，则暂停该品种新开仓并触发补数 |
-| **StrategyEventQueue** | 每策略一条；当前满队列丢弃最旧事件，避免堵住 Lane-Q/Lane-T。后续可对回报优先、行情合并过期快照 |
+| **StrategyEventQueue** | 每策略一条；满队列优先丢弃最旧 Tick/Bar，Order/Trade 尽量保留，避免堵住 Lane-Q/Lane-T。后续可对回报优先、行情合并过期快照 |
 | **Lane-T 回报队列** | 不允许静默丢弃；使用预留应急容量或独立持久化 inbox。仍无法接收时冻结新单，并按适配器能力从柜台查询补齐 |
-| **OrderIntentQueue** | 拒绝新的 `OrderIntent`（`kResourceExhausted`），归还本地预算并告警，不能继续堆积 |
+| **OrderIntentQueue** | 拒绝新的 `OrderIntent`（`kResourceExhausted`）并告警；在途 Intent 计入实例风控活动订单数与名义，不能继续堆积 |
 | **订单状态协调器队列** | 冻结新单；回报和撤单使用保留容量，并采用有上限的加权调度，避免任何一类长期饥饿 |
 | **EMS 队列** | E 段前先取得 admission token；没有 token 就不执行账户预占。撤单使用独立保留容量 |
 | **审计旁路 / spool（若启用）** | 接近容量上限时告警并按背压策略处理；不得因旁路满而阻塞发单主链；**不是**订单恢复写入通道 |

@@ -88,6 +88,26 @@ TEST(OrderManager, AdoptsBrokerOrderWithoutResubmit) {
   manager.Shutdown();
 }
 
+TEST(OrderManager, AcceptsUnknownReportFromPrepared) {
+  qtrade::engine::orders::OrderManager manager;
+  ASSERT_EQ(manager.Initialize(MakeOptions()), qtrade::ErrorCode::kSuccess);
+
+  qtrade::sdk::trader::OrderRequest request;
+  request.client_order_id = 8;
+  request.instrument = "IF2506";
+  request.price = 100.0;
+  request.volume = 1;
+  const auto order = manager.CreateOrder(request);
+  ASSERT_TRUE(order.has_value());
+
+  qtrade::sdk::trader::Order report = *order;
+  report.status = qtrade::sdk::trader::OrderStatusType::kUnknown;
+  manager.ApplyOrderReport(report);
+
+  EXPECT_EQ(manager.GetLifecycleState(order->order_id), qtrade::engine::orders::OrderLifecycleState::kSendUnknown);
+  manager.Shutdown();
+}
+
 TEST(OrderManager, InitializeClearsPreviousMemory) {
   qtrade::engine::orders::OrderManager manager;
   ASSERT_EQ(manager.Initialize(MakeOptions()), qtrade::ErrorCode::kSuccess);
