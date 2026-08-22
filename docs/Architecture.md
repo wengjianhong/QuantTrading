@@ -16,7 +16,7 @@
 - **合规可控**：以交易留痕、异常交易监控、等保三级、数据脱敏和跨境数据管理为建设目标，最终以机构合规评审和测评结果为准；
 - **全生命周期可观测**：覆盖指标、日志、链路、调用链全维度监控，支持根因分析与性能溯源；
 - **弹性扩展**：核心层按配置静态分片扩展；支撑服务根据自身负载独立扩容；
-- **封闭安全**：交易**数据面**仅由内部行情事件驱动发单；**控制面**在启动时出站拉取配置，运行中不热更、不暴露任何外部 TCP/HTTP 直连控制口；配置/策略变更须停引擎后重 Init/Start；
+- **封闭安全**：交易**数据面**仅由内部行情/回报事件驱动发单；引擎**不收控制面消息**、不暴露任何外部 TCP/HTTP/gRPC 控制口。配置与策略仅由进程入口在冷启动注入（`Init` / `AddStrategy`），运行中不热更；变更须停引擎后重 Init/Start；
 
 ### 1.3 核心设计原则
 
@@ -87,15 +87,17 @@ MVP 在单机房、生产同等级硬件下采用以下基线；客户部署可�
 
 压测必须固定 CPU/NUMA、编译模式、消息大小和策略复杂度，预热后持续至少 30 分钟，并报告吞吐、超时率、`Unknown` 率、队列高水位和最大值。
 
-#### 2.1.3 控制面与数据面
+#### 2.1.3 数据面与启动编排（无控制面消息）
+
+引擎进程内**没有**控制面消息总线，也没有运行时 Watch / SafetyControl 流。`IEngine` 不提供 `SetEngineConfig`。
 
 | 平面 | 驱动来源 | 允许操作 | 禁止操作 |
 |---|---|---|---|
-| **数据面** | Tick/Bar/订单回报事件 | 策略逻辑、发单/撤单信号、风控拦截 | 外部 HTTP/TCP 直连触发交易 |
-| **控制面** | client 出站 `GetEngineConfig` → `SetEngineConfig` | 整引擎启停（进程级）、冷启动 `AddStrategy` 载入策略 | 运行中热更策略参数/单策略启停；绕过配置中心直接改引擎内存；同步阻塞热路径 |
-| **安全控制面** | 引擎主动建立的安全控制流 | 冻结新单、按账户/策略撤销全部挂单、断开交易通道 | 人工新开仓、任意改单、绕过风控 |
+| **数据面** | Tick/Bar/订单/成交（适配器回调） | 策略逻辑、发单/撤单、风控拦截、账本更新 | 外部 HTTP/TCP 直连触发交易；向引擎推送控制命令 |
+| **启动编排（进程入口）** | 本地引导 JSON；可选出站 `GetEngineConfig` / `GetCredential` | 组装 `EngineConfig` 后 `Init`；`AddStrategy`；整进程 Start/Stop | 运行中热更策略参数/单策略启停；绕过入口直接改引擎内存 |
+| **行情健康门禁** | `QuoteHealthMonitor` | `Initiated`→`Ready`，或 `Ready`→`Frozen`（拒新单、仍处理回报） | 作为远程安全控制命令通道 |
 
-普通配置变更不直接产生订单。**当前实现**：业务配置与策略参数仅在冷启动/重 Init 时载入，运行中不热更新；「冻结新单」等安全动作须立即生效，不等待下一 Tick。安全控制操作必须双人复核、幂等执行并完整审计。
+普通配置变更不直接产生订单。业务配置与策略参数仅在冷启动/重 Init 时载入。远程「冻结新单 / 全撤 / 断通道」属后续能力（§11），**当前不接线**。
 
 #### 2.1.4 发单主链（A → [E] → OMS(内存) → C）
 
@@ -113,20 +115,20 @@ A 段只负责生成 `OrderIntent`，不等待远程服务或磁盘。策略 `Or
 
 ### 2.2 热路径与非热路径职责
 
-- **分段与时序以 §2.1、§7.2 为准**：Lane-Q 只将 Tick/Bar 写入对应 `StrategyEventQueue`；策略 worker 执行 `On*`、`ComplianceManager`、策略风控与实例风控后将 `OrderIntent` 入队（A 段）；`OrderIntentQueue` 工作线程执行 E 段预占、OMS 受理并交给 EMS；C 段负责出站。柜台订单/成交回报由订单状态协调器更新内存状态后写入同一条 `StrategyEventQueue`。E 段本地拒绝或 Unknown 也经回调写入对应策略队列，不经 Lane-T，避免二次 Apply/Release。当前无订单主日志 commit 门槛。
-- **控制面**：配置与风控阈值在启动时拉取为本地快照；引擎不暴露 gRPC Server，**不**做运行时配置 Watch。具体 RPC 见 §7.1。
-- **模块职责**：适配器将厂商 API/结构体映射为 `qtrade/sdk`；`TradingEngine` 将 SDK 回调接线至 EventBus；队列由 Lane-Q/Lane-T 承担；行情健康由 `QuoteHealthMonitor` 监控。
-- **账户标识**：账户/账户风控桥接与跨服务账户 API 以全局唯一 `account_id` 为键；`tenant_id` 仅用于配置身份等控制面概念（若启用），不进入账户热路径。
+- **分段与时序以 §2.1、§7.2 为准**：Lane-Q 只将 Tick/Bar 写入对应 `StrategyEventQueue`；策略 worker 执行 `On*`、`ComplianceManager`、策略风控与实例风控后将 `OrderIntent` 入队（A 段）；`OrderIntentQueue` 工作线程执行 E 段预占、OMS 受理并交给 EMS；C 段负责出站。柜台订单/成交回报由 `LaneEventHandler` 更新内存状态后，再由 `StrategyEventDispatcher` 写入同一条 `StrategyEventQueue`。E 段本地拒绝或 Unknown 也经 `StrategyManager.NotifyOrder` 写入对应策略队列，不经 Lane-T，避免二次 Apply/Release。当前无订单主日志 commit 门槛。
+- **启动编排**：进程入口组装配置后调用 `IEngine::Init(EngineConfig)`；引擎不暴露 gRPC Server，**不**做运行时配置 Watch，也**不**接收控制面消息。出站 RPC 见 §7.1。
+- **模块职责**：适配器将厂商 API/结构体映射为 `qtrade/sdk`；`SdkEventHandler` 将 SDK 回调发布到 EventLanes；队列由 Lane-Q/Lane-T 承担；行情健康由 `QuoteHealthMonitor` 监控；`TradingEngine` 只做生命周期编排与接线。
+- **账户标识**：账户/账户风控桥接与跨服务账户 API 以全局唯一 `account_id` 为键；`tenant_id` 仅用于配置身份（若启用），不进入账户热路径。
 
 ### 2.3 支撑服务范围与演进
 
-**MVP 最小服务集**：config-service（配置、变更审计和安全控制能力）、account-service（账户主数据和凭证）、account-risk-service（账户硬风控）、observability-service，以及可选 history-service。安全控制在 MVP 可与 config-service 同进程部署，但使用独立 RPC 和权限，不与普通配置混用。Production/Institutional 不允许关闭 account-risk-service。
+**MVP 最小服务集**：config-service（配置与变更审计）、account-service（账户主数据和凭证）、account-risk-service（账户硬风控）、observability-service，以及可选 history-service。远程安全控制流（冻结/全撤/断通道）属后续能力，当前不与引擎接线。Production/Institutional 不允许关闭 account-risk-service。
 
-**部署原则**：支撑服务与交易引擎物理隔离（Lite 档位例外见 §8.1），可独立部署和扩容。配置、账户风控或安全控制服务不可用时，按 §7.1 的规则冻结新单，回报和撤单继续运行。
+**部署原则**：支撑服务与交易引擎物理隔离（Lite 档位例外见 §8.1），可独立部署和扩容。账户风控服务不可用时拒绝受硬限制账户的新订单，回报和撤单继续运行。
 
 ### 2.4 引擎与支撑服务交互模型
 
-本系统不引入 Kafka/Redis/NATS 等独立消息中间件作为必选基础设施。**交互矩阵、RPC 与背压策略以 §7.1 为唯一权威定义**：引擎只作为网络连接发起方，拉取配置和凭证、执行账户预占、建立安全控制流并异步上报；支撑服务不能主动连接引擎端口。
+本系统不引入 Kafka/Redis/NATS 等独立消息中间件作为必选基础设施。**交互矩阵、RPC 与背压策略以 §7.1 为唯一权威定义**：引擎只作为网络连接发起方（进程入口拉配置/凭证、E 段预占、D 段异步上报）；支撑服务不能主动连接引擎端口；引擎运行中不接收控制面消息。
 
 ### 2.5 引擎实例与分片模型（配置驱动，MVP 默认）
 
@@ -163,7 +165,7 @@ A 段只负责生成 `OrderIntent`，不等待远程服务或磁盘。策略 `Or
 
 MVP 中，一个账户只由一个 Active 引擎负责。一个引擎可以运行多个策略，但同一品种只能交给一个策略；共享品种的多个模型应由一个组合策略统一决策。
 
-config-service 按 `engine_id` 返回专属 `EngineConfig`（client 启动时 `GetEngineConfig`，再 `SetEngineConfig`）。策略参数与绑定**不可**运行时热更新；启停粒度为整交易引擎。品种归属和账户绑定变更须停机后重 Init/Start；跨实例迁移只允许在维护窗口执行。交易凭证由 account-service 单独管理，不随业务配置下发。
+config-service 按 `engine_id` 返回专属 `EngineConfig`（进程入口启动时 `GetEngineConfig`，再 `IEngine::Init`）。策略参数与绑定**不可**运行时热更新；启停粒度为整交易引擎。品种归属和账户绑定变更须停机后重 Init/Start；跨实例迁移只允许在维护窗口执行。交易凭证由 account-service 单独管理，不随业务配置下发。
 
 ### 2.6 配置与交易账户（account-service）
 
@@ -180,30 +182,31 @@ config-service 按 `engine_id` 返回专属 `EngineConfig`（client 启动时 `G
 
 与 config-service 的分工：**config** 管「跑什么策略」；**account** 管「用哪个账户登录」。策略插件只使用 `account_id` 发单，不接触密码。
 
-启动顺序：`qtrade_engine.json` → client `GetEngineConfig` → `SetEngineConfig` → `GetCredential`（若启用）→ 适配器 Connect → `AddStrategy(config, so路径)` → 引擎 `Start`。启用账户硬限制时，`account-risk-service` 不可用则拒绝对应账户的新订单。运行中**不**订阅配置变更。
+启动顺序：`qtrade_engine.json` →（可选）client `GetEngineConfig` / `GetCredential` → `IEngine::Init(EngineConfig)` → 适配器 `SetQuoteApi`/`SetTraderApi`（须在 Start 前）→ `AddStrategy(config, so路径)` → `Start`。启用账户硬限制时，未注入 `IAccountRiskBridge` 或服务不可用则拒绝对应账户的新订单。运行中**不**订阅配置变更，也**不**向引擎推送控制面消息。
 
 ---
 
 ## 三、交易引擎层（单进程封闭运行，企业级优化）
 
-所有核心模块运行在同一进程内。Lane-Q / Lane-T 只做入口排队；策略在各自 `StrategyEventQueue` 上串行回调；`OrderIntentQueue` 执行 E 段；订单状态协调器统一修改 OMS、Account 和 PMS，避免两个线程同时改同一份交易状态。
+所有核心模块运行在同一进程内。Lane-Q / Lane-T 只做入口排队；策略在各自 `StrategyEventQueue` 上串行回调；`OrderIntentQueue` 执行 E 段；Lane-T 上由 `LaneEventHandler` 先更新 OMS、Account 和 PMS，再投递给策略队列。OMS/Account/PMS 另可被 Intent worker、EMS worker 与启动对账写入，各自加锁，**不是**单一消费者线程。
 
-**数据面**封闭：无对外 TCP/HTTP/gRPC 控制服务端，仅通过适配器对接外部行情与交易所。**控制面**在启动时出站拉取 config-service（§2.1.3、§7.1），运行中不 Watch，不直接触发发单。
+**数据面**封闭：无对外 TCP/HTTP/gRPC 控制服务端，仅通过适配器对接外部行情与交易所。进程入口在启动时出站拉取配置（若启用），注入 `Init`；运行中不 Watch，不向引擎发送控制面消息。
 
 |模块|功能|边界与状态所有权|可插拔性|技术与交互要点|
 |---|---|---|---|---|
 |**事件总线（EventLanes）**|分发 Tick/Bar 与订单/成交回报|只负责事件排队；不做策略回调、业务校验、账簿更新或持久化|否，核心基础设施|Lane-Q 与 Lane-T 各自使用有界队列；队列满时按 §7.1 处理|
-|**行情健康监控（QuoteHealthMonitor）**|检测行情陈旧并驱动 READY 门禁|不做策略调度、订阅编排或二次排队|模块固定；`QuoteApi` 可替换|由 `TradingEngine` 持有 `QuoteApi` 并编排订阅；断线重连/切源在启动编排层执行|
-|**交易回报入站（TradingEngine）**|将 SDK 订单/成交回调发布到 Lane-T|不直接调用 OMS，也不发送订单|模块固定；`TraderApi` 可替换|OMS 更新由订单状态协调器负责|
-|**策略管理器（StrategyManager）**|加载策略、分发事件、接收交易信号、管理生命周期|策略只能经 `OrderSender` 产生 `OrderIntent`，不能绕过合规、策略风控、实例风控与 OMS；同一策略的 Tick/Bar/回报回调必须串行|是，`IStrategy` 动态插件|每策略一条 `StrategyEventQueue` + worker；`StrategyEventDispatcher` 只入队不调用 `On*`；配置在事件边界原子生效|
+|**SDK 入站（SdkEventHandler）**|适配器线程上校验 Tick/Bar/Order/Trade 并 `Publish` 到 Lane|不调用 OMS，也不发送订单；不是 Lane 出站消费者|模块固定；`QuoteApi`/`TraderApi` 可替换|由 `TradingEngine` 在 `Set*Api` 时接线|
+|**行情健康监控（QuoteHealthMonitor）**|检测行情陈旧并驱动 READY 门禁|不做策略调度、订阅编排或二次排队|模块固定|由 `TradingEngine` 持有 `QuoteApi` 并编排订阅；健康回调只改生命周期|
+|**Lane 出站账本（LaneEventHandler）**|Lane-T 上应用订单/成交回报|更新 OMS、Account、PMS，终态 `Release`；须先于 `StrategyEventDispatcher` 注册|否|不是 SDK 回调入口；不跑策略 `On*`|
+|**策略管理器（StrategyManager）**|加载策略、分发事件、接收交易信号、管理生命周期|策略只能经 `OrderSender` 产生 `OrderIntent`，不能绕过合规、策略风控、实例风控与 OMS；同一策略的 Tick/Bar/回报回调必须串行|是，`IStrategy` 动态插件|每策略一条 `StrategyEventQueue` + worker；`StrategyEventDispatcher` 只入队不调用 `On*`|
 |**发单流水线（OrderPipeline + OrderIntentQueue）**|A 段本地准入后入队；独立线程执行 E 段预占、OMS 受理、EMS 入队|策略线程不做 `Reserve`；EMS 不裁决合规或风控|否，核心编排|`OrderPipeline` 在 `core/`；`OrderIntentQueue` 满时拒绝新意图（`kResourceExhausted`）|
-|**合规（ComplianceManager）**|执行交易所硬规则，如交易时段、合约状态、最小价格与数量单位、涨跌停及订单类型约束|不维护实时资金/持仓账簿；私有模块，不安装至 `include/qtrade/`；不接受外部规则配置|执行器固定；规则数据由交易所日历、合约参考数据或适配器内部提供|位于策略信号后的首个准入关口；当前为占位执行器，规则数据源接入前不拒单|
+|**合规（ComplianceManager）**|执行交易所硬规则，如交易时段、合约状态、最小价格与数量单位、涨跌停及订单类型约束|不维护实时资金/持仓账簿；私有模块，不安装至 `include/qtrade/`；不接受外部规则配置|执行器固定；规则数据由交易所日历、合约参考数据或适配器内部提供|位于策略信号后的首个准入关口；规则数据源接入前可不拒单|
 |**策略风控（StrategyRiskManager）**|校验策略级限额（仓位、冷却、止损止盈等 `StrategyRiskLimits`）|只处理已登记策略的本地规则；不裁决账户级硬限制|规则可配置，执行器固定|A 段第二个准入关口；位于合规之后、实例风控之前|
 |**实例风控（InstanceRiskManager）**|校验实例预算、策略/品种限制、PnL、行情健康和频率|只处理本实例内存状态；不裁决账户级资金/总敞口硬限制|规则可配置，执行器固定|A 段检查 OMS 活动订单与在途 Intent；账户硬限制转交 E 段 `account-risk-service`|
-|**订单状态协调器 + OMS**|统一处理新订单、撤单、订单回报和成交回报|是 OMS、Account、PMS 的单写者；不执行策略、磁盘 I/O 或厂商协议|核心流程固定；订单类型可扩展|OMS 为进程内内存状态机；发单前不做订单主日志落盘；按订单顺序更新内存态|
-|**交易执行（EMS）**|将 OMS 已接受订单路由、拆分并发送到交易通道|不决定策略、合规或风险放行|是，基于 `TraderApi` 适配器|C 段开始；处理通道限流、连接健康和执行回报关联|
-|**运行时账户（AccountManager）**|维护本实例资金、冻结和可用额度副本|不保存开户资料或登录凭证；不是跨实例账户硬限制的权威账簿|否，进程内状态|OMS/回报路径同步更新；快照异步刷盘；凭证职责见 §2.6|
-|**持仓（PMS）**|维护逐标的持仓、今昨仓、冻结和盈亏|不处理订单路由或外部账户凭证|否，进程内状态|由成交回报同步更新；为本地合规/风控提供查询|
+|**OMS（OrderManager）**|进程内订单生命周期与索引|实现 `OrderApi`；组合根负责 Initialize/对账 Adopt|核心流程固定；订单类型可扩展|发单前不做订单主日志落盘|
+|**交易执行（EMS）**|将 OMS 已接受订单路由并发送到交易通道|不决定策略、合规或风险放行|是，基于 `TraderApi` 适配器|C 段开始；发送失败经 `AccountRiskApi` 释放预占|
+|**运行时账户（AccountManager）**|维护本实例资金、冻结和可用额度副本|实现 `AccountApi`；不保存开户资料或登录凭证|否，进程内状态|回报路径由 `LaneEventHandler` 更新；凭证职责见 §2.6|
+|**持仓（PositionManager）**|维护逐标的持仓、今昨仓、冻结和盈亏|实现 `PositionApi`；不处理订单路由或外部账户凭证|否，进程内状态|由成交回报同步更新|
 
 ### 3.1 合规、策略风控与实例风控边界
 
@@ -218,7 +221,7 @@ config-service 按 `engine_id` 返回专属 `EngineConfig`（client 启动时 `G
 | 交易时段、合约状态、最小价格/数量单位、涨跌停、订单类型约束 | ComplianceManager | 准入位置已建立；规则数据源与具体规则待接入 |
 | 策略级仓位、冷却、止损止盈等限额 | StrategyRiskManager | 骨架已有 |
 | 实例/策略预算、PnL、订单频率、行情健康 | InstanceRiskManager | 骨架已有 |
-| 账户资金、保证金、总敞口、账户未完成订单 | account-risk-service | 待实现 |
+| 账户资金、保证金、总敞口、账户未完成订单 | account-risk-service（`IAccountRiskBridge`） | 已接线；未注入桥则 Reserve 跳过 |
 
 ### 3.2 风控层级、指标与计量口径
 
@@ -232,33 +235,34 @@ config-service 按 `engine_id` 返回专属 `EngineConfig`（client 启动时 `G
 | **订单级** | 数量、价格、方向、订单类型、重复单、有效期、拆单子单累计量 | 对单笔 `OrderIntent` 校验；不合法直接拒绝并留痕 | **A 段 StrategyRiskManager / InstanceRiskManager** |
 | **行情健康级** | 行情延迟、时间戳陈旧、序号缺口、源切换状态、涨跌停状态 | 不健康时拒绝受影响品种的新开仓订单；具体处置策略由风险配置决定 | **A 段 InstanceRiskManager** |
 
-- **弱一致预算的配置规则**：config-service 为每个 `(account_id, engine_id)` 下发带 `version` 的预算；同一账户所有实例预算之和必须小于等于账户硬上限减安全缓冲。预算只可由控制面调整，不允许实例间运行时借用或广播资金余额。
+- **弱一致预算的配置规则**：config-service 为每个 `(account_id, engine_id)` 下发带 `version` 的预算；同一账户所有实例预算之和必须小于等于账户硬上限减安全缓冲。预算只可由启动编排注入，不允许实例间运行时借用或广播资金余额。
 - **预算生命周期**：A 段预扣实例预算；E 段预占账户额度。部分成交时，只把已成交部分从“预占”转成“已成交占用”；订单被拒绝、撤销或全部成交后，才释放剩余额度。
 - **TTL 规则**：预占超时只表示“需要对账”，不能直接恢复可用额度。必须确认订单不在交易所，或已经进入终态，才可以释放。
 - **释放方式**：Lane-T 不同步等待 `ReleaseOrder`。`ReleaseOrder` / 结算为直接 gRPC **尽力调用**，失败只 warn 并依赖 TTL/对账回收孤儿预占；当前**不**经持久化 release outbox 异步重试。
 - **预占金额**：限价单按价格、数量、费用和安全缓冲预占；市价单按价格保护带的最坏价格预占；保证金品种还要覆盖保证金率变化。实际成交超过预占时，账户立即进入只减仓并告警。
 - **账户级风控的适用方式**：Production/Institutional 每笔新单必须经过 E 段；仅 Lite 可只使用实例预算，并明确不提供跨实例账户硬限制。
 
-### 3.3 EventBus 双 Reactor 与订单状态协调器
+### 3.3 EventBus 双 Reactor 与 Lane 出站
 
-为避免行情洪峰阻塞订单回报，事件入口拆为两条独立 Reactor。两条 Lane 不直接同时修改交易账簿，统一把订单状态变更交给订单状态协调器。
+为避免行情洪峰阻塞订单回报，事件入口拆为两条独立 Reactor。SDK 入站在 `SdkEventHandler`；Lane-T 出站先由 `LaneEventHandler` 写账本，再由 `StrategyEventDispatcher` 入策略队列。
 
 | 组件 | 职责 |
 |---|---|
 | **Reactor Loop** | 有界队列 + 单消费线程；具体容器属于详细设计，不在架构文档固定 |
 | **`QuoteEventReactor`（Lane-Q）** | 接收 Tick/Bar；`StrategyEventDispatcher` 按品种写入 `StrategyEventQueue` 后立即返回 |
-| **`TraderEventReactor`（Lane-T）** | 接收 Order/Trade 并投递到订单状态协调器，再写入对应 `StrategyEventQueue` |
+| **`TraderEventReactor`（Lane-T）** | 接收 Order/Trade；先 `LaneEventHandler`，再写入对应 `StrategyEventQueue` |
 | **`EventLanes`** | EventBus 门面；持有上述两条 Reactor，统一 `Start`/`Stop` |
-| **订单状态协调器** | 单线程处理新订单、订单回报、成交回报；统一更新 OMS、Account、PMS；回报事件优先于新订单 |
+| **`SdkEventHandler`** | 适配器线程：校验后 `Publish*`；行情 Tick 同时驱动 `QuoteHealthMonitor` |
+| **`LaneEventHandler`** | Lane-T 线程：Apply OMS/Account/Position，终态异步 `Release` |
 
 | 通道 | 事件 | 典型路径 | 线程 |
 |---|---|---|---|
-| **Lane-Q** | Tick、Bar | 适配器 → TradingEngine → Dispatcher → `StrategyEventQueue` | `QuoteEventReactor` 线程（入队后返回） |
-| **Lane-T** | Order、Trade | 适配器 → TradingEngine → 订单状态协调器 → `StrategyEventQueue` | `TraderEventReactor` 线程（入队后返回） |
+| **Lane-Q** | Tick、Bar | 适配器 → `SdkEventHandler` → Dispatcher → `StrategyEventQueue` | `QuoteEventReactor` 线程（入队后返回） |
+| **Lane-T** | Order、Trade | 适配器 → `SdkEventHandler` → `LaneEventHandler` → Dispatcher → `StrategyEventQueue` | `TraderEventReactor` 线程（入队后返回） |
 
 - **策略执行语义**：Tick、Bar、Order、Trade 都进入对应策略的同一条 `StrategyEventQueue`；由该策略的 worker 串行回调，策略不会被两个线程同时进入 `On*`。
 - **队列顺序（当前）**：FIFO；满队列时优先丢弃最旧行情（Tick/Bar），尽量保留 Order/Trade，避免堵住 Lane-Q/Lane-T。**后续**：订单/成交回报高于普通行情；行情可按策略声明合并过期快照；事件记录 `enqueue_seq` 与来源时间，回测使用同一排序规则。
-- **状态更新顺序**：规范化回报由订单状态协调器直接更新 OMS、Account、PMS，再将不可变回报事件放入对应 `StrategyEventQueue`（当前无订单主日志 commit 门槛）。
+- **状态更新顺序**：规范化回报由 `LaneEventHandler` 直接更新 OMS、Account、PMS，再将不可变回报事件放入对应 `StrategyEventQueue`（当前无订单主日志 commit 门槛）。
 - **跨 Lane 读写**：Lane-Q 与策略 worker 只读取带版本的只读快照，不直接修改 OMS、Account 或 PMS。
 - **发单路径**：完整路径见 **§7.2**（A → [E] → OMS(内存) → C）。
 
@@ -284,7 +288,7 @@ config-service 按 `engine_id` 返回专属 `EngineConfig`（client 启动时 `G
 
 统一处理顺序（当前阶段，无订单主日志）：
 
-1. 订单状态协调器按事件顺序更新 OMS、Account、PMS 内存态；
+1. `LaneEventHandler` 按事件顺序更新 OMS、Account、PMS 内存态；
 2. 再通知策略；旁路上报（审计/历史等）经 D 段异步投递，**不是**订单恢复事实源；
 3. 崩溃恢复时 OMS 冷启动为空：以柜台快照 **Adopt** 重建 Working 内存态（不补发），并对 account-risk 未终结预占对账；**禁止**按本地旧意图或运行日志自动补单。
 
@@ -294,7 +298,7 @@ config-service 按 `engine_id` 返回专属 `EngineConfig`（client 启动时 `G
 
 1. 除 `account-risk-service` 外，所有**核心交易模块**运行在同一个交易引擎进程内，不拆分、不独立部署
 
-2. 交易引擎**不对外开放任何 TCP/HTTP/gRPC 控制服务端**；控制面由 **client** 冷启动 `GetEngineConfig` 后 `SetEngineConfig` 注入，运行中不 Subscribe/Watch
+2. 交易引擎**不对外开放任何 TCP/HTTP/gRPC 控制服务端**，也**不接收控制面消息**；进程入口冷启动组装配置后 `Init(EngineConfig)` / `AddStrategy`，运行中不 Subscribe/Watch
 
 3. **数据面**策略**仅由**内部 Tick/Bar/回报事件驱动，不接受外部触发发单信号
 
@@ -308,14 +312,14 @@ config-service 按 `engine_id` 返回专属 `EngineConfig`（client 启动时 `G
 
 ## 四、支撑服务与外部企业基础能力
 
-Production 档位中，支撑服务与交易引擎分开部署。大多数服务通过控制面 gRPC 或 D 段异步上报与引擎解耦；**`account-risk-service` 是唯一同步准入依赖**，不可用时拒绝受账户硬限制的新订单，但不能阻断回报、撤单和存量订单更新。
+Production 档位中，支撑服务与交易引擎分开部署。进程入口可出站拉取配置/凭证；运行中与引擎解耦的主要是 D 段异步上报。**`account-risk-service` 是唯一同步准入依赖**，不可用时拒绝受账户硬限制的新订单，但不能阻断回报、撤单和存量订单更新。
 
 |服务|功能|边界与数据所有权|接口/可扩展性|关键技术要点|
 |---|---|---|---|---|
-|**配置服务（config-service）**|管理 `EngineConfig`、实例风险预算和配置版本|业务配置唯一写入方；不保存交易密码、运行时订单或持仓|**client** `GetEngineConfig` → 引擎 `SetEngineConfig`；接入层只提交变更；proto 可保留 Subscribe 供后续，**当前引擎路径不用**|快照带 `version`；支持校验、回滚和审计|
-|**交易账户服务（account-service）**|管理账户主数据、凭证和实例授权|凭证唯一所有者；不维护实时资金、持仓或风控预占|引擎调用 `GetCredential(account_id, engine_id)`；接入层调用账户管理 RPC|KMS/AES 加密、凭证轮换和独立审计；不得向策略插件暴露凭证；账户以全局唯一 `account_id` 标识|
-|**账户风控服务（account-risk-service）**|执行账户资金、保证金、总/净敞口等硬限制|账户硬风控账簿与预占记录权威来源；不管理凭证或策略配置|引擎 E 段调用 `ReserveOrder`；`ReleaseOrder`/结算为直接 gRPC 尽力调用（失败 warn，靠 TTL/对账）|按账户单写；预占和账簿更新在同一事务；支持幂等、部分结算、恢复查询和对账|
-|**安全控制能力（MVP 可合并部署）**|冻结新单、撤销全部挂单、断开交易通道|不能产生新订单；命令和执行结果必须审计|引擎主动建立双向 gRPC 流，接收命令并返回 ACK|双人复核、短时授权、命令幂等、超时重试；与普通配置 RPC 分离|
+|**配置服务（config-service）**|管理 `EngineConfig`、实例风险预算和配置版本|业务配置唯一写入方；不保存交易密码、运行时订单或持仓|进程入口 `GetEngineConfig` 后 `IEngine::Init`；接入层只提交变更；**当前引擎不 Subscribe/Watch**|快照带 `version`；支持校验、回滚和审计|
+|**交易账户服务（account-service）**|管理账户主数据、凭证和实例授权|凭证唯一所有者；不维护实时资金、持仓或风控预占|进程入口经账户桥接 `GetCredential(account_id, engine_id)`；接入层调用账户管理 RPC|KMS/AES 加密、凭证轮换和独立审计；不得向策略插件暴露凭证；账户以全局唯一 `account_id` 标识|
+|**账户风控服务（account-risk-service）**|执行账户资金、保证金、总/净敞口等硬限制|账户硬风控账簿与预占记录权威来源；不管理凭证或策略配置|引擎 E 段调用 `Reserve`；`Release`/结算为直接 gRPC 尽力调用（失败 warn，靠 TTL/对账）|按账户单写；预占和账簿更新在同一事务；支持幂等、部分结算、恢复查询和对账|
+|**安全控制能力（后续）**|冻结新单、撤销全部挂单、断开交易通道|不能产生新订单；命令和执行结果必须审计|**当前引擎未接线**；规划为引擎主动建流，见 §11|双人复核、短时授权、命令幂等；不得当作现状|
 |**历史行情服务（history-market-service）**|存储和查询历史行情|不参与实时行情链路或交易决策|供回测、研究和受控查询调用；存储实现可替换|时序库/对象存储分层、按租户/品种/时间授权、保留期和批量查询限制|
 |**历史交易服务（history-order-service）**|存储和查询订单、成交及相关历史副本|不是 OMS 权威状态；不参与实时订单状态机|接收异步副本，供回测、查询和审计调用|幂等写入、租户隔离、分页/查询上限；可使用 ClickHouse 等存储|
 |**日志服务（log-service）**|接收、检索和归档运行日志与交易流水|保存日志副本；不承担订单恢复事实源或账户账簿职责|引擎经 D 段异步 client 投递；存储后端可替换|分级、批量写入、保留期、哈希校验和按租户检索；旁路 spool 仅防审计缺口，**不是**订单恢复源|
@@ -341,7 +345,7 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
 
 1. **Production/Institutional 档位**：所有支撑服务不得与交易引擎部署在同一物理机/虚拟机；Lite 档位例外见 §8.1
 
-2. 支撑服务**禁止主动调用交易引擎**（不向引擎发起 gRPC/HTTP）；**client** 启动时出站 `GetEngineConfig` 并 `SetEngineConfig`，运行中不 Watch
+2. 支撑服务**禁止主动调用交易引擎**（不向引擎发起 gRPC/HTTP）；进程入口启动时出站拉取配置后 `Init`，运行中不 Watch、不向引擎推送控制面消息
 
 3. 交易引擎向支撑服务的旁路上报**经 `client/` 异步接口单向投递**，不等待响应；各服务接收端内部实现架构不约束
 
@@ -357,9 +361,9 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
 
 > **仓库边界**：API 网关、控制台前端、多租户运营界面等 **接入层实现位于 QTrade 体系外的独立项目/仓库**（或机构统一 API 平台），**不在 `qtrade` 本仓库**。本仓库交付 **交易引擎 + 支撑微服务（gRPC）**；接入层负责将外部 **HTTP/HTTPS + REST** 转为对内 **gRPC** 调用。
 
-接入层**不提供直连交易引擎的能力**；仅将外部请求路由至 QTrade **支撑服务**：数据查询、监控查看、配置提交、账户与凭证管理、回测、审计报表、策略生命周期配置，以及经过强授权的紧急冻结/撤单操作。
+接入层**不提供直连交易引擎的能力**；仅将外部请求路由至 QTrade **支撑服务**：数据查询、监控查看、配置提交、账户与凭证管理、回测、审计报表、策略生命周期配置。紧急冻结/全撤属后续安全控制能力（§11），**当前不得写成引擎已接收的控制面消息**。
 
-**明确禁止**：接入层人工新开仓、直连修改 OMS/持仓、绕过支撑服务写引擎内存；禁止外部系统直连 `qtrade_engine` 的任何 TCP/HTTP/gRPC 端口。紧急撤单由引擎主动建立的安全控制流接收，不开放入站端口。
+**明确禁止**：接入层人工新开仓、直连修改 OMS/持仓、绕过支撑服务写引擎内存；禁止外部系统直连 `qtrade_engine` 的任何 TCP/HTTP/gRPC 端口。
 
 |组件名称|功能说明|部署方式|企业级优化点|
 |---|---|---|---|
@@ -383,9 +387,9 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
 
 1. 接入层**不提供任何直连交易引擎的 API**
 
-2. 所有配置与策略生命周期变更必须经 **config-service** 写入；client 启动时拉取并 `SetEngineConfig` / `AddStrategy`，运行中不热更、不单策略启停
+2. 所有配置与策略生命周期变更必须经 **config-service** 写入；进程入口启动时拉取并 `Init` / `AddStrategy`，运行中不热更、不单策略启停
 
-3. 前端禁止人工新开仓和任意改单；允许经过双人复核的冻结新单、按账户/策略撤销全部挂单和断开交易通道
+3. 前端禁止人工新开仓和任意改单；远程冻结/全撤/断通道属后续能力（§11），不得直连引擎
 
 4. **实例品种归属**与行情源配置经 **外部接入层 → config-service** 提交（按 `engine_id` 下发）；禁止绕过 config-service
 
@@ -397,13 +401,13 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
 
 行情和交易柜台均通过稳定的 Api/Spi 契约接入。Api 负责引擎主动请求，Spi 负责厂商异步回调；每个厂商实现一对适配器，将厂商协议转换为 QTrade 标准模型。
 
-适配器不包含策略、风控、OMS 或账户业务。行情链路为“适配器 → TradingEngine → Lane-Q”，交易回报链路为“适配器 → TradingEngine → Lane-T → 订单状态协调器”；出站订单由 EMS 经交易 Api 发送。SDK 接口、继承关系、目录和实现示例见《[Guide.md](Guide.md)》§5.1。
+适配器不包含策略、风控、OMS 或账户业务。行情链路为“适配器 → `SdkEventHandler` → Lane-Q”；交易回报链路为“适配器 → `SdkEventHandler` → Lane-T → `LaneEventHandler`”；出站订单由 EMS 经交易 Api 发送。SDK 接口、继承关系、目录和实现示例见《[Guide.md](Guide.md)》§5.1。
 
 ### 6.2 行情数据源（QuoteApi + QuoteHealthMonitor）
 
 #### 6.2.1 设计原则
 
-行情分片由 §2.5 的部署配置决定，不引入独立行情源管理服务。每个实例通过可替换的行情适配器接收自身品种并集，`TradingEngine` 将回调发布至 Lane-Q 并由 `QuoteHealthMonitor` 驱动 READY；按品种一对一投递策略。行情源重连或切换由引擎启动编排负责，具体 SDK 接线见《[Guide.md](Guide.md)》§5.1。
+行情分片由 §2.5 的部署配置决定，不引入独立行情源管理服务。每个实例通过可替换的行情适配器接收自身品种并集，`SdkEventHandler` 将回调发布至 Lane-Q 并由 `QuoteHealthMonitor` 驱动 READY；按品种一对一投递策略。行情源重连或切换由引擎启动编排负责，具体 SDK 接线见《[Guide.md](Guide.md)》§5.1。
 
 #### 6.2.2 行情源切换策略（分阶段）
 
@@ -420,12 +424,12 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
 
 #### 6.2.3 插件边界
 
-行情适配器以独立插件提供，须声明兼容性并通过签名校验；运行状态和切换事件经旁路上报。控制面可更新行情源地址，但品种归属仍只允许在维护窗口变更。插件目录、工厂和测试约定见《[Guide.md](Guide.md)》§5.1。
+行情适配器以独立插件提供，须声明兼容性并通过签名校验；运行状态和切换事件经旁路上报。行情源地址经 config 变更后须停机重 Init，品种归属仍只允许在维护窗口变更。插件目录、工厂和测试约定见《[Guide.md](Guide.md)》§5.1。
 
 ### 6.3 交易执行模块适配器
 
 - **稳定契约**：`qtrade::sdk::trader::TraderApi`/`TraderSpi` 屏蔽柜台连接、订单操作、查询和异步回报的厂商差异；具体方法和字段属于 SDK 接口文档，不在本架构文档展开。
-- **边界**：Api 适配器承接 EMS 的出站请求，Spi 适配器将柜台回报交给 `TradingEngine` → Lane-T → 订单状态协调器。适配器不裁决策略、合规或风控。
+- **边界**：Api 适配器承接 EMS 的出站请求，Spi 适配器将柜台回报交给 `SdkEventHandler` → Lane-T → `LaneEventHandler`。适配器不裁决策略、合规或风控。
 - **恢复能力**：每个交易适配器必须声明是否支持按客户端订单号查询、未终结订单查询、成交游标和断线补报。不支持完整查询的柜台必须在部署评审中说明恢复边界（当前阶段 Working 态依赖柜台查询 Adopt，不以本地订单主日志回放补齐）。
 - **扩展点**：每家柜台提供一组 Api/Spi 插件实现（§6.1）；执行通道可按品种或成本路由。连接健康、限流、协议兼容、执行审计和性能监控是适配器必须暴露的运行能力。
 
@@ -434,7 +438,7 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
 - **稳定契约**：`IStrategy` 约定策略生命周期、市场/回报事件和交易信号交互；具体回调签名、参数接口属于 SDK 文档。
 - **边界**：策略通过自己的 `StrategyEventQueue` 串行接收行情和回报，只能经 `OrderSender` 产生 `OrderIntent`，不直接操作 OMS、账户凭证或支撑服务。`OrderSender` 成功仅表示意图已入队。MVP 中，同账户同品种的多个模型必须合并为一个组合策略；不同账户可拆到不同 `engine_id`。
 - **交付与隔离**：策略以动态插件独立构建和版本化，发布前由 strategy-service 扫描、签名和沙箱编译。Production 档位默认一租户一实例；同进程插件只适用于受信任代码，不能当作强安全隔离。
-- **生命周期**：启停、参数和版本灰度均由控制面经 config-service 下发；插件加载、回滚与资源/版本观测由策略管理器和 strategy-service 协同完成。
+- **生命周期**：启停、参数和版本灰度经 config-service 写入后，由进程入口停机重 `Init`/`AddStrategy`/`Start`；插件加载与观测由策略管理器和 strategy-service 协同完成。运行中不向引擎推送策略控制消息。
 
 ---
 
@@ -442,61 +446,53 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
 
 ### 7.1 交互方式说明
 
-- **交易引擎内部**：Lane-Q/Lane-T 使用独立有界队列；每策略一条 `StrategyEventQueue`；`OrderIntentQueue` 交接 A/E；订单状态协调器是 OMS、Account、PMS 的单写者
+- **交易引擎内部**：Lane-Q/Lane-T 使用独立有界队列；每策略一条 `StrategyEventQueue`；`OrderIntentQueue` 交接 A/E；Lane-T 账本由 `LaneEventHandler` 更新（另有 Intent/EMS/对账路径写 OMS，靠模块内锁）
 
 - **交易引擎 → 支撑服务（D 段）**：经 `log_client`、`monitor_client` 等**异步上报接口**单向投递（A 段仅 `enqueue`；**Outbound 线程**调用 client）；载荷 Protobuf；**不等待响应**；client 内部传输（gRPC/HTTP/本地 Spool/no-op）**架构不规定**，MVP 允许 stub
 
-- **引擎 ↔ config-service（控制面，全程 gRPC）**：
-  - 冷启动：**client** `GetEngineConfig` 一次性拉全量配置后 `SetEngineConfig`；失败则启动失败（或按里程碑允许签名未过期本地快照）
-  - 运行时：**不**调用 Subscribe/Watch；配置或策略绑定变更须停引擎后重 Init/Start；策略经 `AddStrategy(config, plugin_so_path)` 登记
+- **进程入口 ↔ config-service（启动编排，gRPC）**：
+  - 冷启动：进程入口 `GetEngineConfig` 一次性拉全量配置后调用 `IEngine::Init`；失败则启动失败（或按里程碑允许签名未过期本地快照）
+  - 运行时：引擎**不**调用 Subscribe/Watch，也**不**接收配置推送消息；配置或策略绑定变更须停引擎后重 Init/Start；策略经 `AddStrategy(config, plugin_so_path)` 登记
   - 快照须含单调 `version`；引擎身份与本地引导配置必须一致
   - 字段策略：策略参数与绑定不可热更新；启停粒度为整交易引擎
   - **禁止**：引擎对外提供 gRPC Server；禁止 config-service 主动 RPC 调用引擎
 
-- **引擎 ↔ 安全控制能力（紧急操作）**：
-  - Production/Institutional 至少配置两个独立 endpoint；安全命令需可确认领取，引擎重连后可继续领取未完成命令
-  - 固定执行顺序：`FreezeNewOrders` → `CancelAll` → 查询确认/对账 → 必要时 `DisconnectTrading`
-  - 命令带唯一 ID、有效期、审批信息和目标范围；重复命令不得重复产生副作用
-  - ACK 分为“已持久化”“已提交柜台”“柜台已确认”三个阶段，不能用收到命令代替撤单成功
-  - 安全控制能力不能下新单，也不能绕过合规、风控或 OMS
+- **安全控制流**：当前**未实现、未接线**。规划见 §11，不得当作引擎现有入站消息。
 
-- **引擎 ↔ account-service（凭证面，启动阶段 gRPC）**：
-  - 冷启动：`GetCredential(account_id, engine_id)` 按需拉取登录材料；结果**仅驻留进程内存**，供适配器 `Connect`/`Login`
+- **进程入口 ↔ account-service（凭证，启动阶段 gRPC）**：
+  - 冷启动：`GetCredential(account_id, engine_id)` 按需拉取登录材料；结果**仅驻留进程内存**，供适配器 `Connect`/`Login`；经 `SetAccountBridge` 注入引擎
   - **禁止**：密码/token 进入 `EngineConfig`；禁止策略插件直接调用 account-service
 
 - **引擎 ↔ account-risk-service（E 段，账户级硬风控）**：
-  - 发单前：A 段完成合规、策略风控与实例预算校验后，以 `order_id` 幂等调用 `ReserveOrder(account_id, OrderIntent, release_id)`；仅 `Approved` 才进入 OMS 内存受理与 C 段
-  - 结果语义：`Rejected` 明确拒单；超时、断连或响应无法确认时为 `Unknown`。引擎使用同一 `order_id` 调用 `QueryReservation`，在确认结果前不得发单或释放本地预算
-  - 单写规则：MVP 以账户为分区键，使用数据库串行化事务和账簿版本 CAS 形成唯一写入顺序；服务进程内存不能作为权威账簿。预占、账簿更新和幂等记录在同一事务中提交
-  - 回报后：订单状态协调器更新本地 OMS/Account/PMS；`ReleaseOrder`/结算为直接 gRPC 尽力调用，失败只 warn，不阻塞 Lane-T；孤儿预占靠 TTL/对账
+  - 发单前：A 段完成合规、策略风控与实例预算校验后，以 `order_id` 幂等调用 `Reserve`；仅成功才进入 OMS 内存受理与 C 段
+  - 结果语义：明确拒绝则拒单；超时、断连或响应无法确认时为 `Unknown`。确认前不得发单或释放本地预算
+  - 单写规则：MVP 以账户为分区键；服务进程内存不能作为权威账簿
+  - 回报后：`LaneEventHandler` 更新本地 OMS/Account/PMS；`Release`/结算为异步尽力调用，失败只 warn，不阻塞 Lane-T；孤儿预占靠 TTL/对账
   - 部分成交：已成交部分转为实际占用，剩余挂单继续保留预占；只有终态才能释放剩余预占
   - TTL：到期后进入待对账状态，不直接释放额度
   - 恢复：引擎重启后 OMS 为空；查询柜台未终结订单 Adopt 重建 Working 态，并与 account-risk 未终结预占对账；**禁止**按本地旧意图自动补单
-  - **计时与故障语义**：`ReserveOrder` 单独记录 P99、超时率、`Unknown` 率和拒绝率；版本不一致明确拒绝，网络不确定进入查询流程
 
 - **支撑服务之间**：**gRPC + Protobuf**（如 config 写入前向 account-service 校验账户授权）
 
 - **外部 → 交易引擎**：**禁止**；外部经接入层 → 支撑服务
 
-#### 控制面 gRPC 接口（概念）
+#### 进程入口与引擎出站 RPC（当前）
 
 | RPC | 类型 | 调用方 | 用途 |
 |---|---|---|---|
-| `GetEngineConfig` | Unary | client → config-service | 冷启动全量 `EngineConfig`（再 `SetEngineConfig` 注入引擎） |
-| `SubscribeEngineConfig` | Server Streaming | （服务端可保留） | **当前引擎不调用**；变更靠停机重拉 |
-| `GetCredential` | Unary | engine → account-service | 冷启动按需解析登录凭证 |
-| `ReserveOrder` / `QueryReservation` | Unary | engine → account-risk-service | 同步预占；结果不确定时按 `order_id` 查询 |
-| `ReleaseOrder` / `SettleOrder` | Unary | 引擎回报/终态路径 → account-risk-service | 直接 gRPC 尽力调用；失败 warn，靠 TTL/对账；不属于 E 段 |
-| `SafetyControl` | Bidirectional Streaming | engine ↔ safety-control | 引擎主动建连；按冻结→撤单→确认→断开执行并返回分阶段 ACK |
+| `GetEngineConfig` | Unary | 进程入口 → config-service | 冷启动全量配置，再 `IEngine::Init` |
+| `GetCredential` | Unary | 进程入口 → account-service | 冷启动按需解析登录凭证 |
+| `Reserve` / `QueryReservation` | Unary | 引擎 E 段 → account-risk-service | 同步预占；结果不确定时查询 |
+| `Release` / `Settle` | Unary | 引擎终态路径 → account-risk-service | 异步尽力调用；失败 warn；不属于 A 段 |
 | `RegisterAccount` / `RotateCredential` | Unary | 接入层 → account-service | 账户与凭证管理（运维） |
 
-配置在启动后固定为本地缓存；变更须停引擎重 Init。安全控制流断开超过配置阈值时，Production 档位默认冻结新单。
+配置在 `Init` 后固定为本地缓存；变更须停引擎重 Init。引擎不调用 `SubscribeEngineConfig`，不建立 `SafetyControl` 流。
 
 #### 旁路背压策略
 
 | 数据级别 | 示例 | 远程上报不可用时的行为 |
 |---|---|---|
-| **P0 交易与审计事实** | 准入结果、发单/撤单、全部订单/成交回报、配置版本、安全控制命令 | **订单恢复**以柜台快照 + account-risk 预占对账为准，不以本地订单主日志为准（当前不启用订单主日志）。审计类事实可经旁路 spool 暂存后投递，**spool 不是订单恢复源**；远程不可用时不得静默丢弃需留痕的审计事件 |
+| **P0 交易与审计事实** | 准入结果、发单/撤单、全部订单/成交回报、配置版本 | **订单恢复**以柜台快照 + account-risk 预占对账为准，不以本地订单主日志为准（当前不启用订单主日志）。审计类事实可经旁路 spool 暂存后投递，**spool 不是订单恢复源**；远程不可用时不得静默丢弃需留痕的审计事件 |
 | **P1 可重建业务副本** | 持仓查询缓存、统计汇总 | 有界缓冲，满时可重建或重新同步，不得影响 P0 数据 |
 | **P2 指标** | 延迟直方图、队列深度 | 可丢弃 |
 | **P3 调试** | verbose 日志 | 可丢弃 |
@@ -515,33 +511,32 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
 |---|---|
 | **Lane-Q 行情队列** | 可合并同品种的全量快照或丢弃已过期 Tick；如果策略依赖完整逐笔数据，则暂停该品种新开仓并触发补数 |
 | **StrategyEventQueue** | 每策略一条；满队列优先丢弃最旧 Tick/Bar，Order/Trade 尽量保留，避免堵住 Lane-Q/Lane-T。后续可对回报优先、行情合并过期快照 |
-| **Lane-T 回报队列** | 不允许静默丢弃；使用预留应急容量或独立持久化 inbox。仍无法接收时冻结新单，并按适配器能力从柜台查询补齐 |
+| **Lane-T 回报队列** | 不允许静默丢弃；满则拒写（见 LanePolicy）。仍无法接收时冻结新单，并按适配器能力从柜台查询补齐 |
 | **OrderIntentQueue** | 拒绝新的 `OrderIntent`（`kResourceExhausted`）并告警；在途 Intent 计入实例风控活动订单数与名义，不能继续堆积 |
-| **订单状态协调器队列** | 冻结新单；回报和撤单使用保留容量，并采用有上限的加权调度，避免任何一类长期饥饿 |
-| **EMS 队列** | E 段前先取得 admission token；没有 token 就不执行账户预占。撤单使用独立保留容量 |
+| **EMS 队列** | 满则拒绝入队；撤单优先于新单。发送失败释放预占 |
 | **审计旁路 / spool（若启用）** | 接近容量上限时告警并按背压策略处理；不得因旁路满而阻塞发单主链；**不是**订单恢复写入通道 |
 
 每个部署档位必须提交容量预算表，至少包含：行情峰值、订单/回报峰值及持续时间、各队列容量与高水位、旁路上报增长速度、磁盘保留空间、支撑服务中断容忍时间、恢复后的追赶速度和积压清空时间。容量预算未完成不得进入性能验收。
 
 ### 7.2 核心数据流（最关键）
 
-引擎内数据面统一为 **适配器 → TradingEngine → EventBus → Handler**（双 Reactor 见 §3.3）。
+引擎内数据面统一为 **适配器 → SdkEventHandler → EventBus → Lane 出站**（双 Reactor 见 §3.3）。无控制面消息进入 EventLanes。
 
-| 通道 | 适配器 → TradingEngine → `Publish*` | 出队后 Handler |
+| 通道 | 入站 `Publish*` | 出队后 |
 |---|---|---|
-| **Lane-Q** | 行情适配器 → `TradingEngine` | `StrategyEventDispatcher` → `StrategyEventQueue` → 策略 worker → `OrderPipeline` → `OrderIntent` |
-| **Lane-T** | 交易适配器 → `TradingEngine` | 订单状态协调器 → OMS/Account/PMS → 对应 `StrategyEventQueue` |
+| **Lane-Q** | 行情适配器 → `SdkEventHandler` | `StrategyEventDispatcher` → `StrategyEventQueue` → 策略 worker → `OrderPipeline` → `OrderIntent` |
+| **Lane-T** | 交易适配器 → `SdkEventHandler` | `LaneEventHandler` → OMS/Account/PMS → 对应 `StrategyEventQueue` |
 
 **1. 行情 → 发单（A → [E] → OMS(内存) → C）**
 
 ```text
-外部行情 → 适配器 → TradingEngine → Lane-Q
+外部行情 → 适配器 → SdkEventHandler → Lane-Q
   → StrategyEventDispatcher → StrategyEventQueue（Lane-Q 立即返回）
   → 策略 worker OnTick/OnBar
   → OrderPipeline：ComplianceManager → StrategyRiskManager → InstanceRiskManager
   → OrderIntent 入队                                                         [A 段]
   → OrderIntentQueue 出队
-  → account-risk-service ReserveOrder（Production 强制）                     [E 段]
+  → account-risk Reserve（Production 强制）                                  [E 段]
   → OMS 内存受理                                                             [无 J 段]
   → EMS 出队 → 适配器 → 交易所                                              [C 段]
   ╲ 内存快照 / 历史副本 / 指标 / 审计旁路                                    [B/D 段，异步]
@@ -550,22 +545,22 @@ Production 档位中，支撑服务与交易引擎分开部署。大多数服务
 **2. 订单/成交回报（Lane-T）**
 
 ```text
-交易所 → 适配器 → TradingEngine → Lane-T
-  → 订单状态协调器 → OMS / Account / PMS
+交易所 → 适配器 → SdkEventHandler → Lane-T
+  → LaneEventHandler → OMS / Account / Position
   → 对应策略的 StrategyEventQueue
-  ╲ Release/Settle 尽力 gRPC / 审计上报（异步，失败 warn）
+  ╲ Release/Settle 异步尽力 gRPC / 审计上报（失败 warn）
 ```
 
-**3. 控制面**
+**3. 启动编排（非控制面消息，不进 EventLanes）**
 
 ```text
-用户 → API 网关 → config-service / account-service / account-risk-service
-  ├─ 冷启动: client ──GetEngineConfig──► SetEngineConfig → 引擎本地缓存
-  ├─ 冷启动: client ──GetCredential──► 登录材料 → 适配器 Connect
-  └─ 冷启动: client ──AddStrategy(config, so_path)──► 引擎登记策略（运行中不 Subscribe）
-安全管理员 → API 网关 → safety-control
-  └─ engine 主动建立 SafetyControl 流
-       → 冻结新单 → 撤单 → 查询确认/对账 → 必要时断开 → 分阶段 ACK
+用户 → API 网关 → config-service / account-service
+  进程入口：GetEngineConfig / GetCredential（可选）
+    → IEngine::Init(EngineConfig)
+    → SetQuoteApi / SetTraderApi / SetAccount*Bridge
+    → AddStrategy(config, so_path)
+    → Start
+运行中不 Subscribe、不向引擎推送命令
 ```
 
 **4. D 段旁路 / 外部 API**
@@ -591,13 +586,13 @@ A 段 enqueue → Outbound → log_client / monitor_client / …（fire-and-forg
 
 |交互场景|推荐协议|核心理由|
 |---|---|---|
-|交易引擎内部|内存结构体 + 有界队列|Lane-Q/Lane-T 入口隔离；每策略 `StrategyEventQueue`；`OrderIntentQueue` 交接 A/E；订单状态由单写者统一更新|
+|交易引擎内部|内存结构体 + 有界队列|Lane-Q/Lane-T 入口隔离；每策略 `StrategyEventQueue`；`OrderIntentQueue` 交接 A/E；Lane-T 账本由 `LaneEventHandler` 更新|
 |交易引擎 ↔ 适配器|函数调用 + 回调|同进程插件，无网络|
 |交易引擎 → 支撑服务（D 段旁路）|`client/` 异步接口 + Protobuf|A 段仅入队；Outbound 线程 fire-and-forget；内部传输可插拔|
-|引擎 ↔ config-service（控制面）|gRPC + Protobuf|**client** `GetEngineConfig` → 引擎 `SetEngineConfig`；运行中不 Subscribe|
-|引擎 ↔ account-service（凭证面）|gRPC + Protobuf|`GetCredential` 按需拉取；启动路径执行；不进 A 段|
-|引擎 ↔ account-risk-service（账户硬风控）|gRPC + Protobuf|`OrderIntentQueue` 工作线程同步 `ReserveOrder`；`ReleaseOrder`/结算为直接 gRPC 尽力调用（失败 warn）|
-|引擎 ↔ safety-control（安全控制）|引擎主动建立双向 gRPC 流|不开放引擎入站端口，同时保证冻结和撤单可确认、可重试、可审计|
+|进程入口 ↔ config-service|gRPC + Protobuf|`GetEngineConfig` 后 `IEngine::Init`；运行中不 Subscribe|
+|进程入口 ↔ account-service|gRPC + Protobuf|`GetCredential` 按需拉取；启动路径执行；不进 A 段|
+|引擎 ↔ account-risk-service（账户硬风控）|gRPC + Protobuf|`OrderIntentQueue` 工作线程同步 `Reserve`；`Release`/结算为异步尽力调用（失败 warn）|
+|引擎 ↔ safety-control|**当前无**|规划见 §11；不得当作现有双向流|
 |支撑服务之间|gRPC + Protobuf|强类型 RPC，适合查询与批量数据（如回测拉历史）|
 |接入层 ↔ 外部|HTTP/HTTPS + REST|**外部接入层项目**维护 OpenAPI；REST ↔ gRPC 转换在接入层完成|
 |外部接入层 → QTrade 支撑服务|gRPC + Protobuf|支撑服务暴露 gRPC；不对外 HTTP|
@@ -658,9 +653,9 @@ BOOTSTRAP → MODULES_READY(kModulesReady)
 | 故障 | 允许动作 | 恢复条件 |
 |---|---|---|
 | 审计旁路/spool 不可写或空间不足 | 告警；发单主链可继续（当前无订单主日志门槛） | 旁路恢复；审计缺口按运维流程补齐 |
-| config-service 不可用 | 有效租约内继续；过期后冻结新单 | 收到并应用有效快照 |
+| config-service 不可用 | 运行中引擎不 Watch，可继续；下次冷启动无法拉配置则 Init 失败 | 进程入口重新 `GetEngineConfig` 并 `Init` |
 | account-risk-service 不可用或结果未知 | 禁止受影响账户新单 | 预占结果查询完成、账簿可用 |
-| safety-control 全部 endpoint 不可用 | Production 冻结新单；继续本地撤单和回报 | 控制流恢复并补领命令 |
+| 远程安全控制流 | **当前未接线**；行情不健康时由 `QuoteHealthMonitor` 进入 Frozen | 健康恢复后 Ready |
 | KMS/凭证服务不可用 | 已登录会话可继续回报和撤单；不得新建会话 | 凭证服务恢复并重新授权 |
 | 柜台查询不可用 | 保持不确定态与预占，不恢复策略、不自动补单 | 未终结订单与成交查询完成并 Adopt |
 | 时钟偏差超限 | 冻结新单 | 时钟恢复并重新校验租约/配置 |
@@ -693,7 +688,7 @@ BOOTSTRAP → MODULES_READY(kModulesReady)
 ### 9.1 安全防护
 
 - **网络安全**：核心交易层部署在私有网络，接入层通过防火墙/入侵检测系统（IDS）防护；API 网关支持 DDoS 防护、IP 白名单；
-- **服务身份**：内部 gRPC 强制使用 mTLS 和工作负载身份；每个敏感 RPC 校验 `tenant_id`、`engine_id`、`account_id` 与 `engine_epoch`。安全控制命令必须签名并防重放；
+- **服务身份**：内部 gRPC 强制使用 mTLS 和工作负载身份；每个敏感 RPC 校验 `tenant_id`、`engine_id`、`account_id` 与 `engine_epoch`。后续安全控制命令必须签名并防重放；
 
 - **数据安全**：敏感数据（账户凭证/资金/策略参数）加密存储（AES\-256），传输加密（TLS 1.3）；**交易密码仅存 account-service 密文表**，不得进入 `EngineConfig`；数据访问需多因子认证
 
@@ -724,9 +719,9 @@ BOOTSTRAP → MODULES_READY(kModulesReady)
 |交易引擎崩溃|自动重启 + 柜台 Adopt + account-risk 预占对账|恢复后先对账再启策略；OMS 冷启动为空；禁止按旧意图补单；使用 engine epoch 防双写|
 |配置更新异常|版本、签名、有效期、灰度和回滚|快照过期后冻结新单；品种归属变更需维护窗口|
 |数据不一致|完整订单状态机 + 柜台/预占恢复对账 + 账户级原子预占|部分成交按量结算；TTL 到期先对账；Release 尽力调用|
-|人为干预|数据面封闭 + 控制面经 config 审计|关键配置双人复核|
-|回报被行情阻塞|Lane-T 独立入口；订单状态协调器优先处理回报；策略回调在 `StrategyEventQueue` 上，不占用 Lane-T|回报不可丢；当前策略队列为 FIFO，回报优先调度待后续|
-|策略或行情异常无法止损|安全控制流支持冻结新单、撤销挂单和断开通道|禁止人工新开仓；所有命令双人复核并审计|
+|人为干预|数据面封闭；配置经 config-service 审计后停机重 Init|关键配置双人复核；禁止直连引擎|
+|回报被行情阻塞|Lane-T 独立入口；`LaneEventHandler` 先于策略 Dispatcher 处理回报；策略回调在 `StrategyEventQueue` 上，不占用 Lane-T|回报不可丢；当前策略队列为 FIFO，回报优先调度待后续|
+|策略或行情异常无法止损|当前：`QuoteHealthMonitor` Frozen 拒新单；远程冻结/全撤/断通道见 §11|禁止人工新开仓；后续命令须双人复核并审计|
 
 ---
 
@@ -734,6 +729,6 @@ BOOTSTRAP → MODULES_READY(kModulesReady)
 
 |阶段|建设重点|交付目标|分片/行情|
 |---|---|---|---|
-|**一期（MVP）**|订单状态机（内存 OMS）、单写订单状态、config + account + account-risk + 安全控制 + observability；订单主日志后续可选再加|单租户、单账户单 active shard（dry-run → 受控实盘）|静态分片、账户预占、engine epoch、柜台 Adopt + 预占对账|
-|**二期**|多租户、策略管理、审计、服务拆分|多机构并行|账户风险预算调配、Lane-Q 内 Tick/Bar 分流、维护窗口改配置|
+|**一期（MVP）**|内存 OMS、`SdkEventHandler`/`LaneEventHandler`、config + account + account-risk + observability；**不含**远程安全控制流；订单主日志后续可选|单租户、单账户单 active shard（dry-run → 受控实盘）|静态分片、账户预占、engine epoch、柜台 Adopt + 预占对账|
+|**二期**|多租户、策略管理、审计、服务拆分；可选引擎主动安全控制流（冻结/全撤/断通道）|多机构并行|账户风险预算调配、Lane-Q 内 Tick/Bar 分流、维护窗口改配置|
 |**三期**|监管报送、智能风控|金融生产能力增强|主备/跨机房灾备另行立项后再纳入路线图|
