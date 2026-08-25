@@ -7,6 +7,7 @@
 #include "qtrade/engine/orders/order_manager.hpp"
 
 #include "qtrade/common/utils/trade_dedup.hpp"
+#include "qtrade/engine/trading_engine_context.hpp"
 
 #include <spdlog/spdlog.h>
 
@@ -40,7 +41,7 @@ OrderManager::~OrderManager() {
 
 ErrorCode OrderManager::Initialize(const OrderManagerOptions& options) {
   // 1. 校验身份字段
-  if (options.account_id.empty() || options.engine_id.empty() || options.engine_epoch == 0) {
+  if (options.account_id.empty() || options.engine_id.empty() || EngineEpoch() == 0) {
     return ErrorCode::kSystemError;
   }
   std::lock_guard lock(mutex_);
@@ -50,7 +51,6 @@ ErrorCode OrderManager::Initialize(const OrderManagerOptions& options) {
   // 2. 绑定身份并清空内存表
   account_id_ = options.account_id;
   engine_id_ = options.engine_id;
-  engine_epoch_ = options.engine_epoch;
   orders_.clear();
   client_order_index_.clear();
   applied_trade_ids_.clear();
@@ -77,7 +77,7 @@ void OrderManager::Shutdown() {
 
 std::string OrderManager::AllocateOrderId() {
   const auto sequence = order_id_counter_.fetch_add(1, std::memory_order_acq_rel) + 1;
-  return account_id_ + "-" + engine_id_ + "-" + std::to_string(engine_epoch_) + "-" + std::to_string(sequence);
+  return account_id_ + "-" + engine_id_ + "-" + std::to_string(EngineEpoch()) + "-" + std::to_string(sequence);
 }
 
 std::optional<trader::Order> OrderManager::CreateOrder(const trader::OrderRequest& request,

@@ -13,7 +13,6 @@
 #include <functional>
 #include <mutex>
 #include <optional>
-#include <stdexcept>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -35,7 +34,6 @@ qtrade::engine::orders::OrderManagerOptions MakeOptions() {
   qtrade::engine::orders::OrderManagerOptions options;
   options.account_id = "acct";
   options.engine_id = "engine";
-  options.engine_epoch = 7;
   return options;
 }
 
@@ -46,7 +44,7 @@ class RecordingOrderApi final : public qtrade::engine::orders::OrderApi {
   }
 
   std::optional<qtrade::sdk::trader::Order> CreateOrder(const qtrade::sdk::trader::OrderRequest& request,
-                                                         const std::string& order_id) override {
+                                                        const std::string& order_id) override {
     std::lock_guard lock(mutex);
     if (request.client_order_id != 0) {
       if (const auto it = by_client.find(request.client_order_id); it != by_client.end()) {

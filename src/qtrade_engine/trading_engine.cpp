@@ -7,11 +7,12 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/engine/trading_engine.hpp"
 
+#include "qtrade/engine/trading_engine_context.hpp"
+
 #include <qtrade/error_code/error_codes.hpp>
 
 #include <spdlog/spdlog.h>
 
-#include <ctime>
 #include <filesystem>
 #include <unordered_set>
 #include <utility>
@@ -41,8 +42,8 @@ ErrorCode TradingEngine::Init(const EngineConfig& config) {
     return ErrorCode::kSuccess;
   }
 
-  // 1. 本进程启动世代（写入 order_id；须在 OMS Initialize 前赋值）
-  engine_epoch_ = static_cast<std::uint64_t>(time(nullptr));
+  // 1. 固化本进程世代号（首次调用按 Unix 秒取值；写入 order_id）
+  spdlog::info("engine epoch={}", EngineEpoch());
 
   // 2. 应用运行配置（身份 + 行情源 / 静默阈值）
   if (const ErrorCode code = ApplyEngineConfig(config); code != ErrorCode::kSuccess) {
@@ -268,8 +269,7 @@ ErrorCode TradingEngine::AddStrategy(const qtrade::strategy::StrategyConfig& con
     risk.max_volume = config.args.order_volume;
   }
 
-  if (const auto rc = strategy_risk_manager_.UpsertStrategyRules(config.strategy_id, risk);
-      rc != ErrorCode::kSuccess) {
+  if (const auto rc = strategy_risk_manager_.UpsertStrategyRules(config.strategy_id, risk); rc != ErrorCode::kSuccess) {
     lifecycle_.Transition(EngineState::kFailed, "STRATEGY_COMPLIANCE_INVALID");
     return rc;
   }
@@ -337,7 +337,6 @@ ErrorCode TradingEngine::InitEngineModules() {
 
   // 1. OMS：仅内存状态机；冷启动不回放本地订单，Working 态由柜台快照对账重建
   orders::OrderManagerOptions order_options;
-  order_options.engine_epoch = engine_epoch_;
   order_options.account_id = runtime.account_id;
   order_options.engine_id = runtime.engine_id;
   if (const auto rc = order_manager_.Initialize(order_options); rc != ErrorCode::kSuccess) {

@@ -30,8 +30,6 @@ struct OrderManagerOptions {
   std::string account_id;
   /// 引擎 ID
   std::string engine_id;
-  /// 引擎 epoch（Init 时取 Unix 秒，写入全局 order_id）
-  std::uint64_t engine_epoch = 0;
 };
 
 /// @brief 引擎内订单状态与索引管理（仅内存）
@@ -198,8 +196,6 @@ class OrderManager final : public OrderApi {
   std::string account_id_;
   /// 引擎 ID，用于生成全局订单 ID
   std::string engine_id_;
-  /// 当前引擎 epoch
-  std::uint64_t engine_epoch_ = 1;
   /// 是否已 Initialize
   bool initialized_ = false;
 

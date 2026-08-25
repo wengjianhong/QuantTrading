@@ -200,8 +200,6 @@ class TradingEngine final : public IEngine {
   std::atomic<bool> initialized_ = false;
   /// 是否已 Start
   std::atomic<bool> running_ = false;
-  /// 本进程启动世代（Init 时取 Unix 秒，写入 order_id）
-  std::uint64_t engine_epoch_ = 0;
   /// 引擎生命周期状态机（仅本类读写）
   EngineLifecycle lifecycle_;
   /// 已应用的运行配置快照（Init 注入）

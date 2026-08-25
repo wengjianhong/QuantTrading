@@ -1,4 +1,5 @@
 #include "qtrade/engine/orders/order_manager.hpp"
+#include "qtrade/engine/trading_engine_context.hpp"
 
 #include <gtest/gtest.h>
 
@@ -8,7 +9,6 @@ qtrade::engine::orders::OrderManagerOptions MakeOptions() {
   qtrade::engine::orders::OrderManagerOptions options;
   options.account_id = "acct";
   options.engine_id = "engine";
-  options.engine_epoch = 7;
   return options;
 }
 
@@ -25,7 +25,7 @@ TEST(OrderManager, TracksLifecycleInMemory) {
   request.volume = 2;
   const auto order = manager.CreateOrder(request);
   ASSERT_TRUE(order.has_value());
-  EXPECT_EQ(order->order_id.find("acct-engine-7-"), 0U);
+  EXPECT_EQ(order->order_id.find("acct-engine-" + std::to_string(qtrade::engine::EngineEpoch()) + "-"), 0U);
 
   ASSERT_EQ(manager.MarkEmsQueued(order->order_id), qtrade::ErrorCode::kSuccess);
   ASSERT_EQ(manager.MarkSendPending(order->order_id), qtrade::ErrorCode::kSuccess);

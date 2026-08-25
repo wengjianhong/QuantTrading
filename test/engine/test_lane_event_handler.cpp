@@ -27,7 +27,8 @@ class RecordingAccountRiskBridge final : public qtrade::account_risk::IAccountRi
     return result;
   }
 
-  qtrade::Result<qtrade::account_risk::Reservation> Release(const qtrade::account_risk::ReleaseRequest& request) override {
+  qtrade::Result<qtrade::account_risk::Reservation> Release(
+    const qtrade::account_risk::ReleaseRequest& request) override {
     {
       std::lock_guard lock(mutex_);
       releases_.push_back(request);
@@ -41,7 +42,8 @@ class RecordingAccountRiskBridge final : public qtrade::account_risk::IAccountRi
     return result;
   }
 
-  qtrade::Result<qtrade::account_risk::Reservation> QueryReservation(const std::string&, const std::string&) const override {
+  qtrade::Result<qtrade::account_risk::Reservation> QueryReservation(const std::string&,
+                                                                     const std::string&) const override {
     qtrade::Result<qtrade::account_risk::Reservation> result;
     result.error_code = qtrade::ErrorCode::kNotFound;
     return result;
@@ -67,7 +69,6 @@ qtrade::engine::orders::OrderManagerOptions MakeOptions() {
   qtrade::engine::orders::OrderManagerOptions options;
   options.account_id = "acct";
   options.engine_id = "engine";
-  options.engine_epoch = 7;
   return options;
 }
 
