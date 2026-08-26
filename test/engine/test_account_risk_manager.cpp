@@ -1,4 +1,5 @@
 #include "qtrade/engine/account_risk/account_risk_manager.hpp"
+#include "qtrade/engine/orders/order_manager.hpp"
 
 #include <gtest/gtest.h>
 
@@ -82,6 +83,25 @@ class RecordingAccountRiskBridge final : public qtrade::account_risk::IAccountRi
     return result;
   }
 
+  qtrade::Result<std::vector<qtrade::account_risk::Reservation>> ListActiveReservations(
+    const std::string&) const override {
+    qtrade::Result<std::vector<qtrade::account_risk::Reservation>> result;
+    result.error_code = list_error_code_;
+    if (list_error_code_ != qtrade::ErrorCode::kSuccess) {
+      return result;
+    }
+    result.data = active_reservations_;
+    return result;
+  }
+
+  void SetActiveReservations(std::vector<qtrade::account_risk::Reservation> reservations) {
+    active_reservations_ = std::move(reservations);
+  }
+
+  void SetListError(qtrade::ErrorCode error_code) {
+    list_error_code_ = error_code;
+  }
+
   bool WaitForReleases(std::size_t count, std::chrono::milliseconds timeout = std::chrono::milliseconds(2000)) {
     std::unique_lock lock(mutex_);
     return cv_.wait_for(lock, timeout, [&] { return releases_.size() >= count; });
@@ -107,6 +127,8 @@ class RecordingAccountRiskBridge final : public qtrade::account_risk::IAccountRi
     qtrade::account_risk::ReservationState::kReserved;
   qtrade::ErrorCode query_error_code_ = qtrade::ErrorCode::kNotFound;
   std::optional<qtrade::account_risk::ReservationState> query_state_;
+  qtrade::ErrorCode list_error_code_ = qtrade::ErrorCode::kSuccess;
+  std::vector<qtrade::account_risk::Reservation> active_reservations_;
 };
 
 }  // namespace
@@ -176,4 +198,79 @@ TEST(AccountRiskManager, ReserveRejectsNonReservedResponse) {
   request.instrument = "IF2506";
   request.volume = 1;
   EXPECT_EQ(manager.Reserve(request, "order-rejected"), qtrade::ErrorCode::kInternalError);
+}
+
+TEST(AccountRiskManager, CheckActiveReservationsSkipsWhenNoBridge) {
+  qtrade::engine::account_risk::AccountRiskManager risk;
+  qtrade::engine::orders::OrderManager orders;
+  qtrade::engine::orders::OrderManagerOptions options;
+  options.account_id = "acct";
+  options.engine_id = "engine";
+  ASSERT_EQ(orders.Initialize(options), qtrade::ErrorCode::kSuccess);
+  EXPECT_EQ(risk.CheckActiveReservations(orders), qtrade::ErrorCode::kSuccess);
+  orders.Shutdown();
+}
+
+TEST(AccountRiskManager, CheckActiveReservationsReleasesOrphanAndTerminalKeepsWorking) {
+  RecordingAccountRiskBridge bridge;
+  qtrade::account_risk::Reservation keep;
+  keep.order_id = "keep-1";
+  keep.state = qtrade::account_risk::ReservationState::kReserved;
+  qtrade::account_risk::Reservation filled;
+  filled.order_id = "fill-1";
+  filled.state = qtrade::account_risk::ReservationState::kReserved;
+  qtrade::account_risk::Reservation orphan;
+  orphan.order_id = "orphan-1";
+  orphan.state = qtrade::account_risk::ReservationState::kReserved;
+  bridge.SetActiveReservations({keep, filled, orphan});
+
+  qtrade::engine::orders::OrderManager orders;
+  qtrade::engine::orders::OrderManagerOptions options;
+  options.account_id = "acct";
+  options.engine_id = "engine";
+  ASSERT_EQ(orders.Initialize(options), qtrade::ErrorCode::kSuccess);
+
+  qtrade::sdk::trader::Order working;
+  working.order_id = "keep-1";
+  working.status = qtrade::sdk::trader::OrderStatusType::kNotTradedQueueing;
+  working.volume = 1;
+  working.left_volume = 1;
+  orders.ReconcileBrokerOrder(working);
+
+  qtrade::sdk::trader::Order done;
+  done.order_id = "fill-1";
+  done.status = qtrade::sdk::trader::OrderStatusType::kFilled;
+  done.volume = 1;
+  done.traded_volume = 1;
+  done.left_volume = 0;
+  orders.ReconcileBrokerOrder(done);
+
+  qtrade::engine::account_risk::AccountRiskManager risk;
+  risk.SetBridge(&bridge);
+  risk.SetIdentity("acct", "eng");
+  ASSERT_EQ(risk.CheckActiveReservations(orders), qtrade::ErrorCode::kSuccess);
+
+  const auto releases = bridge.Releases();
+  ASSERT_EQ(releases.size(), 2U);
+  EXPECT_EQ(releases[0].order_id, "fill-1");
+  EXPECT_EQ(releases[0].reason, qtrade::account_risk::ReleaseReason::kSettled);
+  EXPECT_EQ(releases[1].order_id, "orphan-1");
+  EXPECT_EQ(releases[1].reason, qtrade::account_risk::ReleaseReason::kExpired);
+  orders.Shutdown();
+}
+
+TEST(AccountRiskManager, CheckActiveReservationsFailsWhenListFails) {
+  RecordingAccountRiskBridge bridge;
+  bridge.SetListError(qtrade::ErrorCode::kTimeout);
+  qtrade::engine::orders::OrderManager orders;
+  qtrade::engine::orders::OrderManagerOptions options;
+  options.account_id = "acct";
+  options.engine_id = "engine";
+  ASSERT_EQ(orders.Initialize(options), qtrade::ErrorCode::kSuccess);
+
+  qtrade::engine::account_risk::AccountRiskManager risk;
+  risk.SetBridge(&bridge);
+  risk.SetIdentity("acct", "eng");
+  EXPECT_EQ(risk.CheckActiveReservations(orders), qtrade::ErrorCode::kTimeout);
+  orders.Shutdown();
 }

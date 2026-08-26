@@ -152,7 +152,7 @@ class TradingEngine final : public IEngine {
   /// @return ErrorCode::kSuccess 表示成功
   ErrorCode StartAdapters();
 
-  /// @brief 查询柜台订单/成交/持仓/资金并对账合并到 OMS/Account/Position
+  /// @brief 查询柜台订单/成交/持仓/资金并对账合并到 OMS/Account/Position，再核对 account-risk 有效预占
   /// @return ErrorCode::kSuccess 表示成功
   ErrorCode ReconcileBrokerState();
 

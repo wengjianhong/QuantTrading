@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace qtrade::account_risk {
 
@@ -165,6 +166,11 @@ class IAccountRiskBridge {
   /// @param order_id 全局订单 ID（同一账户内唯一）
   /// @return Result<Reservation> 预占状态
   virtual Result<Reservation> QueryReservation(const std::string& account_id, const std::string& order_id) const = 0;
+
+  /// @brief 列出账户上仍为 reserved 的预占（启动对账）
+  /// @param account_id 交易账户号（全局唯一）
+  /// @return Result<vector<Reservation>> 未终结预占列表；账户无记录时为空列表
+  virtual Result<std::vector<Reservation>> ListActiveReservations(const std::string& account_id) const = 0;
 };
 
 }  // namespace qtrade::account_risk

@@ -8,6 +8,7 @@
 #define QTRADE_ENGINE_ACCOUNT_RISK_ACCOUNT_RISK_MANAGER_HPP_
 
 #include "qtrade/engine/account_risk/account_risk_api.hpp"
+#include "qtrade/engine/orders/order_api.hpp"
 
 #include <condition_variable>
 #include <cstddef>
@@ -48,6 +49,12 @@ class AccountRiskManager final : public AccountRiskApi {
   /// @param account_id 交易账户号
   /// @param engine_id 引擎实例标识
   void SetIdentity(std::string account_id, std::string engine_id);
+
+  /// @brief 核对账户上仍有效的预占：柜台无单或已终态则同步释放
+  /// @details 未注入桥时跳过。列出失败则返回错误（禁止进入 READY）；Release 失败只 warn。
+  /// @param orders 已完成柜台 Adopt 的 OMS
+  /// @return 列出成功或无需核对应返回 kSuccess
+  [[nodiscard]] ErrorCode CheckActiveReservations(const orders::OrderApi& orders);
 
   // ---------------------------------------------------------------------------
   // 异步释放生命周期

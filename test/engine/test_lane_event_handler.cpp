@@ -49,6 +49,13 @@ class RecordingAccountRiskBridge final : public qtrade::account_risk::IAccountRi
     return result;
   }
 
+  qtrade::Result<std::vector<qtrade::account_risk::Reservation>> ListActiveReservations(
+    const std::string&) const override {
+    qtrade::Result<std::vector<qtrade::account_risk::Reservation>> result;
+    result.data = std::vector<qtrade::account_risk::Reservation>{};
+    return result;
+  }
+
   bool WaitForReleases(std::size_t count, std::chrono::milliseconds timeout = std::chrono::milliseconds(2000)) {
     std::unique_lock lock(mutex_);
     return cv_.wait_for(lock, timeout, [&] { return releases_.size() >= count; });

@@ -478,6 +478,13 @@ ErrorCode TradingEngine::ReconcileBrokerState() {
     lifecycle_.Transition(EngineState::kFailed, "BROKER_RECONCILIATION_FAILED");
     return ErrorCode::kInternalError;
   }
+
+  // 4. 核对 account-risk 有效预占：柜台无单或已终态则释放，Working/部分成交保留
+  if (const auto rc = account_risk_manager_.CheckActiveReservations(order_manager_); rc != ErrorCode::kSuccess) {
+    spdlog::error("CheckActiveReservations failed, code={}", static_cast<int>(rc));
+    lifecycle_.Transition(EngineState::kFailed, "ACCOUNT_RISK_RECONCILIATION_FAILED");
+    return rc;
+  }
   return ErrorCode::kSuccess;
 }
 

@@ -7,7 +7,32 @@
 
 #include <spdlog/spdlog.h>
 
+#include <optional>
+
 namespace qtrade::engine::account_risk {
+namespace {
+
+/// @brief 启动对账：本地无单或已终态则释放预占
+/// @param state OMS 生命周期；空表示柜台/OMS 均无该单
+/// @return 应释放时返回原因；应保留时返回 nullopt
+[[nodiscard]] std::optional<qtrade::account_risk::ReleaseReason> ReleaseReasonIfStale(
+  std::optional<orders::OrderLifecycleState> state) {
+  if (!state.has_value()) {
+    return qtrade::account_risk::ReleaseReason::kExpired;
+  }
+  switch (*state) {
+    case orders::OrderLifecycleState::kFilled:
+      return qtrade::account_risk::ReleaseReason::kSettled;
+    case orders::OrderLifecycleState::kCanceled:
+      return qtrade::account_risk::ReleaseReason::kCanceled;
+    case orders::OrderLifecycleState::kRejected:
+      return qtrade::account_risk::ReleaseReason::kRejectedByVenue;
+    default:
+      return std::nullopt;
+  }
+}
+
+}  // namespace
 
 AccountRiskManager::AccountRiskManager() = default;
 
@@ -24,6 +49,43 @@ void AccountRiskManager::SetIdentity(std::string account_id, std::string engine_
   std::lock_guard lock(mutex_);
   account_id_ = std::move(account_id);
   engine_id_ = std::move(engine_id);
+}
+
+ErrorCode AccountRiskManager::CheckActiveReservations(const orders::OrderApi& orders) {
+  qtrade::account_risk::IAccountRiskBridge* bridge = nullptr;
+  std::string account_id;
+  {
+    std::lock_guard lock(mutex_);
+    bridge = bridge_;
+    account_id = account_id_;
+  }
+  if (bridge == nullptr) {
+    return ErrorCode::kSuccess;
+  }
+  if (account_id.empty()) {
+    return ErrorCode::kSystemError;
+  }
+
+  const auto listed = bridge->ListActiveReservations(account_id);
+  if (listed.error_code != ErrorCode::kSuccess || !listed.data.has_value()) {
+    spdlog::error("ListActiveReservations failed, code={}", static_cast<int>(listed.error_code));
+    return listed.error_code == ErrorCode::kSuccess ? ErrorCode::kInternalError : listed.error_code;
+  }
+
+  for (const auto& reservation : *listed.data) {
+    if (reservation.order_id.empty() || reservation.state != qtrade::account_risk::ReservationState::kReserved) {
+      continue;
+    }
+    const auto reason = ReleaseReasonIfStale(orders.GetLifecycleState(reservation.order_id));
+    if (!reason.has_value()) {
+      continue;
+    }
+    spdlog::info("reconcile release reservation order_id={} reason={}",
+                 reservation.order_id,
+                 static_cast<int>(*reason));
+    InvokeRelease(bridge, account_id, ReleaseItem{reservation.order_id, *reason});
+  }
+  return ErrorCode::kSuccess;
 }
 
 void AccountRiskManager::Start() {
