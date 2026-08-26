@@ -33,7 +33,6 @@
 #include <qtrade/sdk/trader/trader_api.hpp>
 
 #include <atomic>
-#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -68,9 +67,11 @@ class TradingEngine final : public IEngine {
   /// @param config 引擎配置
   /// @return 初始化结果
   ErrorCode Init(const EngineConfig& config) override;
+
   /// @brief 启动交易引擎
   /// @return 启动结果
   ErrorCode Start() override;
+
   /// @brief 停止交易引擎
   /// @return 停止结果
   ErrorCode Stop() override;
@@ -78,6 +79,7 @@ class TradingEngine final : public IEngine {
   /// @brief 查询当前生命周期状态
   /// @return 当前引擎状态
   [[nodiscard]] EngineState State() const override;
+
   /// @brief 查询引擎是否正在运行
   /// @return 已启动且未停止时返回 true
   [[nodiscard]] bool IsRunning() const override;
@@ -89,12 +91,15 @@ class TradingEngine final : public IEngine {
   /// @brief 注入账户服务桥接
   /// @param bridge 账户桥接指针；可为 nullptr
   void SetAccountBridge(qtrade::account::IAccountBridge* bridge) override;
+
   /// @brief 注入账户硬风控桥接
   /// @param bridge 账户硬风控桥接指针；可为 nullptr
   void SetAccountRiskBridge(qtrade::account_risk::IAccountRiskBridge* bridge) override;
+
   /// @brief 注入行情适配器
   /// @param quote_api 行情适配器所有权
   void SetQuoteApi(std::unique_ptr<qtrade::sdk::quote::QuoteApi> quote_api) override;
+
   /// @brief 注入交易适配器
   /// @param trader_api 交易适配器所有权
   void SetTraderApi(std::unique_ptr<qtrade::sdk::trader::TraderApi> trader_api) override;
@@ -244,6 +249,8 @@ class TradingEngine final : public IEngine {
   account_risk::AccountRiskManager account_risk_manager_;
   /// A→E 意图队列（须在 account_risk / order / execution 之后、pipeline 之前）
   OrderIntentQueue order_intent_queue_{account_risk_manager_, order_manager_, execution_manager_};
+  /// Lane-T 引擎侧回报处理（须在 order/account/position/account_risk 之后；Start 时先于策略 Dispatcher 注册）
+  LaneEventHandler lane_event_handler_{order_manager_, account_manager_, position_manager_, account_risk_manager_};
   /// 发单流水线（须在 compliance/strategy_risk/order/execution/intent_queue 之后）
   OrderPipeline order_pipeline_{compliance_manager_,
                                 strategy_risk_manager_,
@@ -251,8 +258,6 @@ class TradingEngine final : public IEngine {
                                 order_manager_,
                                 execution_manager_,
                                 order_intent_queue_};
-  /// Lane-T 引擎侧回报处理（须在 order/account/position/account_risk 之后；Start 时先于策略 Dispatcher 注册）
-  LaneEventHandler lane_event_handler_{order_manager_, account_manager_, position_manager_, account_risk_manager_};
 
   // ---------------------------------------------------------------------------
   // 成员：适配器
