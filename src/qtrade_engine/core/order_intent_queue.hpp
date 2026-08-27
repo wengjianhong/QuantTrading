@@ -74,7 +74,8 @@ class OrderIntentQueue {
 
   /// @brief 将已通过 A 段的意图入队
   /// @param intent 发单意图
-  /// @return 入队成功或同 client_order_id 已在途/已建单返回 kSuccess；未启动返回 kNotInitialized；队列满返回 kResourceExhausted
+  /// @return 入队成功或同 client_order_id 已在途/已建单返回 kSuccess；未启动返回 kNotInitialized；队列满返回
+  /// kResourceExhausted
   ErrorCode Enqueue(OrderIntent intent);
 
   /// @brief 队列中尚未完成 E 段的意图数（含正在 Execute 的一笔）
@@ -100,9 +101,7 @@ class OrderIntentQueue {
   /// @param request 原始请求
   /// @param order_id 本次分配的订单 ID
   /// @param rc 失败原因；kTimeout 记 Unknown，其余记 Rejected
-  void RecordLocalFailure(const qtrade::sdk::trader::OrderRequest& request,
-                          const std::string& order_id,
-                          ErrorCode rc);
+  void RecordLocalFailure(const qtrade::sdk::trader::OrderRequest& request, const std::string& order_id, ErrorCode rc);
 
   /// @brief 回传策略（不经 Lane-T）
   /// @param order 订单快照

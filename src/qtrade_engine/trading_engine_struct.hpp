@@ -9,7 +9,7 @@
 #define QTRADE_ENGINE_TRADING_ENGINE_STRUCT_HPP_
 
 namespace qtrade::engine {
-// 
+//
 
 }  // namespace qtrade::engine
 

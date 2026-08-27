@@ -64,7 +64,7 @@ class RecordingOrderApi final : public qtrade::engine::orders::OrderApi {
   }
 
   std::optional<qtrade::sdk::trader::Order> CreateOrder(const qtrade::sdk::trader::OrderRequest& request,
-                                                         const std::string& order_id) override {
+                                                        const std::string& order_id) override {
     qtrade::sdk::trader::Order order;
     order.order_id = order_id;
     order.instrument = request.instrument;
@@ -79,8 +79,7 @@ class RecordingOrderApi final : public qtrade::engine::orders::OrderApi {
     return std::nullopt;
   }
 
-  std::optional<qtrade::engine::orders::OrderLifecycleState> GetLifecycleState(
-    const std::string&) const override {
+  std::optional<qtrade::engine::orders::OrderLifecycleState> GetLifecycleState(const std::string&) const override {
     return qtrade::engine::orders::OrderLifecycleState::kPrepared;
   }
 
@@ -149,8 +148,7 @@ TEST(OrderPipeline, ComplianceDenialPrecedesOmsAndAccountReservation) {
   RecordingExecutionApi execution;
   RecordingAccountRiskApi account_risk;
   qtrade::engine::OrderIntentQueue intent_queue{account_risk, orders, execution};
-  qtrade::engine::OrderPipeline pipeline{
-    compliance, strategy_risk, instance_risk, orders, execution, intent_queue};
+  qtrade::engine::OrderPipeline pipeline{compliance, strategy_risk, instance_risk, orders, execution, intent_queue};
 
   qtrade::sdk::trader::OrderRequest request;
   request.instrument = "IF2506";
@@ -169,8 +167,7 @@ TEST(OrderPipeline, SubmitEnqueuesWithoutWaitingForReserve) {
   account_risk.hold = std::chrono::milliseconds(120);
   qtrade::engine::OrderIntentQueue intent_queue{account_risk, orders, execution};
   intent_queue.Start();
-  qtrade::engine::OrderPipeline pipeline{
-    compliance, strategy_risk, instance_risk, orders, execution, intent_queue};
+  qtrade::engine::OrderPipeline pipeline{compliance, strategy_risk, instance_risk, orders, execution, intent_queue};
 
   qtrade::sdk::trader::OrderRequest request;
   request.instrument = "IF2506";
@@ -204,8 +201,7 @@ TEST(OrderPipeline, InstanceRiskSeesInflightIntent) {
   instance_risk.SetStateProviders([&] { return intent_queue.PendingCount(); },
                                   [&] { return intent_queue.PendingNotional(); });
   intent_queue.Start();
-  qtrade::engine::OrderPipeline pipeline{
-    compliance, strategy_risk, instance_risk, orders, execution, intent_queue};
+  qtrade::engine::OrderPipeline pipeline{compliance, strategy_risk, instance_risk, orders, execution, intent_queue};
 
   qtrade::sdk::trader::OrderRequest request;
   request.instrument = "IF2506";

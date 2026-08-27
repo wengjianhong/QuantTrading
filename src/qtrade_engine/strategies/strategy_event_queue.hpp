@@ -37,8 +37,7 @@ class StrategyEventQueue {
   /// @brief 绑定策略实例（不拥有）
   /// @param strategy 策略回调目标；须在 Stop 之后才可销毁
   /// @param capacity 队列容量；0 按默认容量
-  explicit StrategyEventQueue(qtrade::strategy::IStrategy& strategy,
-                              std::size_t capacity = kDefaultCapacity);
+  explicit StrategyEventQueue(qtrade::strategy::IStrategy& strategy, std::size_t capacity = kDefaultCapacity);
 
   /// @brief 停止工作线程
   ~StrategyEventQueue();

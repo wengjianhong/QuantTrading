@@ -71,16 +71,13 @@ ErrorCode StrategyManager::AddStrategyFromPlugin(const StrategyConfig& config,
   // 同插件多实例：已加载则复用句柄，不再次 dlopen
   if (!plugin_loader_.HasPlugin(config.strategy_name)) {
     if (const auto rc = plugin_loader_.LoadFile(plugin_so_path); rc != ErrorCode::kSuccess) {
-      spdlog::error("[StrategyManager] LoadFile failed path={} strategy_id={}",
-                    plugin_so_path,
-                    config.strategy_id);
+      spdlog::error("[StrategyManager] LoadFile failed path={} strategy_id={}", plugin_so_path, config.strategy_id);
       return rc;
     }
     if (!plugin_loader_.HasPlugin(config.strategy_name)) {
-      spdlog::error(
-        "[StrategyManager] plugin ABI name mismatch: config.strategy_name={} path={}",
-        config.strategy_name,
-        plugin_so_path);
+      spdlog::error("[StrategyManager] plugin ABI name mismatch: config.strategy_name={} path={}",
+                    config.strategy_name,
+                    plugin_so_path);
       return ErrorCode::kDynamicLibrarySymbolNotFound;
     }
   }

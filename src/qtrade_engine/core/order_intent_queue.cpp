@@ -243,7 +243,8 @@ void OrderIntentQueue::Execute(const OrderIntent& intent) {
     if (const auto rc = orders_.MarkEmsQueued(order->order_id); rc != ErrorCode::kSuccess) {
       account_risk_.Release(order->order_id, qtrade::account_risk::ReleaseReason::kSendFailed);
       RecordLocalFailure(request, order->order_id, rc);
-      spdlog::warn("[OrderIntentQueue] MarkEmsQueued failed order_id={} code={}", order->order_id, static_cast<int>(rc));
+      spdlog::warn(
+        "[OrderIntentQueue] MarkEmsQueued failed order_id={} code={}", order->order_id, static_cast<int>(rc));
       return;
     }
 

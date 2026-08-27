@@ -25,7 +25,7 @@ ErrorCode InstanceRiskManager::Configure(const InstanceRiskLimits& limits) {
 }
 
 void InstanceRiskManager::SetStateProviders(std::function<std::uint64_t()> open_orders_provider,
-                                    std::function<double()> notional_provider) {
+                                            std::function<double()> notional_provider) {
   std::lock_guard lock(mutex_);
   notional_provider_ = std::move(notional_provider);
   open_orders_provider_ = std::move(open_orders_provider);
@@ -56,8 +56,7 @@ ErrorCode InstanceRiskManager::CheckOrder(const qtrade::sdk::trader::OrderReques
 
   // 3. 单笔与累计敞口预算检查
   const double order_notional = request.price * static_cast<double>(request.volume);
-  if (!std::isfinite(order_notional) ||
-      (limits.max_order_volume > 0 && request.volume > limits.max_order_volume) ||
+  if (!std::isfinite(order_notional) || (limits.max_order_volume > 0 && request.volume > limits.max_order_volume) ||
       (limits.max_order_notional > 0.0 && order_notional > limits.max_order_notional)) {
     return ErrorCode::kResourceExhausted;
   }

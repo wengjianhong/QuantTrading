@@ -10,12 +10,11 @@
 namespace qtrade::engine::strategy_risk {
 
 ErrorCode StrategyRiskManager::UpsertStrategyRules(const std::string& strategy_id,
-                                                 const qtrade::strategy::StrategyRiskLimits& risk) {
+                                                   const qtrade::strategy::StrategyRiskLimits& risk) {
   if (strategy_id.empty()) {
     return ErrorCode::kInvalidArgument;
   }
-  if (risk.max_volume < 0 || risk.max_notional < 0.0 || risk.max_position_volume < 0 ||
-      risk.order_cooldown_ms < 0) {
+  if (risk.max_volume < 0 || risk.max_notional < 0.0 || risk.max_position_volume < 0 || risk.order_cooldown_ms < 0) {
     return ErrorCode::kSystemError;
   }
   std::lock_guard lock(mutex_);
@@ -33,8 +32,7 @@ void StrategyRiskManager::RemoveStrategyRules(const std::string& strategy_id) {
 
 ErrorCode StrategyRiskManager::CheckOrder(const qtrade::sdk::trader::OrderRequest& request) const {
   if (request.strategy_id.empty() || request.instrument.empty() || request.volume <= 0 ||
-      !std::isfinite(request.price) || request.price < 0.0 ||
-      request.side == qtrade::sdk::trader::SideType::kUnknown ||
+      !std::isfinite(request.price) || request.price < 0.0 || request.side == qtrade::sdk::trader::SideType::kUnknown ||
       request.price_type == qtrade::sdk::trader::PriceType::kUnknown ||
       request.position_effect == qtrade::sdk::trader::PositionEffectType::kUnknown ||
       request.business_type == qtrade::sdk::trader::BusinessType::kUnknown) {

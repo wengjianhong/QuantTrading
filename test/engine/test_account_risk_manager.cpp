@@ -16,8 +16,7 @@ class RecordingAccountRiskBridge final : public qtrade::account_risk::IAccountRi
   /// @brief 设置 Reserve 返回结果
   /// @param error_code Reserve 调用错误码
   /// @param state Reservation 状态；空表示不返回 Reservation
-  void SetReserveResult(qtrade::ErrorCode error_code,
-                        std::optional<qtrade::account_risk::ReservationState> state) {
+  void SetReserveResult(qtrade::ErrorCode error_code, std::optional<qtrade::account_risk::ReservationState> state) {
     reserve_error_code_ = error_code;
     reserve_state_ = state;
   }
@@ -25,8 +24,7 @@ class RecordingAccountRiskBridge final : public qtrade::account_risk::IAccountRi
   /// @brief 设置 QueryReservation 返回结果
   /// @param error_code QueryReservation 调用错误码
   /// @param state Reservation 状态；空表示不返回 Reservation
-  void SetQueryResult(qtrade::ErrorCode error_code,
-                      std::optional<qtrade::account_risk::ReservationState> state) {
+  void SetQueryResult(qtrade::ErrorCode error_code, std::optional<qtrade::account_risk::ReservationState> state) {
     query_error_code_ = error_code;
     query_state_ = state;
   }
@@ -37,7 +35,8 @@ class RecordingAccountRiskBridge final : public qtrade::account_risk::IAccountRi
     return result;
   }
 
-  qtrade::Result<qtrade::account_risk::Reservation> Reserve(const qtrade::account_risk::ReserveRequest& request) override {
+  qtrade::Result<qtrade::account_risk::Reservation> Reserve(
+    const qtrade::account_risk::ReserveRequest& request) override {
     std::lock_guard lock(mutex_);
     last_reserve_ = request;
     qtrade::Result<qtrade::account_risk::Reservation> result;
@@ -53,7 +52,8 @@ class RecordingAccountRiskBridge final : public qtrade::account_risk::IAccountRi
     return result;
   }
 
-  qtrade::Result<qtrade::account_risk::Reservation> Release(const qtrade::account_risk::ReleaseRequest& request) override {
+  qtrade::Result<qtrade::account_risk::Reservation> Release(
+    const qtrade::account_risk::ReleaseRequest& request) override {
     {
       std::lock_guard lock(mutex_);
       releases_.push_back(request);
@@ -69,7 +69,7 @@ class RecordingAccountRiskBridge final : public qtrade::account_risk::IAccountRi
   }
 
   qtrade::Result<qtrade::account_risk::Reservation> QueryReservation(const std::string& account_id,
-                                                                      const std::string& order_id) const override {
+                                                                     const std::string& order_id) const override {
     qtrade::Result<qtrade::account_risk::Reservation> result;
     result.error_code = query_error_code_;
     if (!query_state_.has_value()) {

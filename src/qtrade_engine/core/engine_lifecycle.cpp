@@ -20,20 +20,18 @@ namespace {
 bool IsAllowedTransition(EngineState from, EngineState to) {
   switch (from) {
     case EngineState::kNew:
-      return to == EngineState::kInitiated || to == EngineState::kFailed ||
-             to == EngineState::kStopped;
+      return to == EngineState::kInitiated || to == EngineState::kFailed || to == EngineState::kStopped;
     case EngineState::kStopped:
       return to == EngineState::kInitiated;
     case EngineState::kInitiated:
-      return to == EngineState::kReady || to == EngineState::kFrozen ||
-             to == EngineState::kDraining || to == EngineState::kFailed ||
-             to == EngineState::kStopped;
+      return to == EngineState::kReady || to == EngineState::kFrozen || to == EngineState::kDraining ||
+             to == EngineState::kFailed || to == EngineState::kStopped;
     case EngineState::kReady:
-      return to == EngineState::kFrozen || to == EngineState::kDraining ||
-             to == EngineState::kFailed || to == EngineState::kStopped;
+      return to == EngineState::kFrozen || to == EngineState::kDraining || to == EngineState::kFailed ||
+             to == EngineState::kStopped;
     case EngineState::kFrozen:
-      return to == EngineState::kReady || to == EngineState::kDraining ||
-             to == EngineState::kFailed || to == EngineState::kStopped;
+      return to == EngineState::kReady || to == EngineState::kDraining || to == EngineState::kFailed ||
+             to == EngineState::kStopped;
     case EngineState::kDraining:
       return to == EngineState::kStopped || to == EngineState::kFailed;
     case EngineState::kFailed:

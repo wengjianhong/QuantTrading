@@ -6,10 +6,17 @@
 /// @copyright CC BY-NC-SA 4.0
 #include "qtrade/engine/execution/execution_manager.hpp"
 
+#include "qtrade/common/validate/trader_types.hpp"
 #include "qtrade/engine/account_risk/account_risk_api.hpp"
 #include "qtrade/engine/orders/order_api.hpp"
 
+#include <spdlog/spdlog.h>
+
+#include <cstdint>
+
 namespace qtrade::engine::execution {
+
+using qtrade::common::validate::IsValidMarket;
 
 ExecutionManager::~ExecutionManager() {
   Stop();
@@ -94,8 +101,8 @@ ErrorCode ExecutionManager::EnqueueCancel(const qtrade::sdk::trader::CancelOrder
 void ExecutionManager::Run() {
   while (true) {
     WorkItem item;
-    qtrade::sdk::trader::TraderApi* trader_api = nullptr;
     orders::OrderApi* order_api = nullptr;
+    qtrade::sdk::trader::TraderApi* trader_api = nullptr;
     account_risk::AccountRiskApi* account_risk = nullptr;
     {
       std::unique_lock lock(mutex_);
@@ -141,10 +148,29 @@ void ExecutionManager::Run() {
     request.side = order.side;
     request.position_effect = order.position_effect;
     request.business_type = order.business_type;
-    const auto result = trader_api != nullptr ? trader_api->SendOrder(request) : ErrorCode::kNotInitialized;
-    if (order_api != nullptr) {
-      (void)order_api->RecordSendResult(order.order_id, result);
+
+    ErrorCode result = ErrorCode::kNotInitialized;
+    if (!IsValidMarket(order.market)) {
+      spdlog::info("[ExecutionManager] reject order order_id={} invalid market={}",
+                   order.order_id,
+                   static_cast<std::uint8_t>(order.market));
+      result = ErrorCode::kInvalidArgument;
+      continue;
     }
+
+    if (trader_api == nullptr) {
+      spdlog::error("[ExecutionManager] trader_api is nullptr");
+      continue;
+    }
+
+    if (order_api != nullptr) {
+      spdlog::error("[ExecutionManager] order_api is nullptr");
+      continue;
+    }
+
+    result = trader_api->SendOrder(request);
+    (void)order_api->RecordSendResult(order.order_id, result);
+
     if (result != ErrorCode::kSuccess && account_risk != nullptr) {
       account_risk->Release(order.order_id, qtrade::account_risk::ReleaseReason::kSendFailed);
     }

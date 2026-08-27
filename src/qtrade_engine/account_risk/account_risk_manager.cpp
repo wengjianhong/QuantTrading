@@ -80,9 +80,8 @@ ErrorCode AccountRiskManager::CheckActiveReservations(const orders::OrderApi& or
     if (!reason.has_value()) {
       continue;
     }
-    spdlog::info("reconcile release reservation order_id={} reason={}",
-                 reservation.order_id,
-                 static_cast<int>(*reason));
+    spdlog::info(
+      "reconcile release reservation order_id={} reason={}", reservation.order_id, static_cast<int>(*reason));
     InvokeRelease(bridge, account_id, ReleaseItem{reservation.order_id, *reason});
   }
   return ErrorCode::kSuccess;
@@ -144,10 +143,9 @@ ErrorCode AccountRiskManager::Reserve(const qtrade::sdk::trader::OrderRequest& r
 
   // 3. 预占结果未知时使用相同 order_id 查询确认，避免重复预占。
   const auto reserve_result = bridge->Reserve(reserve_request);
-  const bool reserve_unknown =
-    reserve_result.error_code == ErrorCode::kTimeout ||
-    (reserve_result.error_code == ErrorCode::kSuccess && reserve_result.data.has_value() &&
-     reserve_result.data->state == qtrade::account_risk::ReservationState::kUnspecified);
+  const bool reserve_unknown = reserve_result.error_code == ErrorCode::kTimeout ||
+                               (reserve_result.error_code == ErrorCode::kSuccess && reserve_result.data.has_value() &&
+                                reserve_result.data->state == qtrade::account_risk::ReservationState::kUnspecified);
   if (reserve_unknown) {
     const auto query_result = bridge->QueryReservation(account_id, order_id);
     if (query_result.error_code != ErrorCode::kSuccess || !query_result.data.has_value() ||
